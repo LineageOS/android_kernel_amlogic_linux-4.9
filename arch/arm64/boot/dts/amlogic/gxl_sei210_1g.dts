@@ -18,7 +18,7 @@
 /dts-v1/;
 
 #include "mesongxl.dtsi"
-#include "partition_mbox_normal_sei32bit.dtsi"
+#include "partition_mbox_normal_P_32_sei.dtsi"
 / {
 	model = "Amlogic";
 	amlogic-dt-id = "gxl_sei210_1g";
@@ -745,8 +745,8 @@
 		status = "okay";
 		scan_period = <20>;
 		key_num = <1>;
-		key_name = "bt-paring";
-		key_code = <218>;
+		key_name = "DPAD_DOWN";
+		key_code = <108>;
 		key-gpios = <&gpio_ao  GPIOAO_2  GPIO_ACTIVE_HIGH>;
 		detect_mode = <0>;/*0:polling mode, 1:irq mode*/
 	};
