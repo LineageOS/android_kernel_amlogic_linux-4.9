@@ -32,4 +32,10 @@ config AMLOGIC_PCA9557_KEYPAD
         help
           Say Y here if you want to use the amlogic hold key.
 
+config SEI_RESET_KEY
+        tristate "SEI gpio key device surport"
+        default n
+        help
+          Say Y here if you want to long press RESET key as  ENTER function.
+
 endif # AMLOGIC_INPUT_KEYBOARD
