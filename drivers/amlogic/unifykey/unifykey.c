@@ -961,6 +961,7 @@ void  *get_ukdev(void)
 {
 	return ukdev_global;
 }
+EXPORT_SYMBOL(get_ukdev);
 
 static ssize_t unifykey_read(struct file *file,
 	char __user *buf,

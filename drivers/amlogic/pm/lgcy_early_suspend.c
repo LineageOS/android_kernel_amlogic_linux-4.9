@@ -56,6 +56,35 @@ unsigned int early_suspend_state;
  */
 unsigned int already_early_suspend;
 
+//Askey: Added. Start -------------
+#define PM_LED_CTRL
+
+#ifdef PM_LED_CTRL
+static int pm_set_led(int mode)
+{
+	void __iomem *vaddr = NULL;
+	unsigned int data = 0;
+	//unsigned reg = 0xc8834434;
+	unsigned int reg = 0;
+	// set value for GPIOAO_2 and GPIOAO_4
+	reg = 0xff800034;
+	reg = round_down(reg, 0x3);
+	vaddr = ioremap(reg, 0x4);
+	data = readl(vaddr);
+	data &= 0xffffffeb;
+	if (mode != 0)
+		data |= 0x00000004;
+	else
+		data |= 0x00000010;
+
+	writel(data, vaddr);
+	iounmap(vaddr);
+
+	return 0;
+}
+#endif
+//Askey: Added. End ------------------
+
 void register_early_suspend(struct early_suspend *handler)
 {
 	struct list_head *pos;
@@ -100,6 +129,11 @@ static inline void early_suspend(void)
 		}
 
 	pr_info("early_suspend: done\n");
+//Askey: Added. Start
+#ifdef PM_LED_CTRL
+	pm_set_led(0);
+#endif
+//Askey: Added. End
 
 end_early_suspend:
 	mutex_unlock(&early_suspend_lock);
@@ -125,6 +159,11 @@ static inline void late_resume(void)
 			pos->resume(pos);
 		}
 	pr_info("late_resume: done\n");
+//Askey: Added. Start
+#ifdef PM_LED_CTRL
+	pm_set_led(1);
+#endif
+//Askey: Added. End
 
 end_late_resume:
 	mutex_unlock(&early_suspend_lock);
