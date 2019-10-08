@@ -585,7 +585,7 @@
 		aml-audio-card,name = "AML-AUGESOUND";
 
 		/*avout mute gpio*/
-		avout_mute-gpios = <&gpio_ao GPIOAO_2 GPIO_ACTIVE_HIGH>;
+		/*avout_mute-gpios = <&gpio_ao GPIOAO_2 GPIO_ACTIVE_HIGH>;*/
 
 		aml-audio-card,dai-link@0 {
 			format = "dsp_a";
@@ -1084,6 +1084,14 @@
 	};
 };
 
+
+&i2c_AO {
+	status = "okay";
+	pinctrl-names="default";
+	pinctrl-0=<&ao_i2c_master_pins1>;
+	clock-frequency = <100000>;
+};
+
 &audiobus {
 	tdma: tdm@0 {
 		compatible = "amlogic, sm1-snd-tdma";
@@ -1167,7 +1175,7 @@
 
 		interrupt-names = "irq_spdifin";
 		pinctrl-names = "spdif_pins";
-		pinctrl-0 = <&spdifin>;
+		pinctrl-0 = <&spdifout>;
 
 		status = "okay";
 	};
@@ -1309,6 +1317,13 @@
 		};
 	};
 
+	spdifout: spdifout {
+		mux {/* GPIOH_4 */
+			groups = "spdif_out_h";
+			function = "spdif_out";
+		};
+	};
+
 	pdmin: pdmin {
 		mux { /* GPIOA_5, GPIOA_6, GPIOA_8, GPIOA_9, GPIOA_7 */
 			groups = "pdm_din0_a",
@@ -1358,7 +1373,7 @@
 }; /* end of pinctrl_periphs */
 
 &pinctrl_aobus {
-	spdifout: spdifout {
+	spdifout_AO: spdifout_AO {
 		mux { /* GPIOAO_10 */
 			groups = "spdif_out_ao";
 			function = "spdif_out_ao";
@@ -1389,8 +1404,9 @@
 	status = "okay";
 	portnum = <0>;
 	otg = <1>;
-	gpio-vbus-power = "GPIOH_6";
+	/*gpio-vbus-power = "GPIOH_6";
 	gpios = <&gpio GPIOH_6 GPIO_ACTIVE_HIGH>;
+	*/
 };
 
 &dwc2_a {
