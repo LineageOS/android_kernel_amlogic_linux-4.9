@@ -48,6 +48,7 @@
 #include <linux/arm-smccc.h>
 #include "checksha.h"
 #include <linux/amlogic/media/sound/hdmi_earc.h>
+#include <linux/amlogic/scpi_protocol.h>
 
 static void mode420_half_horizontal_para(void);
 static void hdmi_phy_suspend(void);
@@ -1847,6 +1848,40 @@ static void hdmitx_set_pll(struct hdmitx_dev *hdev)
 	hdmitx_set_clk(hdev);
 }
 
+static void set_phy_6g_sm1(void)
+{
+	unsigned char info[12] = {0};
+	int idx = 1;
+
+	memset(info, 0, sizeof(info));
+	if (scpi_get_ring_value(info) != 0)
+		memset(info, 0, sizeof(info));
+	pr_info("value: %d\n", info[3]);
+	if (info[3] == 0)
+		idx = 1;
+	else if (info[3] <= 127)
+		idx = 0;
+	else if (info[3] <= 138)
+		idx = 1;
+	else
+		idx = 2;
+
+	switch (idx) {
+	case 0:
+		hd_write_reg(P_HHI_HDMI_PHY_CNTL0, 0x07EB65F3);
+		break;
+	case 1:
+		hd_write_reg(P_HHI_HDMI_PHY_CNTL0, 0x37EB65C4);
+		break;
+	case 2:
+		hd_write_reg(P_HHI_HDMI_PHY_CNTL0, 0x37EB65A4);
+		break;
+	default:
+		hd_write_reg(P_HHI_HDMI_PHY_CNTL0, 0x37EB65C4);
+		break;
+	}
+}
+
 static void set_phy_by_mode(unsigned int mode)
 {
 	struct hdmitx_dev *hdev = get_hdmitx_device();
@@ -1895,6 +1930,10 @@ static void set_phy_by_mode(unsigned int mode)
 	case MESON_CPU_ID_SM1:
 		switch (mode) {
 		case HDMI_PHYPARA_6G: /* 5.94/4.5/3.7Gbps */
+			set_phy_6g_sm1();
+			hd_write_reg(P_HHI_HDMI_PHY_CNTL3, 0x2ab0ff3b);
+			hd_write_reg(P_HHI_HDMI_PHY_CNTL5, 0x0000080b);
+			break;
 		case HDMI_PHYPARA_4p5G:
 		case HDMI_PHYPARA_3p7G:
 			hd_write_reg(P_HHI_HDMI_PHY_CNTL0, 0x37eb65c4);
