@@ -1200,6 +1200,21 @@ int meson_clk_measure(unsigned int clk_mux)
 }
 EXPORT_SYMBOL(meson_clk_measure);
 
+int sm1_ring_measure(struct seq_file *s, void *what, unsigned int index)
+{
+	unsigned char efuseinfo[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+	if (scpi_get_ring_value(efuseinfo) != 0) {
+		seq_puts(s, "fail get osc ring efuse info\n");
+		return 0;
+	}
+
+	seq_printf(s, "iddee: %d uA\n", (efuseinfo[5] * 400));
+	seq_printf(s, "iddcpu: %d uA\n", (efuseinfo[7] * 400));
+
+	return 0;
+}
+
 static int dump_clk(struct seq_file *s, void *what)
 {
 	if (clk_data) {
@@ -1236,6 +1251,8 @@ static int dump_ring(struct seq_file *s, void *what)
 {
 	if (get_cpu_type() == MESON_CPU_MAJOR_ID_G12A)
 		g12_ring_measure(s, what, clk_msr_index);
+	if (get_cpu_type() == MESON_CPU_MAJOR_ID_SM1)
+		sm1_ring_measure(s, what, clk_msr_index);
 	return 0;
 }
 
