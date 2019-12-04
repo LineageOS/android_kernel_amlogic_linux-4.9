@@ -15250,3 +15250,8 @@ AMLOGIC VPP DRIVER
 M:	Brian Zhu <brian.zhu@amlogic.com>
 F: drivers/amlogic/media/video_sink/video_receiver.c
 F: drivers/amlogic/media/video_sink/video_receiver.h
+
+AMLOGIC DEADPOOL Y3 DTSI
+M:	Xindong Xu <xindong.xu@amlogic.com>
+F: arch/arm/boot/dts/amlogic/sm1_s905y3_deadpool.dts
+F: arch/arm64/boot/dts/amlogic/sm1_s905y3_deadpool.dts
