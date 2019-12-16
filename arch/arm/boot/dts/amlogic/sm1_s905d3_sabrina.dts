@@ -181,7 +181,7 @@
 	cvbsout {
 		compatible = "amlogic, cvbsout-sm1";
 		dev_name = "cvbsout";
-		status = "okay";
+		status = "disable";
 		clocks = <&clkc CLKID_VCLK2_ENCI
 			&clkc CLKID_VCLK2_VENCI0
 			&clkc CLKID_VCLK2_VENCI1
@@ -773,7 +773,7 @@
 	dvb {
 		compatible = "amlogic, dvb";
 		dev_name = "dvb";
-		status = "okay";
+		status = "disable";
 //		fe0_mode = "internal";
 //		fe0_tuner = <&tuner>;
 		/*"parallel","serial","disable"*/
@@ -801,7 +801,7 @@
 	};
 	tuner: tuner {
 		compatible = "amlogic, tuner";
-		status = "okay";
+		status = "disable";
 		tuner_name = "mxl661_tuner";
 		tuner_i2c_adap = <&i2c1>;
 		tuner_i2c_addr = <0x60>;
