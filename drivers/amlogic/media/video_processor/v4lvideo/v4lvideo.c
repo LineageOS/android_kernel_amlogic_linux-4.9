@@ -20,6 +20,7 @@
 #include <linux/amlogic/media/vfm/vframe.h>
 #include <linux/amlogic/media/vfm/vframe_provider.h>
 #include <linux/amlogic/media/vfm/vframe_receiver.h>
+#include <linux/amlogic/cpu_version.h>
 #include "v4lvideo.h"
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
@@ -32,6 +33,8 @@
 #include <linux/anon_inodes.h>
 #include <linux/file.h>
 #include <linux/amlogic/media/canvas/canvas_mgr.h>
+#include <linux/amlogic/media/vfm/amlogic_fbc_hook_v1.h>
+#include "../../common/vfm/vfm.h"
 
 #define V4LVIDEO_MODULE_NAME "v4lvideo"
 
@@ -39,6 +42,9 @@
 #define RECEIVER_NAME "v4lvideo"
 #define V4LVIDEO_DEVICE_NAME   "v4lvideo"
 #define DUR2PTS(x) ((x) - ((x) >> 4))
+
+static atomic_t global_set_cnt = ATOMIC_INIT(0);
+static u32 alloc_sei = 1;
 
 #define V4L2_CID_USER_AMLOGIC_V4LVIDEO_BASE  (V4L2_CID_USER_BASE + 0x1100)
 
@@ -54,6 +60,14 @@ MODULE_PARM_DESC(n_devs, "number of video devices to create");
 static unsigned int debug;
 module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "activates debug info");
+
+static unsigned int get_count;
+module_param(get_count, uint, 0644);
+MODULE_PARM_DESC(get_count, "get_count");
+
+static unsigned int put_count;
+module_param(put_count, uint, 0644);
+MODULE_PARM_DESC(put_count, "put_count");
 
 #define MAX_KEEP_FRAME 64
 
@@ -233,7 +247,7 @@ static void video_keeper_free_mem(
 
 static void vf_keep(struct file_private_data *file_private_data)
 {
-	struct vframe_s *vf_p = file_private_data->vf_p;
+	struct vframe_s *vf_p;
 	int type = MEM_TYPE_CODEC_MM;
 	int keep_id = 0;
 	int keep_head_id = 0;
@@ -242,6 +256,13 @@ static void vf_keep(struct file_private_data *file_private_data)
 		V4LVID_ERR("vf_keep error: file_private_data is NULL");
 		return;
 	}
+	vf_p = file_private_data->vf_p;
+
+	if (!vf_p) {
+		V4LVID_ERR("vf_keep error: vf_p is NULL");
+		return;
+	}
+
 	if (vf_p->type & VIDTYPE_SCATTER)
 		type = MEM_TYPE_CODEC_MM_SCATTER;
 	video_keeper_keep_mem(
@@ -392,49 +413,380 @@ void v4lvideo_release_map_force(struct v4lvideo_dev *dev)
 	v4lvideo_devlist_unlock(flags);
 }
 
-void v4lvideo_data_copy(struct v4l_data_t *v4l_data)
+static struct ge2d_context_s *context;
+static int canvas_src_id[3];
+static int canvas_dst_id[3];
+
+static int get_source_type(struct vframe_s *vf)
 {
+	enum vframe_source_type ret;
+	int interlace_mode;
+
+	interlace_mode = vf->type & VIDTYPE_TYPEMASK;
+	if ((vf->source_type == VFRAME_SOURCE_TYPE_HDMI) ||
+	    (vf->source_type == VFRAME_SOURCE_TYPE_CVBS)) {
+		if ((vf->bitdepth & BITDEPTH_Y10) &&
+		    (!(vf->type & VIDTYPE_COMPRESS)) &&
+		    (get_cpu_type() >= MESON_CPU_MAJOR_ID_TXL))
+			ret = VDIN_10BIT_NORMAL;
+		else
+			ret = VDIN_8BIT_NORMAL;
+	} else {
+		if ((vf->bitdepth & BITDEPTH_Y10) &&
+		    (!(vf->type & VIDTYPE_COMPRESS)) &&
+		    (get_cpu_type() >= MESON_CPU_MAJOR_ID_TXL)) {
+			if (interlace_mode == VIDTYPE_INTERLACE_TOP)
+				ret = DECODER_10BIT_TOP;
+			else if (interlace_mode == VIDTYPE_INTERLACE_BOTTOM)
+				ret = DECODER_10BIT_BOTTOM;
+			else
+				ret = DECODER_10BIT_NORMAL;
+		} else {
+			if (interlace_mode == VIDTYPE_INTERLACE_TOP)
+				ret = DECODER_8BIT_TOP;
+			else if (interlace_mode == VIDTYPE_INTERLACE_BOTTOM)
+				ret = DECODER_8BIT_BOTTOM;
+			else
+				ret = DECODER_8BIT_NORMAL;
+		}
+	}
+	return ret;
+}
+
+static int get_input_format(struct vframe_s *vf)
+{
+	int format = GE2D_FORMAT_M24_YUV420;
+	enum vframe_source_type soure_type;
+
+	soure_type = get_source_type(vf);
+	switch (soure_type) {
+	case DECODER_8BIT_NORMAL:
+		if (vf->type & VIDTYPE_VIU_422)
+			format = GE2D_FORMAT_S16_YUV422;
+		else if (vf->type & VIDTYPE_VIU_NV21)
+			format = GE2D_FORMAT_M24_NV21;
+		else if (vf->type & VIDTYPE_VIU_444)
+			format = GE2D_FORMAT_S24_YUV444;
+		else
+			format = GE2D_FORMAT_M24_YUV420;
+		break;
+	case DECODER_8BIT_BOTTOM:
+		if (vf->type & VIDTYPE_VIU_422)
+			format = GE2D_FORMAT_S16_YUV422
+				| (GE2D_FORMAT_S16_YUV422B & (3 << 3));
+		else if (vf->type & VIDTYPE_VIU_NV21)
+			format = GE2D_FORMAT_M24_NV21
+				| (GE2D_FORMAT_M24_NV21B & (3 << 3));
+		else if (vf->type & VIDTYPE_VIU_444)
+			format = GE2D_FORMAT_S24_YUV444
+				| (GE2D_FORMAT_S24_YUV444B & (3 << 3));
+		else
+			format = GE2D_FORMAT_M24_YUV420
+				| (GE2D_FMT_M24_YUV420B & (3 << 3));
+		break;
+	case DECODER_8BIT_TOP:
+		if (vf->type & VIDTYPE_VIU_422)
+			format = GE2D_FORMAT_S16_YUV422
+				| (GE2D_FORMAT_S16_YUV422T & (3 << 3));
+		else if (vf->type & VIDTYPE_VIU_NV21)
+			format = GE2D_FORMAT_M24_NV21
+				| (GE2D_FORMAT_M24_NV21T & (3 << 3));
+		else if (vf->type & VIDTYPE_VIU_444)
+			format = GE2D_FORMAT_S24_YUV444
+				| (GE2D_FORMAT_S24_YUV444T & (3 << 3));
+		else
+			format = GE2D_FORMAT_M24_YUV420
+				| (GE2D_FMT_M24_YUV420T & (3 << 3));
+		break;
+	case DECODER_10BIT_NORMAL:
+		if (vf->type & VIDTYPE_VIU_422) {
+			if (vf->bitdepth & FULL_PACK_422_MODE)
+				format = GE2D_FORMAT_S16_10BIT_YUV422;
+			else
+				format = GE2D_FORMAT_S16_12BIT_YUV422;
+		}
+		break;
+	case DECODER_10BIT_BOTTOM:
+		if (vf->type & VIDTYPE_VIU_422) {
+			if (vf->bitdepth & FULL_PACK_422_MODE)
+				format = GE2D_FORMAT_S16_10BIT_YUV422
+					| (GE2D_FORMAT_S16_10BIT_YUV422B
+					& (3 << 3));
+			else
+				format = GE2D_FORMAT_S16_12BIT_YUV422
+					| (GE2D_FORMAT_S16_12BIT_YUV422B
+					& (3 << 3));
+		}
+		break;
+	case DECODER_10BIT_TOP:
+		if (vf->type & VIDTYPE_VIU_422) {
+			if (vf->bitdepth & FULL_PACK_422_MODE)
+				format = GE2D_FORMAT_S16_10BIT_YUV422
+					| (GE2D_FORMAT_S16_10BIT_YUV422T
+					& (3 << 3));
+			else
+				format = GE2D_FORMAT_S16_12BIT_YUV422
+					| (GE2D_FORMAT_S16_12BIT_YUV422T
+					& (3 << 3));
+		}
+		break;
+	case VDIN_8BIT_NORMAL:
+		if (vf->type & VIDTYPE_VIU_422)
+			format = GE2D_FORMAT_S16_YUV422;
+		else if (vf->type & VIDTYPE_VIU_NV21)
+			format = GE2D_FORMAT_M24_NV21;
+		else if (vf->type & VIDTYPE_VIU_444)
+			format = GE2D_FORMAT_S24_YUV444;
+		else
+			format = GE2D_FORMAT_M24_YUV420;
+		break;
+	case VDIN_10BIT_NORMAL:
+		if (vf->type & VIDTYPE_VIU_422) {
+			if (vf->bitdepth & FULL_PACK_422_MODE)
+				format = GE2D_FORMAT_S16_10BIT_YUV422;
+			else
+				format = GE2D_FORMAT_S16_12BIT_YUV422;
+		}
+		break;
+	default:
+		format = GE2D_FORMAT_M24_YUV420;
+	}
+	return format;
+}
+
+static void do_vframe_afbc_soft_decode(struct v4l_data_t *v4l_data)
+{
+	int i, j, ret, y_size;
+	short *planes[4];
+	short *y_src, *u_src, *v_src, *s2c, *s2c1;
+	u8 *tmp, *tmp1;
+	u8 *y_dst, *vu_dst;
+	int bit_10;
+	struct timeval start, end;
+	unsigned long time_use = 0;
 	struct vframe_s *vf = NULL;
-	char *src_ptr_y = NULL;
-	char *src_ptr_uv = NULL;
-	char *dst_ptr = NULL;
-	u32 src_phy_addr_y;
-	u32 src_phy_addr_uv;
-	u32 size_y;
-	u32 size_uv;
-	u32 size_pic;
 
 	vf = v4l_data->vf;
-	size_y = vf->width * vf->height;
-	size_uv = size_y >> 1;
-	size_pic = size_y + size_uv;
 
-	if ((vf->canvas0Addr == vf->canvas1Addr) &&
-	    (vf->canvas0Addr != 0) &&
-	    (vf->canvas0Addr != -1)) {
-		src_phy_addr_y = canvas_get_addr(canvasY(vf->canvas0Addr));
-		src_phy_addr_uv = canvas_get_addr(canvasUV(vf->canvas0Addr));
+	if ((vf->bitdepth & BITDEPTH_YMASK)  == (BITDEPTH_Y10))
+		bit_10 = 1;
+	else
+		bit_10 = 0;
+
+	y_size = vf->compWidth * vf->compHeight * sizeof(short);
+	pr_debug("width: %d, height: %d, compWidth: %u, compHeight: %u.\n",
+		vf->width, vf->height, vf->compWidth, vf->compHeight);
+	for (i = 0; i < 4; i++) {
+		planes[i] = vmalloc(y_size);
+		pr_debug("plane %d size: %d, vmalloc addr: %p.\n",
+			i, y_size, planes[i]);
+	}
+
+	do_gettimeofday(&start);
+	ret = AMLOGIC_FBC_vframe_decoder_v1((void **)planes, vf, 0, 0);
+	if (ret < 0) {
+		pr_err("amlogic_fbc_lib.ko error %d", ret);
+		goto free;
+	}
+
+	do_gettimeofday(&end);
+	time_use = (end.tv_sec - start.tv_sec) * 1000 +
+				(end.tv_usec - start.tv_usec) / 1000;
+	pr_debug("FBC Decompress time: %ldms\n", time_use);
+
+	y_src = planes[0];
+	u_src = planes[1];
+	v_src = planes[2];
+
+	y_dst = v4l_data->dst_addr;
+	vu_dst = v4l_data->dst_addr + v4l_data->byte_stride * v4l_data->height;
+
+	do_gettimeofday(&start);
+	for (i = 0; i < vf->compHeight; i++) {
+		for (j = 0; j < vf->compWidth; j++) {
+			s2c = y_src + j;
+			tmp = (u8 *)(s2c);
+			if (bit_10)
+				*(y_dst + j) = *s2c >> 2;
+			else
+				*(y_dst + j) = tmp[0];
+		}
+
+			y_dst += v4l_data->byte_stride;
+			y_src += vf->compWidth;
+	}
+
+	for (i = 0; i < (vf->compHeight / 2); i++) {
+
+		for (j = 0; j < vf->compWidth; j += 2) {
+			s2c = v_src + j/2;
+			s2c1 = u_src + j/2;
+			tmp = (u8 *)(s2c);
+			tmp1 = (u8 *)(s2c1);
+
+			if (bit_10) {
+				*(vu_dst + j) = *s2c >> 2;
+				*(vu_dst + j + 1) = *s2c1 >> 2;
+			} else {
+				*(vu_dst + j) = tmp[0];
+				*(vu_dst + j + 1) = tmp1[0];
+			}
+		}
+
+			vu_dst += v4l_data->byte_stride;
+			u_src += (vf->compWidth / 2);
+			v_src += (vf->compWidth / 2);
+	}
+
+	do_gettimeofday(&end);
+	time_use = (end.tv_sec - start.tv_sec) * 1000 +
+				(end.tv_usec - start.tv_usec) / 1000;
+	pr_debug("bitblk time: %ldms\n", time_use);
+
+free:
+	for (i = 0; i < 4; i++)
+		vfree(planes[i]);
+}
+
+void v4lvideo_data_copy(struct v4l_data_t *v4l_data)
+{
+	struct config_para_ex_s ge2d_config;
+	struct canvas_config_s dst_canvas_config[3];
+	struct vframe_s *vf = NULL;
+	const char *keep_owner = "ge2d_dest_comp";
+	bool di_mode = false;
+	bool is_10bit = false;
+
+	vf = v4l_data->vf;
+
+	if ((vf->type & VIDTYPE_COMPRESS)) {
+		do_vframe_afbc_soft_decode(v4l_data);
+		return;
+	}
+	is_10bit = vf->bitdepth & BITDEPTH_Y10;
+	di_mode = vf->type & VIDTYPE_DI_PW;
+	if (is_10bit && (!di_mode)) {
+		pr_err("vframe 10bit copy is not supported.\n");
+		return;
+	}
+
+	memset(&ge2d_config, 0, sizeof(ge2d_config));
+	memset(dst_canvas_config, 0, sizeof(dst_canvas_config));
+
+	if (!context)
+		context = create_ge2d_work_queue();
+
+	if (context == NULL) {
+		pr_err("create_ge2d_work_queue failed.\n");
+		return;
+	}
+
+	dst_canvas_config[0].phy_addr = v4l_data->phy_addr[0];
+	dst_canvas_config[0].width = v4l_data->byte_stride;
+
+	dst_canvas_config[0].height = v4l_data->height;
+	dst_canvas_config[0].block_mode = 0;
+	dst_canvas_config[0].endian = 0;
+	dst_canvas_config[1].phy_addr = v4l_data->phy_addr[0] +
+		v4l_data->byte_stride * v4l_data->height;
+	dst_canvas_config[1].width = v4l_data->byte_stride;
+	dst_canvas_config[1].height = v4l_data->height/2;
+	dst_canvas_config[1].block_mode = 0;
+	dst_canvas_config[1].endian = 0;
+
+	pr_debug("compWidth: %u, compHeight: %u.\n", vf->compWidth,
+		vf->compHeight);
+	pr_debug("vf-width:%u, vf-height:%u, vf-widht-align:%u, umm-bytestride: %d, umm-width:%u, umm-height:%u, y_addr:%u, uv_addr:%u.\n",
+		vf->width, vf->height, ALIGN(vf->width, 32),
+		v4l_data->byte_stride, v4l_data->width,
+		v4l_data->height,
+		dst_canvas_config[0].phy_addr,
+		dst_canvas_config[1].phy_addr);
+
+	if (vf->canvas0Addr == (u32)-1) {
+		if (canvas_src_id[0] <= 0)
+			canvas_src_id[0] =
+			canvas_pool_map_alloc_canvas(keep_owner);
+
+		if (canvas_src_id[1] <= 0)
+			canvas_src_id[1] =
+			canvas_pool_map_alloc_canvas(keep_owner);
+
+		if (canvas_src_id[0] <= 0 || canvas_src_id[1] <= 0) {
+			pr_err("canvas pool alloc fail.%d, %d, %d.\n",
+			canvas_src_id[0], canvas_src_id[1], canvas_src_id[2]);
+			return;
+		}
+
+		canvas_config_config(canvas_src_id[0], &vf->canvas0_config[0]);
+		canvas_config_config(canvas_src_id[1], &vf->canvas0_config[1]);
+		ge2d_config.src_para.canvas_index = canvas_src_id[0] |
+			canvas_src_id[1] << 8;
+		pr_debug("src index: %d.\n", ge2d_config.src_para.canvas_index);
+
 	} else {
-		src_phy_addr_y = vf->canvas0_config[0].phy_addr;
-		src_phy_addr_uv = vf->canvas0_config[1].phy_addr;
+		ge2d_config.src_para.canvas_index = vf->canvas0Addr;
+		pr_debug("src1 : %d.\n", ge2d_config.src_para.canvas_index);
 	}
-	dst_ptr = v4l_data->dst_addr;
 
-	src_ptr_y = codec_mm_vmap(src_phy_addr_y, size_y);
-	if (!src_ptr_y) {
-		pr_err("src_phy_addr_y map fail size_y=%d\n", size_y);
+	if (canvas_dst_id[0] <= 0)
+		canvas_dst_id[0] = canvas_pool_map_alloc_canvas(keep_owner);
+	if (canvas_dst_id[1] <= 0)
+		canvas_dst_id[1] = canvas_pool_map_alloc_canvas(keep_owner);
+	if (canvas_dst_id[0] <= 0 || canvas_dst_id[1] <= 0) {
+		pr_err("canvas pool alloc dst fail. %d, %d.\n",
+			canvas_dst_id[0], canvas_dst_id[1]);
 		return;
 	}
-	memcpy(dst_ptr, src_ptr_y, size_y);
-	codec_mm_unmap_phyaddr(src_ptr_y);
+	canvas_config_config(canvas_dst_id[0], &dst_canvas_config[0]);
+	canvas_config_config(canvas_dst_id[1], &dst_canvas_config[1]);
 
-	src_ptr_uv = codec_mm_vmap(src_phy_addr_uv, size_uv);
-	if (!src_ptr_uv) {
-		pr_err("src_phy_addr_uv map fail size_uv=%d\n", size_uv);
+	ge2d_config.dst_para.canvas_index = canvas_dst_id[0] |
+			canvas_dst_id[1] << 8;
+
+	pr_debug("dst canvas index: %d.\n", ge2d_config.dst_para.canvas_index);
+
+	ge2d_config.alu_const_color = 0;
+	ge2d_config.bitmask_en = 0;
+	ge2d_config.src1_gb_alpha = 0;
+	ge2d_config.dst_xy_swap = 0;
+
+	ge2d_config.src_key.key_enable = 0;
+	ge2d_config.src_key.key_mask = 0;
+	ge2d_config.src_key.key_mode = 0;
+
+	ge2d_config.src_para.mem_type = CANVAS_TYPE_INVALID;
+	ge2d_config.src_para.format = get_input_format(vf);
+	ge2d_config.src_para.fill_color_en = 0;
+	ge2d_config.src_para.fill_mode = 0;
+	ge2d_config.src_para.x_rev = 0;
+	ge2d_config.src_para.y_rev = 0;
+	ge2d_config.src_para.color = 0xffffffff;
+	ge2d_config.src_para.top = 0;
+	ge2d_config.src_para.left = 0;
+	ge2d_config.src_para.width = vf->width;
+	ge2d_config.src_para.height = vf->height;
+	ge2d_config.src2_para.mem_type = CANVAS_TYPE_INVALID;
+
+	ge2d_config.dst_para.mem_type = CANVAS_TYPE_INVALID;
+	ge2d_config.dst_para.fill_color_en = 0;
+	ge2d_config.dst_para.fill_mode = 0;
+	ge2d_config.dst_para.x_rev = 0;
+	ge2d_config.dst_para.y_rev = 0;
+	ge2d_config.dst_para.color = 0;
+	ge2d_config.dst_para.top = 0;
+	ge2d_config.dst_para.left = 0;
+	ge2d_config.dst_para.format = GE2D_FORMAT_M24_NV21 | GE2D_LITTLE_ENDIAN;
+	ge2d_config.dst_para.width = vf->width;
+	ge2d_config.dst_para.height = vf->height;
+
+	if (ge2d_context_config_ex(context, &ge2d_config) < 0) {
+		pr_err("ge2d_context_config_ex error.\n");
 		return;
 	}
-	memcpy(dst_ptr + size_y, src_ptr_uv, size_uv);
-	codec_mm_unmap_phyaddr(src_ptr_uv);
+
+	stretchblt_noalpha(context, 0, 0, vf->width, vf->height,
+			0, 0, vf->width, vf->height);
 }
 
 struct vframe_s *v4lvideo_get_vf(int fd)
@@ -444,12 +796,88 @@ struct vframe_s *v4lvideo_get_vf(int fd)
 	struct file_private_data *file_private_data;
 
 	file_vf = fget(fd);
+	if (!file_vf) {
+		pr_err("v4lvideo_get_vf file_vf is NULL\n");
+		return NULL;
+	}
 	file_private_data = (struct file_private_data *)file_vf->private_data;
 	vf = &file_private_data->vf;
 	fput(file_vf);
 	return vf;
 }
 
+static s32 v4lvideo_release_sei_data(struct vframe_s *vf)
+{
+	void *p;
+	s32 ret = -2;
+	u32 size = 0;
+
+	if (!vf)
+		return ret;
+
+	p = get_sei_from_src_fmt(vf, &size);
+	if (p) {
+		vfree(p);
+		atomic_dec(&global_set_cnt);
+	}
+	ret = clear_vframe_src_fmt(vf);
+	return ret;
+}
+
+static s32 v4lvideo_import_sei_data(
+	struct vframe_s *vf,
+	struct vframe_s *dup_vf,
+	char *provider)
+{
+	struct provider_aux_req_s req;
+	s32 ret = -2;
+	char *p;
+
+	if (!vf || !dup_vf || !provider || !alloc_sei)
+		return ret;
+
+	req.vf = vf;
+	req.bot_flag = 0;
+	req.aux_buf = NULL;
+	req.aux_size = 0;
+	req.dv_enhance_exist = 0;
+	vf_notify_provider_by_name(
+		provider,
+		VFRAME_EVENT_RECEIVER_GET_AUX_DATA,
+		(void *)&req);
+
+	if (req.aux_buf && req.aux_size) {
+		p = vmalloc(req.aux_size);
+		if (p) {
+			memcpy(p, req.aux_buf, req.aux_size);
+			ret = update_vframe_src_fmt(
+				dup_vf, (void *)p, (u32)req.aux_size,
+				req.dv_enhance_exist ? true : false);
+			if (!ret) {
+				/* FIXME: work around for sei/el out of sync */
+				if ((dup_vf->src_fmt.fmt ==
+				     VFRAME_SIGNAL_FMT_SDR) &&
+				    !strcmp(provider, "dvbldec"))
+					dup_vf->src_fmt.fmt =
+						VFRAME_SIGNAL_FMT_DOVI;
+				atomic_inc(&global_set_cnt);
+			} else {
+				vfree(p);
+			}
+		} else {
+			ret = update_vframe_src_fmt(
+				dup_vf, NULL, 0, false);
+		}
+	} else {
+		ret = update_vframe_src_fmt(dup_vf, NULL, 0, false);
+	}
+	if (alloc_sei & 2)
+		pr_info("import sei: provider:%s, vf:%p, dup_vf:%p, req.aux_buf:%p, req.aux_size:%d, req.dv_enhance_exist:%d, vf->src_fmt.fmt:%d\n",
+			provider, vf, dup_vf,
+			req.aux_buf, req.aux_size,
+			req.dv_enhance_exist, dup_vf->src_fmt.fmt);
+	return ret;
+}
 /* ------------------------------------------------------------------
  * DMA and thread functions
  * ------------------------------------------------------------------
@@ -465,6 +893,8 @@ static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 	struct v4lvideo_dev *dev = video_drvdata(file);
 
 	dprintk(dev, 2, "%s\n", __func__);
+
+	dev->provider_name = NULL;
 
 	dprintk(dev, 2, "returning from %s\n", __func__);
 
@@ -541,6 +971,13 @@ static int vidioc_close(struct file *file)
 	if (dev->fd_num > 0)
 		dev->fd_num--;
 
+	return 0;
+}
+
+static ssize_t vidioc_read(struct file *file, char __user *data,
+			   size_t count, loff_t *ppos)
+{
+	pr_info("v4lvideo read\n");
 	return 0;
 }
 
@@ -660,7 +1097,15 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	dev->v4lvideo_input[p->index] = *p;
 
 	file_vf = fget(p->m.fd);
+	if (!file_vf) {
+		pr_err("v4lvideo: qbuf fget fail\n");
+		return 0;
+	}
 	file_private_data = (struct file_private_data *)(file_vf->private_data);
+	if (!file_private_data) {
+		pr_err("v4lvideo: qbuf file_private_data NULL\n");
+		return 0;
+	}
 	vf_p = file_private_data->vf_p;
 
 	mutex_lock(&dev->mutex_input);
@@ -672,6 +1117,7 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 					       file_private_data)) {
 				if (dev->receiver_register) {
 					vf_put(vf_p, dev->vf_receiver_name);
+					put_count++;
 				} else {
 					vf_free(file_private_data);
 					pr_err("vidioc_qbuf: vfm is unreg\n");
@@ -684,6 +1130,8 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 		dprintk(dev, 1,
 			"vidioc_qbuf: vf is NULL, at the start of playback\n");
 	}
+
+	v4lvideo_release_sei_data(&file_private_data->vf);
 	init_file_private_data(file_private_data);
 	fput(file_vf);
 
@@ -702,6 +1150,7 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	struct file_private_data *file_private_data = NULL;
 	u64 pts_us64 = 0;
 	u64 pts_tmp;
+	char *provider_name = NULL;
 
 	mutex_lock(&dev->mutex_input);
 	buf = v4l2q_peek(&dev->input_queue);
@@ -720,6 +1169,22 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	vf = vf_get(dev->vf_receiver_name);
 	if (!vf)
 		return -EAGAIN;
+
+	if (!dev->provider_name) {
+		provider_name = vf_get_provider_name(
+			dev->vf_receiver_name);
+		while (provider_name) {
+			if (!vf_get_provider_name(provider_name))
+				break;
+			provider_name =
+				vf_get_provider_name(provider_name);
+		}
+		dev->provider_name = provider_name;
+		pr_info("v4lvideo: provider name: %s\n",
+			dev->provider_name ? dev->provider_name : "NULL");
+	}
+
+	get_count++;
 	vf->omx_index = dev->frame_num;
 	dev->am_parm.signal_type = vf->signal_type;
 	dev->am_parm.master_display_colour
@@ -729,9 +1194,23 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	buf = v4l2q_pop(&dev->input_queue);
 	dev->vf_wait_cnt = 0;
 	file_vf = fget(buf->m.fd);
+	if (!file_vf) {
+		mutex_unlock(&dev->mutex_input);
+		pr_err("v4lvideo: dqbuf fget fail\n");
+		return -EAGAIN;
+	}
 	file_private_data = (struct file_private_data *)(file_vf->private_data);
+	if (!file_private_data) {
+		mutex_unlock(&dev->mutex_input);
+		pr_err("v4lvideo: file_private_data NULL\n");
+		return -EAGAIN;
+	}
 	file_private_data->vf = *vf;
 	file_private_data->vf_p = vf;
+	v4lvideo_import_sei_data(
+		vf, &file_private_data->vf,
+		dev->provider_name);
+
 	//pr_err("dqbuf: file_private_data=%p, vf=%p\n", file_private_data, vf);
 	v4l2q_push(&dev->display_queue, file_private_data);
 	fput(file_vf);
@@ -791,7 +1270,7 @@ static const struct v4l2_file_operations v4lvideo_v4l2_fops = {
 	.owner = THIS_MODULE,
 	.open = vidioc_open,
 	.release = vidioc_close,
-	.read = vb2_fop_read,
+	.read = vidioc_read,
 	.poll = vb2_fop_poll,
 	.unlocked_ioctl = video_ioctl2,/* V4L2 ioctl handler */
 	.mmap = vb2_fop_mmap,
@@ -872,6 +1351,8 @@ static int video_receiver_event_fun(int type, void *data, void *private_data)
 		dev->frame_num = 0;
 		dev->first_frame = 0;
 		mutex_unlock(&dev->mutex_input);
+		get_count = 0;
+		put_count = 0;
 		pr_err("reg:v4lvideo\n");
 	} else if (type == VFRAME_EVENT_PROVIDER_QUREY_STATE) {
 		if (dev->vf_wait_cnt > 1)
@@ -966,6 +1447,7 @@ static int v4lvideo_file_release(struct inode *inode, struct file *file)
 	if (file_private_data) {
 		if (file_private_data->is_keep)
 			vf_free(file_private_data);
+		v4lvideo_release_sei_data(&file_private_data->vf);
 		memset(file_private_data, 0, sizeof(struct file_private_data));
 		kfree((u8 *)file_private_data);
 		file->private_data = NULL;
@@ -983,7 +1465,7 @@ static const struct file_operations v4lvideo_file_fops = {
 int v4lvideo_alloc_fd(int *fd)
 {
 	struct file *file = NULL;
-	struct file_private_data *private_date = NULL;
+	struct file_private_data *private_data = NULL;
 	int file_fd = get_unused_fd_flags(O_CLOEXEC);
 
 	if (file_fd < 0) {
@@ -991,19 +1473,19 @@ int v4lvideo_alloc_fd(int *fd)
 		return -ENODEV;
 	}
 
-	private_date = kzalloc(sizeof(*private_date), GFP_KERNEL);
-	if (!private_date) {
+	private_data = kzalloc(sizeof(*private_data), GFP_KERNEL);
+	if (!private_data) {
 		put_unused_fd(file_fd);
 		pr_err("v4lvideo_alloc_fd: private_date fail\n");
 		return -ENOMEM;
 	}
-	init_file_private_data(private_date);
+	init_file_private_data(private_data);
 
 	file = anon_inode_getfile("v4lvideo_file",
 				  &v4lvideo_file_fops,
-				  private_date, 0);
+				  private_data, 0);
 	if (IS_ERR(file)) {
-		kfree((u8 *)private_date);
+		kfree((u8 *)private_data);
 		put_unused_fd(file_fd);
 		pr_err("v4lvideo_alloc_fd: anon_inode_getfile fail\n");
 		return -ENODEV;
@@ -1013,12 +1495,75 @@ int v4lvideo_alloc_fd(int *fd)
 	return 0;
 }
 
-static struct class_attribute ion_video_class_attrs[] = {
+static ssize_t sei_cnt_show(
+	struct class *class, struct class_attribute *attr, char *buf)
+{
+	ssize_t r;
+	int cnt;
+
+	cnt = atomic_read(&global_set_cnt);
+	r = sprintf(buf, "allocated sei buffer cnt: %d\n", cnt);
+	return r;
+}
+
+static ssize_t sei_cnt_store(
+	struct class *class,
+	struct class_attribute *attr,
+	const char *buf, size_t count)
+{
+	ssize_t r;
+	int val;
+
+	r = kstrtoint(buf, 0, &val);
+	if (r < 0)
+		return -EINVAL;
+
+	pr_info("set sei_cnt val:%d\n", val);
+	atomic_set(&global_set_cnt, val);
+	return count;
+}
+
+static ssize_t alloc_sei_show(
+	struct class *class, struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "alloc sei: %d\n", alloc_sei);
+}
+
+static ssize_t alloc_sei_store(
+	struct class *class,
+	struct class_attribute *attr,
+	const char *buf, size_t count)
+{
+	ssize_t r;
+	int val;
+
+	r = kstrtoint(buf, 0, &val);
+	if (r < 0)
+		return -EINVAL;
+
+	if (val > 0)
+		alloc_sei = val;
+	else
+		alloc_sei = 0;
+	pr_info("set alloc_sei val:%d\n", alloc_sei);
+	return count;
+}
+
+static struct class_attribute v4lvideo_class_attrs[] = {
+	__ATTR(sei_cnt,
+	       0664,
+	       sei_cnt_show,
+	       sei_cnt_store),
+	__ATTR(alloc_sei,
+	       0664,
+	       alloc_sei_show,
+	       alloc_sei_store),
+	__ATTR_NULL
 };
 
 static struct class v4lvideo_class = {
 	.name = "v4lvideo",
-	.class_attrs = ion_video_class_attrs,
+	.class_attrs = v4lvideo_class_attrs,
 };
 
 static int v4lvideo_open(struct inode *inode, struct file *file)

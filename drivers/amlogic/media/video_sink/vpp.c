@@ -728,8 +728,9 @@ static int vpp_process_speed_check(
 			|| (height_screen <= 0))
 			return SPEED_CHECK_DONE;
 
-		if ((next_frame_par->vscale_skip_count > 0)
-			&& (vf->type & VIDTYPE_VIU_444))
+		if ((next_frame_par->vscale_skip_count > 0) &&
+		    ((vf->type & VIDTYPE_VIU_444) ||
+		     (vf->type & VIDTYPE_RGB_444)))
 			bpp = 2;
 		if (height_in * bpp > height_out) {
 			/*
@@ -749,8 +750,9 @@ static int vpp_process_speed_check(
 				/* di process first, need more a bit of ratio */
 				if (vf->type & VIDTYPE_PRE_INTERLACE)
 					cur_ratio = (cur_ratio * 105) / 100;
-				if ((next_frame_par->vscale_skip_count > 0)
-					&& (vf->type & VIDTYPE_VIU_444))
+				if ((next_frame_par->vscale_skip_count > 0) &&
+				    ((vf->type & VIDTYPE_VIU_444) ||
+				     (vf->type & VIDTYPE_RGB_444)))
 					cur_ratio = cur_ratio * 2;
 
 				/* store the debug info for legacy */
@@ -862,7 +864,7 @@ static int vpp_set_filters_internal(
 	struct vppfilter_mode_s *filter = &next_frame_par->vpp_filter;
 	u32 wide_mode;
 	s32 height_shift = 0;
-	u32 height_after_ratio;
+	u32 height_after_ratio = 0;
 	u32 aspect_factor;
 	s32 ini_vphase;
 	u32 w_in = width_in;
@@ -1009,7 +1011,7 @@ RESTART:
 		sar_height = 1;
 	}
 
-	if (ext_sar && sar_width && sar_height) {
+	if (ext_sar && sar_width && sar_height && width_in) {
 		aspect_factor =
 			div_u64((u64)256ULL *
 			(u64)sar_height *
@@ -1085,13 +1087,14 @@ RESTART:
 		u64 tmp = (u64)((u64)(width_out * width_in) * aspect_ratio_out);
 
 		tmp = tmp >> 2;
-		height_after_ratio =
-			div_u64((u64)256ULL *
-				(u64)w_in *
-				(u64)height_out *
-				(u64)sar_height *
-				(u64)height_in,
-				(u32)tmp);
+		if (tmp != 0)
+			height_after_ratio =
+				div_u64((u64)256ULL *
+					(u64)w_in *
+					(u64)height_out *
+					(u64)sar_height *
+					(u64)height_in,
+					(u32)tmp);
 		height_after_ratio /= sar_width;
 		aspect_factor = (height_after_ratio << 8) / h_in;
 		if (super_debug)
@@ -1104,10 +1107,11 @@ RESTART:
 		u64 tmp = (u64)((u64)(width_out * h_in) * aspect_ratio_out);
 
 		tmp = tmp >> 2;
-		aspect_factor =
-			div_u64((unsigned long long)w_in * height_out *
-				(aspect_factor << 8),
-				(u32)tmp);
+		if (tmp != 0)
+			aspect_factor =
+				div_u64((unsigned long long)w_in * height_out *
+					(aspect_factor << 8),
+					(u32)tmp);
 		height_after_ratio = (h_in * aspect_factor) >> 8;
 	}
 

@@ -45,6 +45,7 @@
 #define DEBUG_FLAG_PRINT_DROP_FRAME        0x4000000
 #define DEBUG_FLAG_OMX_DV_DROP_FRAME        0x8000000
 #define DEBUG_FLAG_COMPOSER_NO_DROP_FRAME     0x10000000
+#define DEBUG_FLAG_AXIS_NO_UPDATE     0x20000000
 
 #define VOUT_TYPE_TOP_FIELD 0
 #define VOUT_TYPE_BOT_FIELD 1
@@ -62,8 +63,6 @@
 #define VIDEO_NOTIFY_NEED_NO_COMP  0x20
 
 #define MAX_VD_LAYER 2
-
-#define DISPBUF_TO_PUT_MAX  8
 
 #define COMPOSE_MODE_NONE			0
 #define COMPOSE_MODE_3D			1
@@ -221,6 +220,7 @@ struct video_layer_s {
 	bool property_changed;
 	u8 force_config_cnt;
 	bool new_vpp_setting;
+	bool new_frame;
 	u32 vout_type;
 	bool bypass_pps;
 
@@ -394,7 +394,6 @@ extern atomic_t video_inirq_flag;
 extern struct video_recv_s *gvideo_recv[2];
 
 bool black_threshold_check(u8 id);
-void update_cur_dispbuf(void *buf);
 struct vframe_s *get_cur_dispbuf(void);
 s32 set_video_path_select(const char *recv_name, u8 layer_id);
 
@@ -405,6 +404,10 @@ int get_video_debug_flags(void);
 int _video_set_disable(u32 val);
 int _videopip_set_disable(u32 val);
 struct device *get_video_device(void);
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
+struct vframe_s *dvel_toggle_frame(
+	struct vframe_s *vf, bool new_frame);
+#endif
 
 #ifdef CONFIG_AMLOGIC_MEDIA_VIDEOCAPTURE
 int ext_frame_capture_poll(int endflags);

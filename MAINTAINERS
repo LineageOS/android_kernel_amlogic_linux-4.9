@@ -15161,6 +15161,10 @@ M:	Jihong Sui <jihong.sui@amlogic.com>
 F:	drivers/amlogic/media/deinterlace/di_pqa.h
 F:	drivers/amlogic/media/di_local/*
 
+AMLOGIC DEINTERLACE DRIVER
+M:	qianqian cai <qianqian.cai@amlogic.com>
+F:	include/linux/amlogic/media/di/di.h
+
 AMLOGIC ADD DI_MULTI DRIVER
 M:	Jihong Sui <jihong.sui@amlogic.com>
 F:	drivers/amlogic/media/di_multi/*
@@ -15255,3 +15259,12 @@ AMLOGIC DEADPOOL Y3 DTSI
 M:	Xindong Xu <xindong.xu@amlogic.com>
 F: arch/arm/boot/dts/amlogic/sm1_s905y3_deadpool.dts
 F: arch/arm64/boot/dts/amlogic/sm1_s905y3_deadpool.dts
+
+AMLOGIC UVM DRIVER
+M:	Ao.Xu <ao.xu@amlogic.com>
+F:	drivers/amlogic/uvm/meson_uvm.c
+F:	drivers/amlogic/uvm/meson_uvm.h
+
+AMLOGIC SM1/G12A BL40 HEADER
+M: shunzhou jiang <shunzhou.jiang@amlogic.com>
+F: drivers/amlogic/firmware/bl40_module.h

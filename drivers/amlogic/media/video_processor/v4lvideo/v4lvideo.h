@@ -223,6 +223,18 @@ struct v4lvideo_dev {
 	struct v4l2_buffer v4lvideo_input[V4LVIDEO_POOL_SIZE];
 	struct v4l2_amlogic_parm am_parm;
 	u8 first_frame;
+	char *provider_name;
+};
+
+enum vframe_source_type {
+	DECODER_8BIT_NORMAL = 0,
+	DECODER_8BIT_BOTTOM,
+	DECODER_8BIT_TOP,
+	DECODER_10BIT_NORMAL,
+	DECODER_10BIT_BOTTOM,
+	DECODER_10BIT_TOP,
+	VDIN_8BIT_NORMAL,
+	VDIN_10BIT_NORMAL,
 };
 
 unsigned int get_v4lvideo_debug(void);

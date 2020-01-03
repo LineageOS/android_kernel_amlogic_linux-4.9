@@ -1323,6 +1323,17 @@ static void hdr_work_func(struct work_struct *work)
 			pr_info("%s[%d]\n", __func__, __LINE__); \
 	} while (0)
 
+/* Init DRM_DB[0] from Uboot status */
+static void init_drm_db0(struct hdmitx_dev *hdev, unsigned char *dat)
+{
+	static int once_flag = 1;
+
+	if (once_flag) {
+		once_flag = 0;
+		*dat = hdev->hwop.getstate(hdev, STAT_HDR_TYPE, 0);
+	}
+}
+
 #define GET_LOW8BIT(a)	((a) & 0xff)
 #define GET_HIGH8BIT(a)	(((a) >> 8) & 0xff)
 static void hdmitx_set_drm_pkt(struct master_display_info_s *data)
@@ -1332,6 +1343,7 @@ static void hdmitx_set_drm_pkt(struct master_display_info_s *data)
 	static unsigned char DRM_DB[26] = {0x0};
 
 	hdmi_debug();
+	init_drm_db0(hdev, &DRM_DB[0]);
 	if (hdr_status_pos == 4) {
 		/* zero hdr10+ VSIF being sent - disable it */
 		pr_info("hdmitx_set_drm_pkt: disable hdr10+ zero vsif\n");
@@ -1740,6 +1752,10 @@ static void hdmitx_set_vsif_pkt(enum eotf_type type,
 				HDMI_PACKET_VEND, VEN_DB2, VEN_HB);
 			if (signal_sdr) {
 				pr_info("hdmitx: Dolby VSIF, switching signal to SDR\n");
+				update_current_para(hdev);
+				pr_info("vic:%d, cd:%d, cs:%d, cr:%d\n",
+					hdev->para->vic, hdev->para->cd,
+					hdev->para->cs, hdev->para->cr);
 				hdev->hwop.cntlconfig(hdev,
 					CONF_AVI_RGBYCC_INDIC, hdev->para->cs);
 				hdev->hwop.cntlconfig(hdev,
@@ -3816,6 +3832,31 @@ static ssize_t show_hpd_state(struct device *dev,
 	return pos;
 }
 
+static ssize_t show_fake_plug(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d", hdmitx_device.hpd_state);
+}
+
+static ssize_t store_fake_plug(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct hdmitx_dev *hdev = &hdmitx_device;
+
+	pr_info("hdmitx: fake plug %s\n", buf);
+
+	if (strncmp(buf, "1", 1) == 0)
+		hdev->hpd_state = 1;
+
+	if (strncmp(buf, "0", 1) == 0)
+		hdev->hpd_state = 0;
+
+	extcon_set_state_sync(hdmitx_extcon_hdmi, EXTCON_DISP_HDMI,
+			      hdev->hpd_state);
+
+	return count;
+}
 
 static ssize_t show_rhpd_state(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -3937,6 +3978,7 @@ static DEVICE_ATTR(hdcp_ver, 0444, show_hdcp_ver, NULL);
 static DEVICE_ATTR(hpd_state, 0444, show_hpd_state, NULL);
 static DEVICE_ATTR(rhpd_state, 0444, show_rhpd_state, NULL);
 static DEVICE_ATTR(max_exceed, 0444, show_max_exceed_state, NULL);
+static DEVICE_ATTR(fake_plug, 0664, show_fake_plug, store_fake_plug);
 static DEVICE_ATTR(hdmi_init, 0444, show_hdmi_init, NULL);
 static DEVICE_ATTR(ready, 0664, show_ready, store_ready);
 static DEVICE_ATTR(support_3d, 0444, show_support_3d, NULL);
@@ -4253,7 +4295,6 @@ static void hdmitx_get_edid(struct hdmitx_dev *hdev)
 		memset(dv, 0, sizeof(struct dv_info));
 		pr_info("clear dv_info\n");
 	}
-
 	mutex_unlock(&getedid_mutex);
 }
 
@@ -4441,13 +4482,19 @@ static int hdmi_task_handle(void *data)
 		hdmitx_device, MISC_HPD_GPI_ST, 0));
 	hdmitx_device->hpd_state = hdmitx_extcon_hdmi->state;
 	hdmitx_notify_hpd(hdmitx_device->hpd_state);
+
 	extcon_set_state_sync(hdmitx_extcon_power, EXTCON_DISP_HDMI,
-						hdmitx_device->hpd_state);
-	INIT_WORK(&hdmitx_device->work_hdr, hdr_work_func);
+		hdmitx_device->hpd_state);
 
 /* When init hdmi, clear the hdmitx module edid ram and edid buffer. */
 	hdmitx_edid_clear(hdmitx_device);
 	hdmitx_edid_ram_buffer_clear(hdmitx_device);
+	if (hdmitx_device->hpd_state) {
+		hdmitx_get_edid(hdmitx_device);
+		edidinfo_attach_to_vinfo(hdmitx_device);
+	}
+
+	INIT_WORK(&hdmitx_device->work_hdr, hdr_work_func);
 	hdmitx_device->hdmi_wq = alloc_workqueue(DEVICE_NAME,
 		WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
 	INIT_DELAYED_WORK(&hdmitx_device->work_hpd_plugin,
@@ -4555,18 +4602,19 @@ static void hdmitx_fmt_attr(struct hdmitx_dev *hdev)
 	    (hdev->para->cs == COLORSPACE_RESERVED)) {
 		strcpy(hdev->fmt_attr, "default");
 	} else {
+		memset(hdev->fmt_attr, 0, sizeof(hdev->fmt_attr));
 		switch (hdev->para->cs) {
 		case COLORSPACE_RGB444:
-			memcpy(hdev->fmt_attr, "rgb,", 4);
+			memcpy(hdev->fmt_attr, "rgb,", 5);
 			break;
 		case COLORSPACE_YUV422:
-			memcpy(hdev->fmt_attr, "422,", 4);
+			memcpy(hdev->fmt_attr, "422,", 5);
 			break;
 		case COLORSPACE_YUV444:
-			memcpy(hdev->fmt_attr, "444,", 4);
+			memcpy(hdev->fmt_attr, "444,", 5);
 			break;
 		case COLORSPACE_YUV420:
-			memcpy(hdev->fmt_attr, "420,", 4);
+			memcpy(hdev->fmt_attr, "420,", 5);
 			break;
 		default:
 			break;
@@ -5131,6 +5179,7 @@ static int amhdmitx_probe(struct platform_device *pdev)
 	ret = device_create_file(dev, &dev_attr_hpd_state);
 	ret = device_create_file(dev, &dev_attr_rhpd_state);
 	ret = device_create_file(dev, &dev_attr_max_exceed);
+	ret = device_create_file(dev, &dev_attr_fake_plug);
 	ret = device_create_file(dev, &dev_attr_hdmi_init);
 	ret = device_create_file(dev, &dev_attr_ready);
 	ret = device_create_file(dev, &dev_attr_support_3d);
@@ -5216,6 +5265,7 @@ static int amhdmitx_remove(struct platform_device *pdev)
 	device_remove_file(dev, &dev_attr_contenttype_cap);
 	device_remove_file(dev, &dev_attr_contenttype_mode);
 	device_remove_file(dev, &dev_attr_hpd_state);
+	device_remove_file(dev, &dev_attr_fake_plug);
 	device_remove_file(dev, &dev_attr_rhpd_state);
 	device_remove_file(dev, &dev_attr_max_exceed);
 	device_remove_file(dev, &dev_attr_hdmi_init);
@@ -5405,8 +5455,10 @@ static void check_hdmiuboot_attr(char *token)
 	}
 	for (i = 0; cd[i] != NULL; i++) {
 		if (strstr(token, cd[i])) {
-			if (strlen(cd[i]) < (sizeof(attr) - strlen(attr)))
-				strncat(attr, cd[i], strlen(cd[i]));
+			if (strlen(cd[i]) < sizeof(attr))
+				if (strlen(cd[i]) <
+					(sizeof(attr) - strlen(attr)))
+					strncat(attr, cd[i], strlen(cd[i]));
 			strncpy(hdmitx_device.fmt_attr, attr,
 				sizeof(hdmitx_device.fmt_attr));
 			hdmitx_device.fmt_attr[15] = '\0';

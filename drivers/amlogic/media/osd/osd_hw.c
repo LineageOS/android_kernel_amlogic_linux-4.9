@@ -94,6 +94,8 @@
 #define osd_tprintk(...)
 
 #define FREE_SCALE_MAX_WIDTH    1920
+#define WAIT_CNT_MAX            20
+
 struct hw_para_s osd_hw;
 static DEFINE_MUTEX(osd_mutex);
 static DECLARE_WAIT_QUEUE_HEAD(osd_vsync_wq);
@@ -585,7 +587,6 @@ static int pxp_mode;
 s64 timestamp[VIU_COUNT];
 
 static unsigned int osd_h_filter_mode = 1;
-#define CANVAS_ALIGNED(x)	(((x) + 31) & ~31)
 #define BYTE_32_ALIGNED(x)	(((x) + 31) & ~31)
 #define BYTE_16_ALIGNED(x)	(((x) + 15) & ~15)
 #define BYTE_8_ALIGNED(x)	(((x) + 7) & ~7)
@@ -2895,7 +2896,7 @@ void osd_setup_hw(u32 index,
 		else {
 			canvas_config(osd_hw.fb_gem[index].canvas_idx,
 				osd_hw.fb_gem[index].addr,
-				osd_hw.fb_gem[index].width,
+				CANVAS_ALIGNED(osd_hw.fb_gem[index].width),
 				osd_hw.fb_gem[index].height,
 				CANVAS_ADDR_NOWRAP, CANVAS_BLKMODE_LINEAR);
 		}
@@ -4333,7 +4334,7 @@ static bool osd_direct_compose_pan_display(struct osd_fence_map_s *fence_map)
 	if (!osd_hw.osd_afbcd[index].enable) {
 		canvas_config(osd_hw.fb_gem[index].canvas_idx,
 			ext_addr,
-			fence_map->byte_stride,
+			CANVAS_ALIGNED(fence_map->byte_stride),
 			fence_map->height,
 			CANVAS_ADDR_NOWRAP, CANVAS_BLKMODE_LINEAR);
 		osd_hw.screen_base[index] = ext_addr;
@@ -4686,7 +4687,8 @@ static void osd_pan_display_single_fence(struct osd_fence_map_s *fence_map)
 
 				canvas_config(osd_hw.fb_gem[index].canvas_idx,
 					osd_hw.fb_gem[index].addr,
-					osd_hw.fb_gem[index].width,
+					CANVAS_ALIGNED(
+						osd_hw.fb_gem[index].width),
 					osd_hw.fb_gem[index].height,
 					CANVAS_ADDR_NOWRAP,
 					CANVAS_BLKMODE_LINEAR);
@@ -6382,6 +6384,7 @@ static void generate_blend_din_table(struct hw_osd_blending_s *blending)
 		blending->din_reoder_sel;
 }
 
+#ifdef FREESCAL_CHECK
 static bool is_freescale_para_changed(u32 index)
 {
 	static int first[HW_OSD_COUNT - 1] = {1};
@@ -6406,6 +6409,7 @@ static bool is_freescale_para_changed(u32 index)
 	first[index] = 0;
 	return freescale_update;
 }
+#endif
 
 static int osd_setting_blending_scope(u32 index)
 {
@@ -8517,7 +8521,8 @@ static int osd_setting_order(u32 output_index)
 	int line1;
 	int line2;
 	int active_begin_line;
-	u32 val;
+	int vinfo_height;
+	u32 val, wait_cnt = 0;
 
 	blending = &osd_blending;
 	blend_reg = &(blending->blend_reg);
@@ -8559,11 +8564,20 @@ static int osd_setting_order(u32 output_index)
 	active_begin_line = get_active_begin_line(VIU1);
 	line1 = get_enter_encp_line(VIU1);
 	/* if nearly vsync signal, wait vsync here */
-	if (line1 <= active_begin_line * line_threshold / 100) {
+	vinfo_height = osd_hw.field_out_en[output_index] ?
+		(osd_hw.vinfo_height[output_index] * 2) :
+		osd_hw.vinfo_height[output_index];
+	while (line1 >= vinfo_height + active_begin_line *
+			(100 - line_threshold) / 100 ||
+			line1 <= active_begin_line * line_threshold / 100) {
 		osd_log_dbg(MODULE_RENDER,
 			"enter osd_setting_order:encp line=%d\n",
 			line1);
-		osd_wait_vsync_hw_viu1();
+		/* 0.5ms */
+		usleep_range(500, 600);
+		wait_cnt++;
+		if (wait_cnt >= WAIT_CNT_MAX)
+			break;
 		line1 = get_enter_encp_line(VIU1);
 	}
 	spin_lock_irqsave(&osd_lock, lock_flags);
@@ -8573,11 +8587,11 @@ static int osd_setting_order(u32 output_index)
 		if (osd_hw.enable[i]) {
 			struct hw_osd_reg_s *osd_reg = &hw_osd_reg_array[i];
 
-			update = is_freescale_para_changed(i);
+			/* update = is_freescale_para_changed(i); */
 			if (!osd_hw.osd_afbcd[i].enable)
 				canvas_config(osd_hw.fb_gem[i].canvas_idx,
 					osd_hw.fb_gem[i].addr,
-					osd_hw.fb_gem[i].width,
+					CANVAS_ALIGNED(osd_hw.fb_gem[i].width),
 					osd_hw.fb_gem[i].height,
 					CANVAS_ADDR_NOWRAP,
 					CANVAS_BLKMODE_LINEAR);
@@ -8611,10 +8625,10 @@ static int osd_setting_order(u32 output_index)
 			osd_hw.reg[OSD_FREESCALE_COEF].update_func(i);
 			if (update || osd_update_window_axis) {
 				osd_set_scan_mode(i);
-				osd_hw.reg[DISP_FREESCALE_ENABLE]
-				.update_func(i);
 				osd_update_window_axis = false;
 			}
+			osd_hw.reg[DISP_FREESCALE_ENABLE]
+				.update_func(i);
 			if (osd_hw.premult_en[i] && !osd_hw.blend_bypass)
 				VSYNCOSD_WR_MPEG_REG_BITS(
 				osd_reg->osd_mali_unpack_ctrl, 0x1, 28, 1);
@@ -8799,7 +8813,7 @@ static void osd_setting_old_hwc(void)
 	if (!osd_hw.osd_afbcd[index].enable)
 		canvas_config(osd_hw.fb_gem[index].canvas_idx,
 			osd_hw.fb_gem[index].addr,
-			osd_hw.fb_gem[index].width,
+			CANVAS_ALIGNED(osd_hw.fb_gem[index].width),
 			osd_hw.fb_gem[index].height,
 			CANVAS_ADDR_NOWRAP,
 			CANVAS_BLKMODE_LINEAR);
@@ -8841,7 +8855,7 @@ static void osd_setting_viu2(void)
 	if (!osd_hw.osd_afbcd[index].enable)
 		canvas_config(osd_hw.fb_gem[index].canvas_idx,
 			osd_hw.fb_gem[index].addr,
-			osd_hw.fb_gem[index].width,
+			CANVAS_ALIGNED(osd_hw.fb_gem[index].width),
 			osd_hw.fb_gem[index].height,
 			CANVAS_ADDR_NOWRAP,
 			CANVAS_BLKMODE_LINEAR);
@@ -10328,7 +10342,7 @@ void osd_restore_hw(void)
 		for (i = 0; i < osd_hw.osd_meson_dev.osd_count; i++)
 		canvas_config(osd_hw.fb_gem[i].canvas_idx,
 			osd_hw.fb_gem[i].addr,
-			osd_hw.fb_gem[i].width,
+			CANVAS_ALIGNED(osd_hw.fb_gem[i].width),
 			osd_hw.fb_gem[i].height,
 			CANVAS_ADDR_NOWRAP, CANVAS_BLKMODE_LINEAR);
 	}
@@ -10670,7 +10684,7 @@ static bool osd_direct_render(struct osd_plane_map_s *plane_map)
 	} else {
 		canvas_config(osd_hw.fb_gem[index].canvas_idx,
 			phy_addr,
-			plane_map->byte_stride,
+			CANVAS_ALIGNED(plane_map->byte_stride),
 			plane_map->src_h,
 			CANVAS_ADDR_NOWRAP, CANVAS_BLKMODE_LINEAR);
 	}
@@ -10919,7 +10933,7 @@ static void osd_cursor_move(struct osd_plane_map_s *plane_map)
 		plane_map->byte_stride * plane_map->src_h;
 	canvas_config(osd_hw.fb_gem[index].canvas_idx,
 		phy_addr,
-		plane_map->byte_stride,
+		CANVAS_ALIGNED(plane_map->byte_stride),
 		plane_map->src_h,
 		CANVAS_ADDR_NOWRAP, CANVAS_BLKMODE_LINEAR);
 
