@@ -27,13 +27,20 @@
 #undef pr_fmt
 #define pr_fmt(fmt) "meson-mmc: " fmt
 
+#define EMMC_ERASE_TIMEOUT	(40 * HZ)
+
 #define AML_FIXED_ADJ_MIN	5
 #define AML_FIXED_ADJ_MAX	6
 #define AML_FIXED_ADJ_STEP	4
-#define AML_MOVE_DELAY1(x)	\
-	((x << 0)|(x << 6)|(x << 12)|(x << 18)|(x << 24))
-#define AML_MOVE_DELAY2(x)	\
-	((x << 0)|(x << 6)|(x << 12)|(x << 24))
+#define AML_MV_DLY1_NOMMC(x)	\
+	(((x) << 0) | ((x) << 6) | ((x) << 12) | ((x) << 18))
+#define AML_MV_DLY1(x)	\
+	(((x) << 0) | ((x) << 6) | ((x) << 12) | ((x) << 18) | ((x) << 24))
+#define AML_MV_DLY2(x)	\
+	(((x) << 0) | ((x) << 6) | ((x) << 12) | ((x) << 24))
+#define AML_MV_DLY2_NOMMC_CMD(x) ((x) << 24)
+#define AML_MV_DLY2_NOCMD(x)	\
+	(((x) << 0) | ((x) << 6) | ((x) << 12))
 #define NO_FIXED_ADJ_MID	(1 << 31)
 
 #define	 AML_ERROR_RETRY_COUNTER		 10
@@ -204,6 +211,8 @@ enum mmc_chip_e {
 	MMC_CHIP_G12B = 0x29b,
 	MMC_CHIP_SM1 = 0X2C,
 	MMC_CHIP_TM2 = 0X2D,
+	MMC_CHIP_TM2_B = 0X2DB,
+	MMC_CHIP_SC2 = 0X2E,
 };
 
 struct mmc_phase {
@@ -257,10 +266,40 @@ struct clock_lay_t {
 #define TODLY_MIN_NS	(2)
 #define TODLY_MAX_NS	(14)
 
+struct hs400_para {
+	unsigned int delay1;
+	unsigned int delay2;
+	unsigned int intf3;
+	unsigned int flag;
+};
+
+struct hs200_para {
+	unsigned int adjust;
+};
+
+struct hs_para {
+	unsigned int adjust;
+};
+
+struct aml_tuning_para {
+	unsigned int chip_id[4];
+	unsigned int magic;
+	unsigned int vddee;
+	struct hs400_para hs4[7];
+	struct hs200_para hs2;
+	struct hs_para hs;
+	unsigned int version;
+	unsigned int busmod;
+	unsigned int update;
+	int temperature;
+	long long checksum;
+};
+
 struct amlsd_platform {
 	struct amlsd_host *host;
 	struct mmc_host *mmc;
 	struct list_head sibling;
+	struct aml_tuning_para para;
 	u32 ocr_avail;
 	u32 port;
 #define	 PORT_SDIO_A	 0
@@ -281,6 +320,7 @@ struct amlsd_platform {
 	unsigned int card_capacity;
 	unsigned int tx_phase;
 	unsigned int tx_delay;
+	unsigned int save_para;
 	unsigned int co_phase;
 	unsigned int f_min;
 	unsigned int f_max;
@@ -312,7 +352,9 @@ struct amlsd_platform {
 	unsigned int power_level;
 	unsigned int calc_f;
 	unsigned int no_sduart;
+	unsigned int sdio_vendor;
 
+	unsigned int scan_val;
 	unsigned int auto_clk_close;
 	unsigned int vol_switch;
 	unsigned int vol_switch_18;
@@ -429,6 +471,7 @@ struct amlsd_host {
 	struct clk *core_clk;
 	struct clk_mux mux;
 	struct clk *mux_clk;
+	struct clk *gp0_clk;
 	struct clk *mux_parent[MUX_CLK_NUM_PARENTS];
 	unsigned long mux_parent_rate[MUX_CLK_NUM_PARENTS];
 	struct clk_divider cfg_div;
@@ -456,6 +499,7 @@ struct amlsd_host {
 	char cmd_retune;
 	char find_win;
 	char tuning_mode;
+	int gp0_enable;
 	unsigned int is_sduart;
 	unsigned int irq;
 	unsigned int irq_in;
@@ -1510,6 +1554,9 @@ struct intf3 {
 	u32 ds_sht_m:6;     /*[17:12]*/
 	u32 ds_sht_exp:4;   /*[21:18]*/
 	u32 sd_intf3:1;     /*[22]*/
+	u32 nand_edo:3;     /*[25:23]*/
+	u32 eyetest_sel:1;  /*[26]*/
+	u32 resp_sel:1;     /*[27]*/
 };
 
 struct sd_emmc_start {
@@ -1738,7 +1785,7 @@ struct sd_emmc_desc_info {
 
 /* pinmux for sdcards, gpioC */
 #define PIN_MUX_REG6	(0xb6 << 2)
-#define PIN_MUX_REG9	(0xb9 << 2)
+#define PIN_MUX_REG9	(0x9 << 2)
 
 #define AML_MMC_DISABLED_TIMEOUT	100
 #define AML_MMC_SLEEP_TIMEOUT		1000

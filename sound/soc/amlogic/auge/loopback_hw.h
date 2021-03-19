@@ -71,8 +71,14 @@ extern void lb_set_datain_src(int id, int src);
 extern void lb_set_datain_cfg(int id, struct data_cfg *datain_cfg);
 extern void lb_set_datalb_cfg(int id, struct data_cfg *datalb_cfg);
 
-extern void lb_enable(int id, bool enable);
+void lb_enable(int id, bool enable, bool chnum_en);
 
-void lb_set_chnum_en(int id, bool en);
+void lb_set_chnum_en(int id, bool en, bool chnum_en);
 
+enum lb_out_rate {
+	MIC_RATE,
+	LB_RATE,
+};
+
+void lb_set_mode(int id, enum lb_out_rate rate);
 #endif

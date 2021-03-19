@@ -45,24 +45,6 @@ static inline void _set_src1_format(struct ge2d_src1_data_s *src1_data_cfg,
 		src1_data_cfg->deep_color = 1;
 	else
 		src1_data_cfg->deep_color = 0;
-
-	if ((format_src & GE2D_FORMAT_YUV) &&
-	    ((format_dst & GE2D_FORMAT_YUV) == 0)) {
-		dp_gen_cfg->use_matrix_default =
-			(format_src & GE2D_FORMAT_FULL_RANGE) ?
-			MATRIX_FULL_RANGE_YCC_TO_RGB : MATRIX_YCC_TO_RGB;
-		dp_gen_cfg->conv_matrix_en = 1;
-	} else if (((format_src & GE2D_FORMAT_YUV) == 0) &&
-		   (format_dst & GE2D_FORMAT_YUV)) {
-		dp_gen_cfg->use_matrix_default =
-			(format_dst & GE2D_FORMAT_FULL_RANGE) ?
-			MATRIX_RGB_TO_FULL_RANGE_YCC : MATRIX_RGB_TO_YCC;
-		dp_gen_cfg->use_matrix_default |=
-			((format_dst & GE2D_FORMAT_BT_STANDARD) ?
-				MATRIX_BT_709 : MATRIX_BT_601);
-		dp_gen_cfg->conv_matrix_en = 1;
-	} else
-		dp_gen_cfg->conv_matrix_en = 0;
 }
 
 static inline void _set_src2_format(
@@ -102,24 +84,6 @@ static inline void _set_dst_format(
 	src2_dst_data_cfg->dst_mode_8b_sel = (format_dst >> 6) & 3;
 	src2_dst_gen_cfg->dst_pic_struct   = (format_dst >> 3) & 3;
 
-	if ((format_src & GE2D_FORMAT_YUV) &&
-	    ((format_dst & GE2D_FORMAT_YUV) == 0)) {
-		dp_gen_cfg->use_matrix_default =
-			(format_src & GE2D_FORMAT_FULL_RANGE) ?
-			MATRIX_FULL_RANGE_YCC_TO_RGB : MATRIX_YCC_TO_RGB;
-		dp_gen_cfg->conv_matrix_en = 1;
-	} else if (((format_src & GE2D_FORMAT_YUV) == 0) &&
-		   (format_dst & GE2D_FORMAT_YUV)) {
-		dp_gen_cfg->use_matrix_default =
-			(format_dst & GE2D_FORMAT_FULL_RANGE) ?
-			MATRIX_RGB_TO_FULL_RANGE_YCC : MATRIX_RGB_TO_YCC;
-		dp_gen_cfg->use_matrix_default |=
-			((format_dst & GE2D_FORMAT_BT_STANDARD) ?
-				MATRIX_BT_709 : MATRIX_BT_601);
-		dp_gen_cfg->conv_matrix_en = 1;
-	} else
-		dp_gen_cfg->conv_matrix_en = 0;
-
 	y_yc_ratio = (format_dst >> 0) & 1;
 
 	/* #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6 */
@@ -141,28 +105,87 @@ static inline void _set_dst_format(
 	/* #endif */
 }
 
+static bool is_src1_addr_update(struct ge2d_src1_data_s *src1_data_cfg,
+				unsigned int *phy_addr,
+				unsigned int *stride)
+{
+	int i;
+	int update = 0;
+
+	for (i = 0; i < MAX_PLANE; i++) {
+		if (phy_addr[i]) {
+			if (phy_addr[i] != src1_data_cfg->phy_addr[i] ||
+			    stride[i] != src1_data_cfg->stride[i]) {
+				update = 1;
+				break;
+			}
+		}
+	}
+	return update;
+}
+
+static bool is_src2_addr_update(struct ge2d_src2_dst_data_s *src2_dst_data_cfg,
+				unsigned int *phy_addr,
+				unsigned int *stride)
+{
+	int i;
+	int update = 0;
+
+	for (i = 0; i < MAX_PLANE; i++) {
+		if (phy_addr[i]) {
+			if (phy_addr[i] != src2_dst_data_cfg->src2_phyaddr[i] ||
+			    stride[i] != src2_dst_data_cfg->src2_stride[i]) {
+				update = 1;
+				break;
+			}
+		}
+	}
+	return update;
+}
+
+static bool is_dst_addr_update(struct ge2d_src2_dst_data_s *src2_dst_data_cfg,
+			       unsigned int *phy_addr,
+			       unsigned int *stride)
+{
+	int i;
+	int update = 0;
+
+	for (i = 0; i < MAX_PLANE; i++) {
+		if (phy_addr[i]) {
+			if (phy_addr[i] != src2_dst_data_cfg->dst_phyaddr[i] ||
+			    stride[i] != src2_dst_data_cfg->dst_stride[i]) {
+				update = 1;
+				break;
+			}
+		}
+	}
+	return update;
+}
+
 void ge2dgen_src(struct ge2d_context_s *wq,
 		unsigned int canvas_addr,
 		unsigned int format,
-		unsigned int phy_addr,
-		unsigned int stride)
+		unsigned int *phy_addr,
+		unsigned int *stride)
 {
 	struct ge2d_src1_data_s *src1_data_cfg = ge2d_wq_get_src_data(wq);
 	struct ge2d_src1_gen_s *src1_gen_cfg = ge2d_wq_get_src_gen(wq);
 	struct ge2d_dp_gen_s *dp_gen_cfg = ge2d_wq_get_dp_gen(wq);
 	struct ge2d_src2_dst_data_s *src2_dst_data_cfg =
 		ge2d_wq_get_dst_data(wq);
+	int i;
 
-	if ((format != src1_data_cfg->format_all) ||
-	    (canvas_addr != src1_data_cfg->canaddr) ||
-		(phy_addr != src1_data_cfg->phy_addr) ||
-	    (stride != src1_data_cfg->stride)) {
+	if (format != src1_data_cfg->format_all ||
+	    canvas_addr != src1_data_cfg->canaddr ||
+	    is_src1_addr_update(src1_data_cfg, phy_addr, stride)) {
 		src1_data_cfg->canaddr = canvas_addr;
 
 		_set_src1_format(src1_data_cfg, src1_gen_cfg, dp_gen_cfg,
 				 format, src2_dst_data_cfg->dst_format_all);
-		src1_data_cfg->phy_addr = phy_addr;
-		src1_data_cfg->stride = stride;
+		for (i = 0; i < MAX_PLANE; i++) {
+			src1_data_cfg->phy_addr[i] = phy_addr[i];
+			src1_data_cfg->stride[i] = stride[i];
+		}
 		wq->config.update_flag |= UPDATE_SRC_DATA;
 		wq->config.update_flag |= UPDATE_SRC_GEN;
 		wq->config.update_flag |= UPDATE_DP_GEN;
@@ -225,23 +248,24 @@ void ge2dgen_cb(struct ge2d_context_s *wq,
 void ge2dgen_src2(struct ge2d_context_s *wq,
 		unsigned int canvas_addr,
 		unsigned int format,
-		unsigned int phy_addr,
-		unsigned int stride)
+		unsigned int *phy_addr,
+		unsigned int *stride)
 {
 	struct ge2d_src2_dst_data_s *src2_dst_data_cfg =
 		ge2d_wq_get_dst_data(wq);
 	struct ge2d_src2_dst_gen_s *src2_dst_gen_cfg = ge2d_wq_get_dst_gen(wq);
+	int i;
 
-	if ((format != src2_dst_data_cfg->src2_format_all) ||
-	    (canvas_addr != src2_dst_data_cfg->src2_canaddr) ||
-		(phy_addr != src2_dst_data_cfg->src2_phyaddr) ||
-	    (stride != src2_dst_data_cfg->src2_stride)) {
-
+	if (format != src2_dst_data_cfg->src2_format_all ||
+	    canvas_addr != src2_dst_data_cfg->src2_canaddr ||
+	    is_src2_addr_update(src2_dst_data_cfg, phy_addr, stride)) {
 		src2_dst_data_cfg->src2_canaddr = canvas_addr;
 
 		_set_src2_format(src2_dst_data_cfg, src2_dst_gen_cfg, format);
-		src2_dst_data_cfg->src2_phyaddr = phy_addr;
-		src2_dst_data_cfg->src2_stride = stride;
+		for (i = 0; i < MAX_PLANE; i++) {
+			src2_dst_data_cfg->src2_phyaddr[i] = phy_addr[i];
+			src2_dst_data_cfg->src2_stride[i] = stride[i];
+		}
 		wq->config.update_flag |= UPDATE_DST_DATA;
 		wq->config.update_flag |= UPDATE_DST_GEN;
 	}
@@ -250,25 +274,27 @@ void ge2dgen_src2(struct ge2d_context_s *wq,
 void ge2dgen_dst(struct ge2d_context_s *wq,
 		 unsigned int canvas_addr,
 		 unsigned int format,
-		 unsigned int phy_addr,
-		 unsigned int stride)
+		 unsigned int *phy_addr,
+		 unsigned int *stride)
 {
 	struct ge2d_src1_data_s *src1_data_cfg = ge2d_wq_get_src_data(wq);
 	struct ge2d_src2_dst_data_s *src2_dst_data_cfg =
 		ge2d_wq_get_dst_data(wq);
 	struct ge2d_src2_dst_gen_s *src2_dst_gen_cfg = ge2d_wq_get_dst_gen(wq);
 	struct ge2d_dp_gen_s *dp_gen_cfg = ge2d_wq_get_dp_gen(wq);
+	int i;
 
-	if ((format != src2_dst_data_cfg->dst_format_all) ||
-	    (canvas_addr != src2_dst_data_cfg->dst_canaddr) ||
-	    (phy_addr != src2_dst_data_cfg->dst_phyaddr) ||
-	    (stride != src2_dst_data_cfg->dst_stride)) {
+	if (format != src2_dst_data_cfg->dst_format_all ||
+	    canvas_addr != src2_dst_data_cfg->dst_canaddr ||
+	    is_dst_addr_update(src2_dst_data_cfg, phy_addr, stride)) {
 		src2_dst_data_cfg->dst_canaddr = canvas_addr;
 
 		_set_dst_format(src2_dst_data_cfg, src2_dst_gen_cfg, dp_gen_cfg,
 				src1_data_cfg->format_all, format);
-		src2_dst_data_cfg->dst_phyaddr = phy_addr;
-		src2_dst_data_cfg->dst_stride = stride;
+		for (i = 0; i < MAX_PLANE; i++) {
+			src2_dst_data_cfg->dst_phyaddr[i] = phy_addr[i];
+			src2_dst_data_cfg->dst_stride[i] = stride[i];
+		}
 		wq->config.update_flag |= UPDATE_DST_DATA;
 		wq->config.update_flag |= UPDATE_DST_GEN;
 		wq->config.update_flag |= UPDATE_DP_GEN;
@@ -429,12 +455,4 @@ void ge2dgen_const_color(struct ge2d_context_s *wq,
 		dp_gen_cfg->alu_const_color = color;
 		wq->config.update_flag |= UPDATE_DP_GEN;
 	}
-}
-
-void ge2dgen_disable_matrix(struct ge2d_context_s *wq)
-{
-	struct ge2d_dp_gen_s *dp_gen_cfg = ge2d_wq_get_dp_gen(wq);
-
-	dp_gen_cfg->conv_matrix_en = 0;
-	wq->config.update_flag |= UPDATE_DP_GEN;
 }

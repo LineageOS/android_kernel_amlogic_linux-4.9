@@ -435,7 +435,11 @@ static void pre_hold_block_mode_config(void)
 	if (cpu_after_eq(MESON_CPU_MAJOR_ID_G12A)) {
 		DI_Wr(DI_PRE_HOLD, 0);
 		/* go field after 2 lines */
+		#ifdef OLD_PRE_GL
 		DI_Wr(DI_PRE_GL_CTRL, (0x80000000|line_num_pre_frst));
+		#else
+		di_hpre_gl_sw(false);
+		#endif
 	} else if (is_meson_txlx_cpu()) {
 		/* setup pre process ratio to 66.6%*/
 		DI_Wr(DI_PRE_HOLD, (1 << 31) | (1 << 16) | 3);
@@ -1556,6 +1560,8 @@ static void set_di_inp_mif(struct DI_MIF_s *mif, int urgent, int hold_line)
 	unsigned int chroma0_rpt_loop_pat;
 	unsigned int vt_ini_phase = 0;
 	unsigned int reset_on_gofield;
+	unsigned int burst_len = 2;
+	int tmp_mirror = DI_RUN_MIRROR_DIS;
 
 	if (mif->set_separate_en != 0 && mif->src_field_mode == 1) {
 		chro_rpt_lastl_ctrl = 1;
@@ -1637,7 +1643,20 @@ static void set_di_inp_mif(struct DI_MIF_s *mif, int urgent, int hold_line)
 	} else {
 		RDMA_WR_BITS(DI_INP_GEN_REG2, 0, 0, 1);
 	}
-
+	if (is_meson_tl1_cpu()) {
+		tmp_mirror = get_mirror_status();
+		if (tmp_mirror == DI_RUN_MIRROR_H)
+			RDMA_WR_BITS(DI_INP_GEN_REG2, 0x1, 2, 2);
+		else if (tmp_mirror == DI_RUN_MIRROR_V)
+			RDMA_WR_BITS(DI_INP_GEN_REG2, 0x2, 2, 2);
+		else
+			RDMA_WR_BITS(DI_INP_GEN_REG2, 0, 2, 2);
+	}
+	if (mif->canvas_w % 32)
+		burst_len = 0;
+	else if (mif->canvas_w % 64)
+		burst_len = 1;
+	RDMA_WR_BITS(DI_INP_GEN_REG3, burst_len & 0x3, 1, 2);
 	RDMA_WR_BITS(DI_INP_GEN_REG3, mif->bit_mode&0x3, 8, 2);
 	RDMA_WR(DI_INP_CANVAS0, (mif->canvas0_addr2 << 16) |
 				/* cntl_canvas0_addr2 */
@@ -3151,6 +3170,11 @@ void read_pulldown_info(unsigned int *glb_frm_mot_num,
 	*glb_fid_mot_num = (Rd(DI_INFO_DATA)&0xffffff);
 }
 
+unsigned int di_rd_mcdi_fldcnt(void)
+{
+	return RDMA_RD(MCDI_RO_FLD_MTN_CNT);
+}
+
 void read_new_pulldown_info(struct FlmModReg_t *pFMReg)
 {
 	int i = 0;
@@ -3232,11 +3256,29 @@ void pre_frame_reset_g12(unsigned char madi_en,
 	RDMA_WR_BITS(MCVECWR_CAN_SIZE, 0, 14, 1);
 	RDMA_WR_BITS(MCINFWR_CAN_SIZE, 0, 14, 1);
 
+	#ifdef OLD_PRE_GL
 	reg_val = 0xc3200000 | line_num_pre_frst;
 	RDMA_WR(DI_PRE_GL_CTRL, reg_val);
 	reg_val = 0x83200000 | line_num_pre_frst;
 	RDMA_WR(DI_PRE_GL_CTRL, reg_val);
+	#else
+	di_hpre_gl_sw(false);
+	di_hpre_gl_sw(true);
+	#endif
 }
+
+/*2019-12-25 by feijun*/
+void di_hpre_gl_sw(bool on)
+{
+	if (!cpu_after_eq(MESON_CPU_MAJOR_ID_G12A))
+		return;
+	if (on)
+		RDMA_WR(DI_PRE_GL_CTRL,
+			0x80200000 | line_num_pre_frst);
+	else
+		RDMA_WR(DI_PRE_GL_CTRL, 0xc0000000);
+}
+
 /*
  * frame + soft reset for the pre modules
  */
@@ -3942,7 +3984,7 @@ void di_load_regs(struct di_pq_parm_s *di_pq_ptr)
 		}
 		if (table_name & nr_table)
 			ctrl_reg_flag = set_nr_ctrl_reg_table(addr, value);
-		if (table_name & TABLE_NAME_DI)
+		if (table_name & (TABLE_NAME_DI | TABLE_NAME_NR))
 			mov_flg = di_patch_mov_db(addr, value);
 		if (!ctrl_reg_flag && !mov_flg)
 			DI_Wr(addr, value);
@@ -4026,6 +4068,8 @@ struct reg_t {
 	char *bname;
 	char *info;
 };
+
+#ifdef MARK_SC2
 struct reg_acc {
 	void (*wr)(unsigned int adr, unsigned int val);
 	unsigned int (*rd)(unsigned int adr);
@@ -4035,6 +4079,7 @@ struct reg_acc {
 			unsigned int len);
 
 };
+#endif
 
 static unsigned int get_reg_bits(unsigned int val, unsigned int bstart,
 			unsigned int bw)

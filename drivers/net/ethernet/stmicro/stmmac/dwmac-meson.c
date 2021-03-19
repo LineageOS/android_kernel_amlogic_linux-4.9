@@ -58,6 +58,7 @@ struct meson_dwmac_data {
 };
 
 void __iomem *ee_reset_base;
+unsigned int rst_mask;
 struct platform_device *ppdev;
 #endif
 
@@ -251,7 +252,7 @@ static void __iomem *network_interface_setup(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 3);
 	if (res) {
-		addr = devm_ioremap_resource(dev, res);
+		addr = devm_ioremap(dev, res->start, resource_size(res));
 		if (IS_ERR(addr)) {
 			dev_err(&pdev->dev, "Unable to map %d\n", __LINE__);
 			return NULL;
@@ -334,19 +335,26 @@ static int dwmac_meson_cfg_analog(void __iomem *base_addr,
 	return 0;
 }
 
+unsigned int  tx_amp_bl2;
+unsigned int  enet_type;
 /*for newer then g12a use this dts architecture for dts*/
 void __iomem *phy_analog_config_addr;
+/*sc2 need re-setup top*/
+u32 mc_val;
+u32 cali_val;
+void __iomem *REG_ETH_reg0_addr;
 static void __iomem *g12a_network_interface_setup(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	struct device *dev = &pdev->dev;
 	struct pinctrl *pin_ctl;
 	struct resource *res = NULL;
-	u32 mc_val;
-	u32 cali_val;
+//	u32 mc_val;
+//	u32 cali_val;
 	void __iomem *addr = NULL;
-	void __iomem *REG_ETH_reg0_addr = NULL;
+//	void __iomem *REG_ETH_reg0_addr = NULL;
 	void __iomem *ETH_PHY_config_addr = NULL;
+	void __iomem *tx_amp_src = NULL;
 	u32 internal_phy = 0;
 	int auto_cali_idx = -1;
 	is_internal_phy = 0;
@@ -368,7 +376,6 @@ static void __iomem *g12a_network_interface_setup(struct platform_device *pdev)
 	}
 
 	REG_ETH_reg0_addr = addr;
-	pr_info(" REG0:Addr = %p\n", REG_ETH_reg0_addr);
 
 	/*map ETH_RESET address*/
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "eth_reset");
@@ -376,13 +383,25 @@ static void __iomem *g12a_network_interface_setup(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to get resource(%d)\n", __LINE__);
 		ee_reset_base = NULL;
 	} else {
-		addr = devm_ioremap_resource(dev, res);
+		addr = devm_ioremap(dev, res->start, resource_size(res));
 		if (IS_ERR(addr)) {
 			dev_err(&pdev->dev, "Unable to map reset base\n");
 			return NULL;
 		}
 		ee_reset_base = addr;
-		pr_info(" ee eth reset:Addr = %p\n", ee_reset_base);
+	}
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "tx_amp_src");
+	if (!res) {
+		pr_info("tx_amp_src not setup\n");
+	} else {
+		tx_amp_src = devm_ioremap_resource(dev, res);
+		if (IS_ERR(addr)) {
+			dev_err(&pdev->dev,
+				"cat't map tx_amp (%d)\n", __LINE__);
+			return NULL;
+		}
+		tx_amp_bl2 = readl(tx_amp_src);
 	}
 
 	/*map ETH_PLL address*/
@@ -406,6 +425,12 @@ static void __iomem *g12a_network_interface_setup(struct platform_device *pdev)
 	else
 		writel(mc_val, REG_ETH_reg0_addr);
 
+	if (of_property_read_u32(np, "rst_mask", &rst_mask))
+		pr_info("no rst_mask setting\n");
+
+	if (of_property_read_u32(np, "enet_type", &enet_type))
+		pr_info("default enet type as 0\n");
+
 	/*read phy option*/
 	if (of_property_read_u32(np, "internal_phy", &internal_phy) != 0) {
 		pr_info("Dts miss internal_phy item\n");
@@ -419,9 +444,6 @@ static void __iomem *g12a_network_interface_setup(struct platform_device *pdev)
 		if (of_property_read_u32(np, "mac_wol",
 					 &support_mac_wol))
 			pr_info("MAC wol not set\n");
-		else
-			pr_info("MAC wol :got wol %d .set it\n",
-				support_mac_wol);
 		/*PLL*/
 		dwmac_meson_cfg_pll(ETH_PHY_config_addr, pdev);
 		dwmac_meson_cfg_analog(ETH_PHY_config_addr, pdev);
@@ -487,7 +509,6 @@ static void __iomem *g12a_network_interface_setup(struct platform_device *pdev)
 		return REG_ETH_reg0_addr;
 	}
 
-	pr_info("should not happen\n");
 	return REG_ETH_reg0_addr;
 }
 
@@ -551,9 +572,21 @@ static int meson6_dwmac_resume(struct device *dev)
 	struct pinctrl *pin_ctrl;
 	struct pinctrl_state *turnon_tes = NULL;
 	pr_info("resuem inter = %d\n", is_internal_phy);
-	if (ee_reset_base)
-		writel((1 << 11), (void __iomem	*)
-			(unsigned long)ee_reset_base);
+	if ((ee_reset_base) && (support_mac_wol == 0)) {
+		if (rst_mask != 0) {
+			writel((1 << rst_mask), (void __iomem	*)
+				(unsigned long)ee_reset_base);
+		} else {
+			writel((1 << 11), (void __iomem	*)
+				(unsigned long)ee_reset_base);
+		}
+	}
+	/*sc2 will reset top*/
+	if (enet_type == 3) {
+		writel(mc_val, REG_ETH_reg0_addr);
+		writel(cali_val, REG_ETH_reg0_addr +
+				REG_ETH_REG1_OFFSET);
+	}
 
 	if ((is_internal_phy) && (support_mac_wol == 0)) {
 		pin_ctrl = devm_pinctrl_get(dev);

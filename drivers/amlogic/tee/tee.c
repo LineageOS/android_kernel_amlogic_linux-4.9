@@ -52,7 +52,11 @@ static int disable_flag;
 #define TEE_SMC_CALL_GET_OS_REVISION \
 	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_GET_OS_REVISION)
 
-#define TEE_SMC_FUNCID_LOAD_VIDEO_FW 15
+#define TEE_SMC_FUNCID_CONFIG_DEVICE_SECURE        14
+#define TEE_SMC_CONFIG_DEVICE_SECURE \
+	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_CONFIG_DEVICE_SECURE)
+
+#define TEE_SMC_FUNCID_LOAD_VIDEO_FW               15
 #define TEE_SMC_LOAD_VIDEO_FW \
 	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_LOAD_VIDEO_FW)
 
@@ -63,6 +67,19 @@ static int disable_flag;
 #define TEE_SMC_FUNCID_UNPROTECT_TVP_MEM           0xE021
 #define TEE_SMC_UNPROTECT_TVP_MEM \
 	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_UNPROTECT_TVP_MEM)
+
+#define TEE_SMC_FUNCID_PROTECT_MEM_BY_TYPE         0xE023
+#define TEE_SMC_PROTECT_MEM_BY_TYPE \
+	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_PROTECT_MEM_BY_TYPE)
+
+#define TEE_SMC_FUNCID_UNPROTECT_MEM               0xE024
+#define TEE_SMC_UNPROTECT_MEM \
+	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_UNPROTECT_MEM)
+
+#define TEE_SMC_FUNCID_DEMUX_CONFIG_PIPELINE       0xE050
+#define TEE_SMC_DEMUX_CONFIG_PIPELINE \
+	TEE_SMC_FAST_CALL_VAL(TEE_SMC_FUNCID_DEMUX_CONFIG_PIPELINE)
+
 static struct class *tee_sys_class;
 
 struct tee_smc_calls_revision_result {
@@ -203,6 +220,53 @@ void tee_unprotect_tvp_mem(uint32_t handle)
 			handle, 0, 0, 0, 0, 0, 0, &res);
 }
 EXPORT_SYMBOL(tee_unprotect_tvp_mem);
+
+uint32_t tee_protect_mem_by_type(uint32_t type,
+		uint32_t start, uint32_t size,
+		uint32_t *handle)
+{
+	struct arm_smccc_res res;
+
+	if (!handle)
+		return 0xFFFF0006;
+
+	arm_smccc_smc(TEE_SMC_PROTECT_MEM_BY_TYPE,
+			type, start, size, 0, 0, 0, 0, &res);
+
+	*handle = res.a1;
+
+	return res.a0;
+}
+EXPORT_SYMBOL(tee_protect_mem_by_type);
+
+void tee_unprotect_mem(uint32_t handle)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(TEE_SMC_UNPROTECT_MEM,
+			handle, 0, 0, 0, 0, 0, 0, &res);
+}
+EXPORT_SYMBOL(tee_unprotect_mem);
+
+int tee_config_device_state(int dev_id, int secure)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(TEE_SMC_CONFIG_DEVICE_SECURE,
+			dev_id, secure, 0, 0, 0, 0, 0, &res);
+
+	return res.a0;
+}
+EXPORT_SYMBOL(tee_config_device_state);
+
+void tee_demux_config_pipeline(int tsn_in, int tsn_out)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(TEE_SMC_DEMUX_CONFIG_PIPELINE,
+			tsn_in, tsn_out, 0, 0, 0, 0, 0, &res);
+}
+EXPORT_SYMBOL(tee_demux_config_pipeline);
 
 int tee_create_sysfs(void)
 {

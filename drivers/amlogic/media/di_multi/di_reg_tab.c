@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * drivers/amlogic/media/di_multi/di_reg_tab.c
  *
@@ -24,6 +25,8 @@
 #include "deinterlace.h"
 #include "di_data_l.h"
 #include "register.h"
+#include "di_reg_v2.h"
+#include "deinterlace_hw.h"
 
 static const struct reg_t rtab_contr[] = {
 	/*--------------------------*/
@@ -104,7 +107,8 @@ static unsigned int get_reg_bits(unsigned int val, unsigned int bstart,
 	       (((1L << bw) - 1) << bstart)) >> (bstart));
 }
 
-static void dbg_reg_tab(struct seq_file *s, const struct reg_t *pRegTab)
+//static
+void dbg_reg_tab(struct seq_file *s, const struct reg_t *pregtab)
 {
 	struct reg_t creg;
 	int i;
@@ -115,11 +119,11 @@ static void dbg_reg_tab(struct seq_file *s, const struct reg_t *pRegTab)
 
 	i = 0;
 	l_add = 0;
-	creg = pRegTab[i];
+	creg = pregtab[i];
 
 	do {
 		if (creg.add != l_add) {
-			val32 = Rd(creg.add);		/*RD*/
+			val32 = RD(creg.add);		/*RD*/
 			seq_printf(s, "add:0x%x = 0x%08x, %s\n",
 				   creg.add, val32, creg.name);
 			l_add = creg.add;
@@ -139,7 +143,7 @@ static void dbg_reg_tab(struct seq_file *s, const struct reg_t *pRegTab)
 			   creg.bit, creg.wid, val, val, bname, info);
 
 		i++;
-		creg = pRegTab[i];
+		creg = pregtab[i];
 		if (i > TABLE_LEN_MAX) {
 			pr_info("warn: too long, stop\n");
 			break;
@@ -150,6 +154,17 @@ static void dbg_reg_tab(struct seq_file *s, const struct reg_t *pRegTab)
 int reg_con_show(struct seq_file *seq, void *v)
 {
 	dbg_reg_tab(seq, &rtab_contr[0]);
+	return 0;
+}
+
+int reg_contr_show(struct seq_file *s, void *v)
+{
+	if (DIM_IS_IC_EF(SC2)) {
+		if (opl1()->rtab_contr_bits_tab)
+			dbg_reg_tab(s, opl1()->rtab_contr_bits_tab);
+		else
+			seq_printf(s, "%s:none\n", __func__);
+	}
 	return 0;
 }
 
@@ -190,11 +205,11 @@ static unsigned int dim_reg_read(unsigned int addr)
 	return aml_read_vcbus(addr);
 }
 
-static const struct reg_acc di_pre_regset = {
-	.wr = dim_DI_Wr,
+const struct reg_acc di_pre_regset = {
+	.wr = DIM_DI_WR,
 	.rd = dim_reg_read,
-	.bwr = dim_RDMA_WR_BITS,
-	.brd = dim_RDMA_RD_BITS,
+	.bwr = DIM_RDMA_WR_BITS,
+	.brd = DIM_RDMA_RD_BITS,
 };
 
 static bool di_wr_tab(const struct reg_acc *ops,
@@ -236,7 +251,7 @@ bool dim_wr_cue_int(void)
 	di_wr_tab(&di_pre_regset,
 		  ptab,
 		  tabsize);
-	PR_INF("%s:finish\n", __func__);
+	//PR_INF("%s:finish\n", __func__);
 
 	return true;
 }

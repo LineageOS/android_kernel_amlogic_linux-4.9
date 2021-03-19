@@ -379,6 +379,19 @@ struct aml_nand_flash_dev aml_nand_flash_ids[] = {
 		0,
 		(NAND_TIMING_MODE5 | NAND_ECC_BCH8_MODE)},
 
+	{"SkyHigh Slc NAND 4Gib S34ML04G3",
+		{NAND_MFR_AMD, 0xdc, 0x0, 0x1a, 0x0},
+		4096,
+		512,
+		0x40000,
+		256,
+		1,
+		16,
+		15,
+		0,
+		0,
+		(NAND_TIMING_MODE5 | NAND_ECC_BCH8_MODE)},
+
 	{"A revision NAND 1Gib W29N01HV ",
 		{NAND_ID_WINBOND, 0xf1, 0x00, 0x95, 0x00, 0x00},
 		2048,
@@ -517,6 +530,18 @@ struct aml_nand_flash_dev aml_nand_flash_ids[] = {
 		0,
 		0,
 		(NAND_TIMING_MODE5 | NAND_ECC_BCH8_MODE)},
+	{"ESMT SLC 512MiB 3.3V 8-bit F59L4G81A",
+		{NAND_ID_ESMT, 0xdc, 0x90, 0x95, 0x54},
+		2048,
+		512,
+		0x20000,
+		64,
+		1,
+		20,
+		15,
+		0,
+		0,
+		(NAND_TIMING_MODE5 | NAND_ECC_BCH8_MODE)},
 	{"A revision NAND 2Gib TC58BVG1S3HTA00 ",
 		{NAND_MFR_TOSHIBA, 0xda, 0x90, 0x15, 0xF6},
 		2048,
@@ -565,7 +590,7 @@ struct aml_nand_flash_dev aml_nand_flash_ids[] = {
 		0,
 		0,
 		(NAND_TIMING_MODE5 | NAND_ECC_BCH8_MODE)},
-	{"A revision NAND 4Gib TC58NVG2S0HTA00 ",
+	{"A revision NAND 4Gib TC58NVG2S0HTA00/F59L4G81CA(2L) ",
 		{NAND_MFR_TOSHIBA, 0xdc, 0x90, 0x26, 0x76},
 		4096,
 		512,
@@ -1703,8 +1728,8 @@ int aml_nand_scan(struct mtd_info *mtd, int maxchips)
 	int ret;
 
 	ret = aml_nand_scan_ident(mtd, maxchips);
-	if (!ret)
-		ret = nand_scan_tail(mtd);
+	//if (!ret)
+	//	ret = nand_scan_tail(mtd);
 	return ret;
 }
 

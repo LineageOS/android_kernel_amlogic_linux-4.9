@@ -689,6 +689,8 @@ int wiphy_register(struct wiphy *wiphy)
 
 	/* sanity check supported bands/channels */
 	for (band = 0; band < NUM_NL80211_BANDS; band++) {
+		u16 types = 0;
+
 		sband = wiphy->bands[band];
 		if (!sband)
 			continue;
@@ -731,6 +733,23 @@ int wiphy_register(struct wiphy *wiphy)
 			sband->channels[i].orig_mpwr =
 				sband->channels[i].max_power;
 			sband->channels[i].band = band;
+		}
+
+		for (i = 0; i < sband->n_iftype_data; i++) {
+			const struct ieee80211_sband_iftype_data *iftd;
+
+			iftd = &sband->iftype_data[i];
+
+			if (WARN_ON(!iftd->types_mask))
+				return -EINVAL;
+			if (WARN_ON(types & iftd->types_mask))
+				return -EINVAL;
+
+			/* at least one piece of information must be present */
+			if (WARN_ON(!iftd->he_cap.has_he))
+				return -EINVAL;
+
+			types |= iftd->types_mask;
 		}
 
 		have_band = true;
@@ -1126,6 +1145,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 		     wdev->iftype == NL80211_IFTYPE_ADHOC) && !wdev->use_4addr)
 			dev->priv_flags |= IFF_DONT_BRIDGE;
 
+		INIT_WORK(&wdev->disconnect_wk, cfg80211_autodisconnect_wk);
 		nl80211_notify_iface(rdev, wdev, NL80211_CMD_NEW_INTERFACE);
 		break;
 	case NETDEV_GOING_DOWN:
@@ -1214,6 +1234,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 #ifdef CONFIG_CFG80211_WEXT
 			kzfree(wdev->wext.keys);
 #endif
+			flush_work(&wdev->disconnect_wk);
 		}
 		/*
 		 * synchronise (so that we won't find this netdev

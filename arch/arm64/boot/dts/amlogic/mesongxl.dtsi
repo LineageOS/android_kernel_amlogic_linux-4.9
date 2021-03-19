@@ -301,6 +301,17 @@
 		/* 4: 333.3M    5: 400.0M    6: 500.0M    7: 666.7M */
 	};
 
+	meson_uvm{
+		compatible = "amlogic, meson_uvm";
+		status = "okay";
+	};
+
+	video_composer {
+		compatible = "amlogic, video_composer";
+		dev_name = "video_composer";
+		status = "okay";
+	};
+
 	spicc:@c1108d80{
 		compatible = "amlogic, spicc";
 		status = "disabled";
@@ -517,7 +528,7 @@
 				reg = <0x0 0xc0 0x0 0xc>,
 					<0x0 0x40 0x0 0x4>;
 				#irblaster-cells = <2>;
-				status = "disabled";
+				status = "okay";
 			};
 		};
 
@@ -560,6 +571,27 @@
 	vdac {
 		compatible = "amlogic, vdac-gxl";
 		status = "okay";
+	};
+
+	dummy_venc: dummy_venc {
+		compatible = "amlogic, dummy_venc";
+		status = "okay";
+		clocks = <&clkc CLKID_VCLK2_ENCP
+			&clkc CLKID_VCLK2_VENCP0
+			&clkc CLKID_VCLK2_VENCP1
+			&clkc CLKID_VCLK2_ENCI
+			&clkc CLKID_VCLK2_VENCI0
+			&clkc CLKID_VCLK2_VENCI1
+			&clkc CLKID_VCLK2_ENCL
+			&clkc CLKID_VCLK2_VENCL>;
+		clock-names = "encp_top_gate",
+			"encp_int_gate0",
+			"encp_int_gate1",
+			"venci_top_gate",
+			"enci_int_gate0",
+			"enci_int_gate1",
+			"encl_top_gate",
+			"encl_int_gate";
 	};
 
 	defendkey: defendkey {
@@ -1446,6 +1478,7 @@
 		status = "okay";
 		reg = <0x0 0xc8838000 0x0 0x100
 		       0x0 0xc8837000 0x0 0x100>;
+		sec_base = <0xda838400>;
 		interrupts = <0 52 1>;
 		interrupt-names = "ddr_bandwidth";
 	};

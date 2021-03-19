@@ -31,10 +31,14 @@
 #include <linux/amlogic/media/frame_sync/tsync_pcr.h>
 #include <linux/amlogic/media/registers/register.h>
 #include <linux/amlogic/media/codec_mm/configs.h>
+#include <linux/amlogic/major.h>
+#include <linux/err.h>
+#include <linux/uaccess.h>
 
 /* #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6 */
 /* TODO: for stream buffer register bit define only */
 /* #endif */
+#define TSYNC_DEVICE_NAME   "tsync"
 
 #if !defined(CONFIG_PREEMPT)
 #define CONFIG_AM_TIMESYNC_LOG
@@ -134,6 +138,7 @@ static const char * const tsync_mode_str[] = {
 	"vmaster", "amaster", "pcrmaster"
 };
 
+static struct device *tsync_dev;
 static DEFINE_SPINLOCK(lock);
 static enum tsync_mode_e tsync_mode = TSYNC_MODE_AMASTER;
 static enum tsync_stat_e tsync_stat = TSYNC_STAT_PCRSCR_SETUP_NONE;
@@ -154,6 +159,19 @@ static int apause_flag;
 static bool dobly_avsync_test;
 static int slowsync_enable;
 static int apts_lookup_offset;
+
+static bool new_arch;
+static u32 checkin_apts_from_audiohal;
+u8 demux_pcrscr_valid;
+u8 audio_pid_valid;
+u8 video_pid_valid;
+u32 demux_pcrscr;
+static u32 first_demux_pcrscr;
+struct dmx_info demux_info;
+
+pfun_amldemux_pcrscr_get amldemux_pcrscr_get_cb;
+
+
 pfun_tsdemux_pcrscr_valid tsdemux_pcrscr_valid_cb;
 
 pfun_tsdemux_pcrscr_get tsdemux_pcrscr_get_cb;
@@ -171,7 +189,6 @@ pfun_stbuf_level stbuf_level_cb;
 pfun_stbuf_space stbuf_space_cb;
 
 pfun_stbuf_size stbuf_size_cb;
-
 
 /*
  *used to set player start sync mode, 0-none; 1-smoothsync; 2-droppcm;
@@ -220,6 +237,8 @@ static int debug_pts_checkin;
 static int debug_pts_checkout;
 static int debug_vpts;
 static int debug_apts;
+static int apts_error_num;
+static int vpts_error_num;
 
 #define M_HIGH_DIFF    2
 #define M_LOW_DIFF     2
@@ -236,6 +255,10 @@ static int debug_apts;
 
 int register_tsync_callbackfunc(enum tysnc_func_type_e ntype, void *pfunc)
 {
+	if (new_arch) {
+		pr_info("no need to register_tync_func.\n");
+		return -1;
+	}
 	if (ntype >= TSYNC_FUNC_TYPE_MAX) {
 		pr_info("register_tync_func ntype is err.\n");
 		return -1;
@@ -283,8 +306,6 @@ int register_tsync_callbackfunc(enum tysnc_func_type_e ntype, void *pfunc)
 	return 0;
 }
 EXPORT_SYMBOL(register_tsync_callbackfunc);
-
-
 
 static void tsync_pcr_recover_with_audio(void)
 {
@@ -590,6 +611,11 @@ static int tsync_mode_switch(int mode, unsigned long diff_pts, int jump_pts)
 	int old_tsync_av_mode = tsync_av_mode;
 	char VA[] = "VA--";
 	unsigned long oldtimeout = tsync_av_dynamic_timeout_ms;
+	u32 pcr, vpts, apts;
+
+	pcr = timestamp_pcrscr_get();
+	vpts = timestamp_vpts_get();
+	apts = timestamp_apts_get();
 
 	if (tsync_mode == TSYNC_MODE_PCRMASTER) {
 		pr_info
@@ -627,6 +653,21 @@ static int tsync_mode_switch(int mode, unsigned long diff_pts, int jump_pts)
 			tsync_av_dynamic_duration_ms = 0;
 		} else {
 			/* / */
+			if (abs(vpts-apts) < tsync_av_threshold_min ||
+			diff_pts < tsync_av_threshold_min) {
+				pr_info("-wcs-< tsync_av_threshold_min--\n");
+				tsync_av_mode = TSYNC_STATE_S;
+				tsync_mode = TSYNC_MODE_AMASTER;
+				tsync_av_latest_switch_time_ms = jiffies_ms;
+				tsync_av_dynamic_duration_ms = 0;
+			} else if (abs(vpts-apts) < tsync_av_threshold_max ||
+			diff_pts < tsync_av_threshold_max) {
+				pr_info("-wcs-< tsync_av_threshold_max--\n");
+				tsync_av_mode = TSYNC_STATE_D;
+				tsync_mode = TSYNC_MODE_VMASTER;
+				tsync_av_latest_switch_time_ms = jiffies_ms;
+				tsync_av_dynamic_duration_ms = 20*1000;
+			}
 		}
 		if (tsync_mode != old_tsync_mode
 			|| tsync_av_mode != old_tsync_av_mode)
@@ -724,6 +765,280 @@ static void tsync_state_switch_timer_fun(unsigned long arg)
 	add_timer(&tsync_state_switch_timer);
 }
 
+u8 tsync_get_demux_pcrscr_valid_for_newarch(void)
+{
+	return demux_pcrscr_valid;
+}
+EXPORT_SYMBOL(tsync_get_demux_pcrscr_valid_for_newarch);
+
+u8 tsync_get_demux_pcrscr_valid(void)
+{
+	if (new_arch) {
+		return tsync_get_demux_pcrscr_valid_for_newarch();
+	} else {
+		if (tsdemux_pcrscr_valid_cb)
+			demux_pcrscr_valid = tsdemux_pcrscr_valid_cb();
+		else
+			demux_pcrscr_valid = 0;
+		return demux_pcrscr_valid;
+	}
+}
+EXPORT_SYMBOL(tsync_get_demux_pcrscr_valid);
+
+u8 tsync_get_audio_pid_valid_for_newarch(void)
+{
+	return audio_pid_valid;
+}
+EXPORT_SYMBOL(tsync_get_audio_pid_valid_for_newarch);
+
+u8 tsync_get_audio_pid_valid(void)
+{
+	if (new_arch) {
+		return tsync_get_audio_pid_valid_for_newarch();
+	} else {
+		if (tsdemux_pcraudio_valid_cb)
+			audio_pid_valid = tsdemux_pcraudio_valid_cb();
+		else
+			audio_pid_valid = 0;
+		return audio_pid_valid;
+	}
+}
+EXPORT_SYMBOL(tsync_get_audio_pid_valid);
+
+u8 tsync_get_video_pid_valid_for_newarch(void)
+{
+	return video_pid_valid;
+}
+EXPORT_SYMBOL(tsync_get_video_pid_valid_for_newarch);
+
+u8 tsync_get_video_pid_valid(void)
+{
+	if (new_arch) {
+		return tsync_get_video_pid_valid_for_newarch();
+	} else {
+		if (tsdemux_pcrvideo_valid_cb)
+			video_pid_valid = (tsdemux_pcrvideo_valid_cb)();
+		else
+			video_pid_valid = 0;
+		return video_pid_valid;
+	}
+}
+EXPORT_SYMBOL(tsync_get_video_pid_valid);
+
+void tsync_get_demux_pcr_for_newarch(void)
+{
+	if (!amldemux_pcrscr_get_cb)
+		amldemux_pcrscr_get_cb = symbol_request(demux_get_pcr);
+
+	if (amldemux_pcrscr_get_cb) {
+		amldemux_pcrscr_get_cb(demux_info.demux_device_id,
+				       demux_info.index, (u64 *)&demux_pcrscr);
+		if (first_demux_pcrscr == 0)
+			first_demux_pcrscr = demux_pcrscr;
+	}
+}
+EXPORT_SYMBOL(tsync_get_demux_pcr_for_newarch);
+
+u8 tsync_get_demux_pcr(u32 *pcr)
+{
+	u8 ret = 0;
+
+	if (new_arch) {
+		if (!demux_pcrscr_valid) {
+			*pcr = 0;
+			return 0;
+		}
+		tsync_get_demux_pcr_for_newarch();
+		*pcr = demux_pcrscr;
+		ret = 1;
+	} else {
+		if (tsdemux_pcrscr_get_cb) {
+			demux_pcrscr = tsdemux_pcrscr_get_cb();
+			*pcr = demux_pcrscr;
+			ret = 1;
+		} else {
+			ret = 0;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(tsync_get_demux_pcr);
+
+void tsync_get_first_demux_pcr_for_newarch(void)
+{
+	tsync_get_demux_pcr_for_newarch();
+}
+EXPORT_SYMBOL(tsync_get_first_demux_pcr_for_newarch);
+
+u8 tsync_get_first_demux_pcr(u32 *first_pcr)
+{
+	u8 ret = 0;
+
+	if (new_arch) {
+		if (!demux_pcrscr_valid) {
+			*first_pcr = 0;
+			return 0;
+		}
+		tsync_get_first_demux_pcr_for_newarch();
+		*first_pcr = first_demux_pcrscr;
+		ret = 1;
+	} else {
+		if (tsdemux_first_pcrscr_get_cb) {
+			first_demux_pcrscr = tsdemux_first_pcrscr_get_cb();
+			*first_pcr = first_demux_pcrscr;
+			ret = 1;
+		} else {
+			ret = 0;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(tsync_get_first_demux_pcr);
+
+void tsync_get_buf_by_type_for_newarch(u8 type, struct stream_buf_s *pbuf)
+{
+	pbuf = NULL;
+}
+EXPORT_SYMBOL(tsync_get_buf_by_type_for_newarch);
+
+u8 tsync_get_buf_by_type(u8 type, struct stream_buf_s *pbuf)
+{
+	u8 ret = 0;
+
+	if (new_arch) {
+		tsync_get_buf_by_type_for_newarch(type, pbuf);
+		ret = 0;
+	} else {
+		if (get_buf_by_type_cb) {
+			pbuf = get_buf_by_type_cb(type);
+			ret = 1;
+		} else {
+			ret = 0;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(tsync_get_buf_by_type);
+
+void tsync_get_stbuf_level_for_newarch(struct stream_buf_s *pbuf,
+				       u32 *buf_level)
+{
+	*buf_level = 0;
+}
+EXPORT_SYMBOL(tsync_get_stbuf_level_for_newarch);
+
+u8 tsync_get_stbuf_level(struct stream_buf_s *pbuf, u32 *buf_level)
+{
+	u8 ret = 0;
+
+	if (!pbuf)
+		return 0;
+
+	if (new_arch) {
+		tsync_get_stbuf_level_for_newarch(pbuf, buf_level);
+		ret = 0;
+	} else {
+		if (stbuf_level_cb) {
+			*buf_level = stbuf_level_cb(pbuf);
+			ret = 1;
+		} else {
+			ret = 0;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(tsync_get_stbuf_level);
+
+void tsync_get_stbuf_space_for_newarch(struct stream_buf_s *pbuf,
+				       u32 *buf_space)
+{
+	*buf_space = 0;
+}
+EXPORT_SYMBOL(tsync_get_stbuf_space_for_newarch);
+
+u8 tsync_get_stbuf_space(struct stream_buf_s *pbuf, u32 *buf_space)
+{
+	u8 ret = 0;
+
+	if (!pbuf)
+		return 0;
+
+	if (new_arch) {
+		tsync_get_stbuf_space_for_newarch(pbuf, buf_space);
+		ret = 0;
+	} else {
+		if (stbuf_space_cb) {
+			*buf_space = stbuf_space_cb(pbuf);
+			ret = 1;
+		} else {
+			ret = 0;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(tsync_get_stbuf_space);
+
+void tsync_get_stbuf_size_for_newarch(struct stream_buf_s *pbuf, u32 *buf_size)
+{
+	*buf_size = 0;
+}
+EXPORT_SYMBOL(tsync_get_stbuf_size_for_newarch);
+
+u8 tsync_get_stbuf_size(struct stream_buf_s *pbuf, u32 *buf_size)
+{
+	u8 ret = 0;
+
+	if (!pbuf)
+		return 0;
+
+	if (new_arch) {
+		tsync_get_stbuf_size_for_newarch(pbuf, buf_size);
+		ret = 1;
+	} else {
+		if (stbuf_size_cb) {
+			*buf_size = stbuf_size_cb(pbuf);
+			ret = 1;
+		} else {
+			ret = 0;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(tsync_get_stbuf_size);
+
+int tsync_check_pid_valid_for_newarch(struct dmx_info demux_info)
+{
+	if (!new_arch)
+		return 0;
+	if (demux_info.vpid != 0x1FFF)
+		video_pid_valid = 1;
+	else
+		video_pid_valid = 0;
+
+	if (demux_info.apid != 0x1FFF)
+		audio_pid_valid = 1;
+	else
+		audio_pid_valid = 0;
+
+	if (demux_info.pcrpid != 0x1FFF)
+		demux_pcrscr_valid = 1;
+	else
+		demux_pcrscr_valid = 0;
+	if (!video_pid_valid)
+		pr_info("tsync exception video pid is valid.");
+	if (!audio_pid_valid)
+		pr_info("tsync exception audio pid is valid.");
+	if (!demux_pcrscr_valid)
+		pr_info("tsync exception demux pcr pid is valid.");
+	return 1;
+}
+
+void tsync_reset(void)
+{
+	checkin_apts_from_audiohal = 0xffffffff;
+	first_demux_pcrscr = 0;
+}
+
 void tsync_mode_reinit(void)
 {
 	tsync_av_mode = TSYNC_STATE_S;
@@ -745,6 +1060,15 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 
 	switch (event) {
 	case VIDEO_START:
+		if (tsync_video_started == 0) {
+			pr_info("[%s %d]VIDEO_START-tsync_mode:%d(%c)\n",
+				__func__, __LINE__,
+				tsync_mode, tsync_av_mode);
+			pr_info("pcr:0x%x,param:0x%x,vpts:0x%x,apts:0x%x\n",
+				timestamp_pcrscr_get(), param,
+				timestamp_vpts_get(),
+				timestamp_apts_get());
+		}
 		tsync_video_started = 1;
 		tsync_set_av_state(0, 2);
 
@@ -752,9 +1076,14 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 	// by avpts-diff too much
 	//threshold 120s is an arbitrary value
 
-		if (tsync_enable && !get_vsync_pts_inc_mode())
-			tsync_mode = TSYNC_MODE_AMASTER;
-		else{
+		if (tsync_enable && !get_vsync_pts_inc_mode()) {
+			t = abs(param - timestamp_apts_get());
+			if (tsync_av_mode == TSYNC_STATE_S ||
+			    (tsync_av_mode == TSYNC_STATE_D &&
+			    (t < tsync_av_threshold_min))) {
+				tsync_mode = TSYNC_MODE_AMASTER;
+			}
+		} else {
 			tsync_mode = TSYNC_MODE_VMASTER;
 			if (get_vsync_pts_inc_mode())
 				tsync_stat = TSYNC_STAT_PCRSCR_SETUP_NONE;
@@ -795,7 +1124,7 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 				set_pts_realign();
 			}
 		}
-		if (/*tsync_mode == TSYNC_MODE_VMASTER && */ !vpause_flag)
+		if (!vpause_flag && !tsync_get_tunnel_mode())
 			timestamp_pcrscr_enable(1);
 
 		if (!timestamp_firstvpts_get() && param)
@@ -806,9 +1135,11 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 		tsync_stat = TSYNC_STAT_PCRSCR_SETUP_NONE;
 		tsync_set_av_state(0, 3);
 		timestamp_vpts_set(0);
+		timestamp_vpts_set_u64(0);
 		timestamp_pcrscr_set(0);
 		timestamp_pcrscr_enable(0);
 		timestamp_firstvpts_set(0);
+		tsync_reset();
 		tsync_video_started = 0;
 		break;
 
@@ -834,7 +1165,7 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 			t = timestamp_apts_get();
 		else
 			t = timestamp_pcrscr_get();
-		if (tsdemux_pcrscr_valid_cb && tsdemux_pcrscr_valid_cb() == 1) {
+		if (tsync_get_demux_pcrscr_valid()) {
 			if (abs(param - oldpts) > tsync_av_threshold_min) {
 				vpts_discontinue = 1;
 				if (apts_discontinue == 1) {
@@ -855,6 +1186,7 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 				}
 			}
 			timestamp_vpts_set(param);
+			vpts_error_num++;
 			break;
 		}
 		/*
@@ -870,6 +1202,7 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 		}
 
 		timestamp_vpts_set(param);
+		vpts_error_num++;
 		if (tsync_mode == TSYNC_MODE_VMASTER) {
 			timestamp_pcrscr_set(param);
 			set_pts_realign();
@@ -888,7 +1221,7 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 		amlog_level(LOG_LEVEL_ATTENTION,
 				"audio discontinue, reset apts, 0x%x\n",
 				param);
-		if (tsdemux_pcrscr_valid_cb && tsdemux_pcrscr_valid_cb() == 1) {
+		if (tsync_get_demux_pcrscr_valid()) {
 			if (abs(param - oldpts) > tsync_av_threshold_min) {
 				apts_discontinue = 1;
 				if (vpts_discontinue == 1) {
@@ -909,9 +1242,11 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 				}
 			}
 			timestamp_apts_set(param);
+			apts_error_num++;
 			break;
 		}
 		timestamp_apts_set(param);
+		apts_error_num++;
 		if (!tsync_enable) {
 			timestamp_apts_set(param);
 			break;
@@ -936,7 +1271,12 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 			set_pts_realign();
 		} else if (tsync_mode != oldmod
 				 && tsync_mode == TSYNC_MODE_VMASTER) {
-			timestamp_pcrscr_set(timestamp_vpts_get());
+			//When no first pic coming, the vpts value is invalid
+			if (get_first_pic_coming())
+				t = timestamp_vpts_get();
+			else
+				t = timestamp_firstvpts_get();
+			timestamp_pcrscr_set(t);
 			set_pts_realign();
 		}
 	}
@@ -971,13 +1311,8 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 
 		t = timestamp_pcrscr_get();
 
-		amlog_level(LOG_LEVEL_INFO,
-					"[%s]param %d, t %d, tsync_abreak %d\n",
-					__func__, param, t, tsync_abreak);
-		/* 100ms, then wait to match */
-		if (tsync_abreak &&
-			(abs(param - t) > TIME_UNIT90K / 10))
-			break;
+		pr_info("[%s]param %d, t %d\n",
+					__func__, param, t);
 
 		tsync_abreak = 0;
 		/* after reset, video should be played first */
@@ -1024,6 +1359,7 @@ void tsync_avevent_locked(enum avevent_e event, u32 param)
 			tsync_stat = TSYNC_STAT_PCRSCR_SETUP_NONE;
 		apause_flag = 0;
 		timestamp_apts_start(0);
+		tsync_reset();
 
 		break;
 
@@ -1187,7 +1523,7 @@ EXPORT_SYMBOL(tsync_set_sync_vdiscont);
 
 int tsync_set_video_runmode(void)
 {
-	if (tsdemux_pcrscr_valid_cb && tsdemux_pcrscr_valid_cb() == 1) {
+	if (tsync_get_demux_pcrscr_valid()) {
 		if (vpts_discontinue == 1 || apts_discontinue == 1)
 			return 1;
 	}
@@ -1222,7 +1558,7 @@ int tsync_set_apts(unsigned int pts)
 		t = timestamp_vpts_get();
 	else
 		t = timestamp_pcrscr_get();
-	if (tsdemux_pcrscr_valid_cb && tsdemux_pcrscr_valid_cb() == 1) {
+	if (tsync_get_demux_pcrscr_valid()) {
 		timestamp_apts_set(pts);
 		if ((int)(timestamp_apts_get() - timestamp_pcrscr_get())
 			> 30 * TIME_UNIT90K / 1000
@@ -1297,7 +1633,8 @@ int tsync_set_apts(unsigned int pts)
 			}
 		}
 	} else if ((oldmod != tsync_mode) && (tsync_mode == TSYNC_MODE_VMASTER))
-		timestamp_pcrscr_set(timestamp_vpts_get());
+		timestamp_pcrscr_set(get_first_pic_coming()
+		? timestamp_vpts_get() : timestamp_firstvpts_get());
 	return 0;
 }
 EXPORT_SYMBOL(tsync_set_apts);
@@ -1445,6 +1782,7 @@ EXPORT_SYMBOL(tsync_set_startsync_mode);
 
 int tsync_set_tunnel_mode(int mode)
 {
+	tsync_mode = TSYNC_MODE_AMASTER;
 	return is_tunnel_mode = mode;
 }
 EXPORT_SYMBOL(tsync_set_tunnel_mode);
@@ -1476,6 +1814,30 @@ bool tsync_check_vpts_discontinuity(unsigned int vpts)
 		return false;
 }
 EXPORT_SYMBOL(tsync_check_vpts_discontinuity);
+
+int tsync_get_vpts_error_num(void)
+{
+	return vpts_error_num;
+}
+EXPORT_SYMBOL(tsync_get_vpts_error_num);
+
+int tsync_get_apts_error_num(void)
+{
+	return apts_error_num;
+}
+EXPORT_SYMBOL(tsync_get_apts_error_num);
+
+bool tsync_get_new_arch(void)
+{
+	return new_arch;
+}
+EXPORT_SYMBOL(tsync_get_new_arch);
+
+u32 tsync_get_checkin_apts(void)
+{
+	return checkin_apts_from_audiohal;
+}
+EXPORT_SYMBOL(tsync_get_checkin_apts);
 
 static ssize_t store_pcr_recover(struct class *class,
 		struct class_attribute *attr,
@@ -1548,6 +1910,15 @@ static ssize_t show_vpts(struct class *class,
 	return sprintf(buf, "0x%x\n", timestamp_vpts_get());
 }
 
+static ssize_t show_vpts_u64(struct class *class,
+			     struct class_attribute *attr, char *buf)
+{
+	u64 pts_val;
+
+	pts_val = div64_u64(timestamp_vpts_get_u64() * 9, 100);
+	return sprintf(buf, "0x%llx\n", pts_val);
+}
+
 static ssize_t store_vpts(struct class *class,
 		struct class_attribute *attr,
 		const char *buf, size_t size)
@@ -1575,6 +1946,15 @@ static ssize_t show_apts(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
 	return sprintf(buf, "0x%x\n", timestamp_apts_get());
+}
+
+static ssize_t show_apts_u64(struct class *class,
+			     struct class_attribute *attr, char *buf)
+{
+	u64 pts_val;
+
+	pts_val = div64_u64(timestamp_apts_get_u64() * 9, 100);
+	return sprintf(buf, "0x%llx\n", pts_val);
 }
 
 static ssize_t store_apts(struct class *class,
@@ -1628,6 +2008,15 @@ static ssize_t show_pcrscr(struct class *class,
 	return sprintf(buf, "0x%x\n", timestamp_pcrscr_get());
 }
 
+static ssize_t show_pcrscr_u64(struct class *class,
+			       struct class_attribute *attr, char *buf)
+{
+	u64 pts_val;
+
+	pts_val = div64_u64(timestamp_pcrscr_get_u64() * 9, 100);
+	return sprintf(buf, "0x%llx\n", pts_val);
+}
+
 static ssize_t show_aptscheckin_flag(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
@@ -1642,7 +2031,7 @@ static ssize_t store_pcrscr(struct class *class,
 	ssize_t r;
 
 	/*r = sscanf(buf, "0x%x", &pts);*/
-	r = kstrtoint(buf, 0, &pts);
+	r = kstrtouint(buf, 0, &pts);
 
 	if (r != 0)
 		return -EINVAL;
@@ -1754,11 +2143,8 @@ static ssize_t show_discontinue(struct class *class,
 {
 	pts_discontinue = vpts_discontinue || apts_discontinue;
 	if (pts_discontinue) {
-		sprintf(buf, "1: pts_discontinue, ");
-		sprintf(buf, "%sapts_discontinue_diff=%d, ",
-				buf, apts_discontinue_diff);
-		return sprintf(buf, "%svpts_discontinue_diff=%d,\n",
-				buf, vpts_discontinue_diff);
+		return sprintf(buf, "apts diff %d, vpts diff=%d\n",
+			apts_discontinue_diff, vpts_discontinue_diff);
 	}
 
 	return sprintf(buf, "0: pts_continue\n");
@@ -1951,11 +2337,27 @@ static ssize_t show_last_checkin_apts(struct class *class,
 	return sprintf(buf, "0x%x\n", last_apts);
 }
 
+static ssize_t show_last_checkin_vpts(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	unsigned int last_vpts;
+
+	last_vpts = get_last_checkin_pts(PTS_TYPE_VIDEO);
+	return sprintf(buf, "0x%x\n", last_vpts);
+}
+
 static ssize_t show_firstvpts(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
 	return sprintf(buf, "0x%x\n", timestamp_firstvpts_get());
 }
+
+static ssize_t show_videostarted(struct class *class,
+				struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "0x%x\n", tsync_video_started);
+}
+
 
 static ssize_t show_firstapts(struct class *class,
 		struct class_attribute *attr, char *buf)
@@ -2065,6 +2467,25 @@ static ssize_t store_latency(struct class *class,
 	return size;
 }
 
+static ssize_t show_avsync_counts(struct class *class,
+				  struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", timestamp_avsync_counter_get());
+}
+
+static ssize_t store_avsync_counts(struct class *class,
+				   struct class_attribute *attr,
+				   const char *buf, size_t size)
+{
+	unsigned int counts = 0;
+	ssize_t r;
+
+	r = kstrtouint(buf, 0, &counts);
+	if (r != 0)
+		return -EINVAL;
+	timestamp_avsync_counter_set(counts);
+	return size;
+}
 static ssize_t show_apts_lookup(struct class *class,
 	struct class_attribute *attrr, char *buf)
 {
@@ -2109,11 +2530,14 @@ static ssize_t store_startsync_mode(struct class *class,
 
 static struct class_attribute tsync_class_attrs[] = {
 	__ATTR(pts_video, 0664, show_vpts, store_vpts),
+	__ATTR(pts_video_u64, 0664, show_vpts_u64, NULL),
 	__ATTR(pts_audio, 0664, show_apts, store_apts),
+	__ATTR(pts_audio_u64, 0664, show_apts_u64, NULL),
 	__ATTR(dobly_av_sync, 0664, dobly_show_sync,
 	dobly_store_sync),
 	__ATTR(pts_pcrscr, 0664, show_pcrscr,
 	store_pcrscr),
+	__ATTR(pts_pcrscr_u64, 0664, show_pcrscr_u64, NULL),
 	__ATTR(apts_checkin_flag, 0664, show_aptscheckin_flag, NULL),
 	__ATTR(event, 0664, NULL, store_event),
 	__ATTR(mode, 0664, show_mode, store_mode),
@@ -2134,7 +2558,7 @@ static struct class_attribute tsync_class_attrs[] = {
 	show_av_threshold_min, store_av_threshold_min),
 	__ATTR(av_threshold_max, 0664,
 	show_av_threshold_max, store_av_threshold_max),
-	__ATTR(last_checkin_apts, 0644, show_last_checkin_apts,
+	__ATTR(last_checkin_apts, 0664, show_last_checkin_apts,
 	NULL),
 	__ATTR(firstvpts, 0644, show_firstvpts, NULL),
 	__ATTR(vpause_flag, 0644, show_vpause_flag,
@@ -2154,6 +2578,9 @@ static struct class_attribute tsync_class_attrs[] = {
 	__ATTR(checkin_firstapts, 0644, show_checkin_firstapts,
 	NULL),
 	__ATTR(pts_latency, 0664, show_latency, store_latency),
+	__ATTR(videostarted, 0664, show_videostarted, NULL),
+	__ATTR(avsync_count, 0664, show_avsync_counts, store_avsync_counts),
+	__ATTR(last_checkin_vpts, 0664, show_last_checkin_vpts, NULL),
 	__ATTR_NULL
 };
 
@@ -2183,8 +2610,6 @@ int tsync_store_fun(const char *trigger, int id, const char *buf, int size)
 	case 12:return store_debug_apts(NULL, NULL, buf, size);
 	case 13:return store_av_threshold_min(NULL, NULL, buf, size);
 	case 14:return store_av_threshold_max(NULL, NULL, buf, size);
-	/*case 15:return -1;*/
-	/*case 16:return -1;*/
 	case 17:return store_vpause_flag(NULL, NULL, buf, size);
 	case 18:return store_slowsync_enable(NULL, NULL, buf, size);
 	case 19:return store_startsync_mode(NULL, NULL, buf, size);
@@ -2276,6 +2701,21 @@ int tsync_show_fun(const char *trigger, int id, char *sbuf, int size)
 	case 21:
 		ret = show_checkin_firstvpts(NULL, NULL, buf);
 		break;
+	case 22:
+		ret = show_videostarted(NULL, NULL, buf);
+		break;
+	case 23:
+		ret = show_vpts_u64(NULL, NULL, buf);
+		break;
+	case 24:
+		ret = show_apts_u64(NULL, NULL, buf);
+		break;
+	case 25:
+		ret = show_pcrscr_u64(NULL, NULL, buf);
+		break;
+	case 26:
+		ret = show_last_checkin_vpts(NULL, NULL, buf);
+		break;
 	default:
 		ret = -1;
 	}
@@ -2312,8 +2752,119 @@ static struct mconfig tsync_configs[] = {
 	MC_FUN_ID("startsync_mode", tsync_show_fun, tsync_store_fun, 19),
 	MC_FUN_ID("firstapts", tsync_show_fun, tsync_store_fun, 20),
 	MC_FUN_ID("checkin_firstvpts", tsync_show_fun, NULL, 21),
+	MC_FUN_ID("videostarted", tsync_show_fun, NULL, 22),
+	MC_FUN_ID("pts_video_u64", tsync_show_fun, NULL, 23),
+	MC_FUN_ID("pts_audio_u64", tsync_show_fun, NULL, 24),
+	MC_FUN_ID("pts_pcrscr_u64", tsync_show_fun, NULL, 25),
 };
 
+static int tsync_open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static int tsync_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static long tsync_ioctl(struct file *file, unsigned int cmd, ulong arg)
+{
+	long ret = 0;
+	unsigned int tmppts = 0;
+	void __user *argp = (void __user *)arg;
+
+	switch (cmd) {
+	case TSYNC_IOC_SET_TUNNEL_MODE:{
+		u32 tunnel_mode;
+
+		if (copy_from_user(&tunnel_mode, argp,
+		   sizeof(is_tunnel_mode)) == 0)
+			tsync_set_tunnel_mode(tunnel_mode);
+		else
+			ret = -EFAULT;
+		break;
+	}
+	case TSYNC_IOC_SET_VIDEO_PEEK:
+		set_video_peek();
+		break;
+
+	case TSYNC_IOC_GET_FIRST_FRAME_TOGGLED:
+		put_user(get_first_frame_toggled(), (u32 __user *)argp);
+		break;
+
+	case TSYNC_IOC_SET_FIRST_CHECKIN_APTS:
+		if (new_arch && get_user(tmppts, (unsigned int *)arg) >= 0)
+			timestamp_checkin_firstapts_set(tmppts);
+		break;
+
+	case TSYNC_IOC_SET_LAST_CHECKIN_APTS:
+		if (new_arch)
+			get_user(checkin_apts_from_audiohal,
+				 (unsigned int *)arg);
+		break;
+
+	case TSYNC_IOC_SET_DEMUX_INFO:
+		if (new_arch &&
+		    (copy_from_user((void *)&demux_info, (void *)arg,
+				    sizeof(demux_info)) == 0)) {
+			tsync_check_pid_valid_for_newarch(demux_info);
+			ret = pts_start(PTS_TYPE_VIDEO);
+			if (ret < 0)
+				pr_err("pts_start failed\n");
+
+			tsync_pcr_start();
+		}
+		break;
+
+	case TSYNC_IOC_STOP_TSYNC_PCR:
+		if (new_arch) {
+			ret = pts_stop(PTS_TYPE_VIDEO);
+			if (ret < 0)
+				pr_err("pts_stop failed=%ld\n", ret);
+
+			tsync_pcr_stop();
+		}
+		break;
+	default:
+		pr_info("invalid cmd:%d\n", cmd);
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long tsync_compat_ioctl(struct file *file, unsigned int cmd, ulong arg)
+{
+	long ret = 0;
+
+	switch (cmd) {
+	case TSYNC_IOC_SET_TUNNEL_MODE:
+	case TSYNC_IOC_SET_VIDEO_PEEK:
+	case TSYNC_IOC_GET_FIRST_FRAME_TOGGLED:
+	case TSYNC_IOC_SET_FIRST_CHECKIN_APTS:
+	case TSYNC_IOC_SET_LAST_CHECKIN_APTS:
+	case TSYNC_IOC_SET_DEMUX_INFO:
+	case TSYNC_IOC_STOP_TSYNC_PCR:
+		return tsync_ioctl(file, cmd, arg);
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+#endif
+
+static const struct file_operations tsync_fops = {
+	.owner = THIS_MODULE,
+	.open = tsync_open,
+	.release = tsync_release,
+	.unlocked_ioctl = tsync_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = tsync_compat_ioctl,
+#endif
+};
 
 static int __init tsync_module_init(void)
 {
@@ -2326,9 +2877,25 @@ static int __init tsync_module_init(void)
 		return r;
 	}
 
+	/* create tsync device */
+	r = register_chrdev(TSYNC_MAJOR, "tsync", &tsync_fops);
+	if (r < 0) {
+		pr_info("Can't register major for tsync\n");
+		goto err2;
+	}
+
+	tsync_dev = device_create(&tsync_class, NULL,
+				MKDEV(TSYNC_MAJOR, 0), NULL, TSYNC_DEVICE_NAME);
+
+	if (IS_ERR(tsync_dev)) {
+		amlog_level(LOG_LEVEL_ERROR, "Can't create tsync_dev device\n");
+		goto err1;
+	}
+
 	/* init audio pts to -1, others to 0 */
 	timestamp_apts_set(-1);
 	timestamp_vpts_set(0);
+	timestamp_vpts_set_u64(0);
 	timestamp_pcrscr_set(0);
 
 	init_timer(&tsync_pcr_recover_timer);
@@ -2338,6 +2905,9 @@ static int __init tsync_module_init(void)
 	pcr_sync_stat = PCR_SYNC_UNSET;
 	pcr_recover_trigger = 0;
 
+	apts_error_num = 0;
+	vpts_error_num = 0;
+
 	add_timer(&tsync_pcr_recover_timer);
 
 	init_timer(&tsync_state_switch_timer);
@@ -2346,18 +2916,44 @@ static int __init tsync_module_init(void)
 
 	add_timer(&tsync_state_switch_timer);
 	REG_PATH_CONFIGS("media.tsync", tsync_configs);
+
+	first_demux_pcrscr = 0;
+	demux_pcrscr = 0;
+	audio_pid_valid = 0;
+	video_pid_valid = 0;
+	demux_pcrscr_valid = 0;
+
+	if (get_cpu_type() == MESON_CPU_MAJOR_ID_SC2)
+		new_arch = true;
+	else
+		new_arch = false;
+
+	pr_info("new arch is :%d.", new_arch);
+
+	return 0;
+
+err1:
+	unregister_chrdev(TSYNC_MAJOR, "tsync");
+err2:
+	class_unregister(&tsync_class);
+
 	return 0;
 }
 
 static void __exit tsync_module_exit(void)
 {
-		del_timer_sync(&tsync_pcr_recover_timer);
-
+	del_timer_sync(&tsync_pcr_recover_timer);
+	device_destroy(&tsync_class, MKDEV(TSYNC_MAJOR, 0));
+	unregister_chrdev(TSYNC_MAJOR, "tsync");
 	class_unregister(&tsync_class);
 }
 
 module_init(tsync_module_init);
 module_exit(tsync_module_exit);
+
+MODULE_PARM_DESC(is_tunnel_mode, "\n is_tunnel_mode\n");
+module_param(is_tunnel_mode, uint, 0664);
+
 MODULE_DESCRIPTION("AMLOGIC time sync management driver");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Tim Yao <timyao@amlogic.com>");

@@ -34,6 +34,7 @@
 	MESON_CPU_MAJOR_ID_TL1, \
 	MESON_CPU_MAJOR_ID_SM1, \
 	MESON_CPU_MAJOR_ID_TM2, \
+	MESON_CPU_MAJOR_ID_SC2, \
 			0}
 #define REGISTER_FOR_GXCPU {\
 	MESON_CPU_MAJOR_ID_GXBB, \
@@ -48,6 +49,7 @@
 	MESON_CPU_MAJOR_ID_TL1, \
 	MESON_CPU_MAJOR_ID_SM1, \
 	MESON_CPU_MAJOR_ID_TM2, \
+	MESON_CPU_MAJOR_ID_SC2, \
 			0}
 
 static struct chip_register_ops m8_ops[] __initdata = {
@@ -101,7 +103,8 @@ static int __init vdec_reg_ops_init(void)
 	 * #define RESET0_REGISTER 0x0401
 	 * -0xd00 == (0x0401 - 0x1101)
 	 */
-	if (get_cpu_type() > MESON_CPU_MAJOR_ID_TXL) {
+	if (get_cpu_type() > MESON_CPU_MAJOR_ID_TXL &&
+	    get_cpu_type() != MESON_CPU_MAJOR_ID_GXLX) {
 		for (i = 0; i < ARRAY_SIZE(m8_ops); i++) {
 			switch (m8_ops[i].bus_type) {
 			case IO_PARSER_BUS:
@@ -117,7 +120,10 @@ static int __init vdec_reg_ops_init(void)
 				break;
 
 			case IO_RESET_BUS:
-				m8_ops[i].ext_offset = -0xd00;
+				if (get_cpu_type() >= MESON_CPU_MAJOR_ID_SC2)
+					m8_ops[i].ext_offset = 0;
+				else
+					m8_ops[i].ext_offset = -0xd00;
 				break;
 			}
 		}

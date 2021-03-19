@@ -36,7 +36,7 @@ unsigned int hdr10_plus_printk;
 module_param(hdr10_plus_printk, uint, 0664);
 MODULE_PARM_DESC(hdr10_plus_printk, "hdr10_plus_printk");
 
-unsigned int force_ref_peak = 1;
+unsigned int force_ref_peak;
 module_param(force_ref_peak, uint, 0664);
 MODULE_PARM_DESC(force_ref_peak, "force_ref_peak");
 
@@ -352,8 +352,8 @@ int basisootf(
 
 	if (hdr10_plus_printk & 2)
 		pr_hdr(
-			"basisOOTF precision: ctrL=%d, k=%d\n",
-			centerluminance, k);
+			"basisOOTF precision: psll50 = %d, psll99 = %d, ctrL=%d, k=%d\n",
+			psll50, psll99, centerluminance, k);
 	sy1 = rampweight(
 		basisootf_params->SY1_V1,
 		basisootf_params->SY1_V2,
@@ -668,7 +668,7 @@ int Decasteliau(
 
 #define org_anchory
 
-uint64_t oo_lut_x[OOLUT_NUM] = {
+static u64 oo_lut_x[OOLUT_NUM] = {
 	1, 16, 32, 64, 128, 256, 512, 1024, 2048, 2560, 3072, 3584, 4096,
 	5120, 6144, 7168, 8192, 10240, 12288, 14336, 16384, 20480, 24576,
 	28672, 32768, 40960, 49152, 57344, 65536, 81920, 98304, 114688,
@@ -696,25 +696,26 @@ uint64_t oo_lut_x[OOLUT_NUM] = {
 /*gen OOTF curve and gain from (sx,sy) and P1~pn-1*/
 int genEBZCurve(
 	u64 *curvex, u64 *curvey,
-	unsigned int *gain, unsigned int *gain_ter,
+	unsigned int *gain,
 	u64 nkx, uint64_t nky,
 	u64 *anchory, int order)
 {
 	u64 myAnchorY[16];
 	u64 temp;
-	u64 linearx[POINTS];
 	u64 kx, ky;
 
 	u64 range_ebz_x;
 	u64 range_ebz_y;
 
 	u64 step_alpha;
-	u64 step_ter[POINTS];
 	u64 beziercurve[2];
 	int i;
-	int nump = N - 1;
+	int nump;
 
-
+	if ((order > 1) && (order <= N))
+		nump = order - 1;
+	else
+		nump = N - 1;
 	/*u12->U16*/
 	kx = nkx << (U32 - PROCESSING_MAX);
 	ky = nky << (U32 - PROCESSING_MAX);
@@ -727,7 +728,7 @@ int genEBZCurve(
 		/*anchorY default range:PROCESSING_MAX */
 		myAnchorY[i + 1] = anchory[i] << (U32 - PROCESSING_MAX);
 	myAnchorY[0] = 0;
-	myAnchorY[N] = _U32_MAX; /* u12 */
+	myAnchorY[nump + 1] = _U32_MAX; /* u12 */
 #else
 	for (i = 0; i < nump; i++)/* u12-> ebz_y, u32*/
 		/*anchorY default range:PROCESSING_MAX */
@@ -739,25 +740,20 @@ int genEBZCurve(
 	for (i = 0; i < POINTS; i++) {
 		#if 0
 		linearX[i] = (uint64_t)(i*_U32_MAX/POINTS); /* x index sample */
-		#else
-		linearx[i] = oo_lut_x[i];/* x index sample,u32 */
 		#endif
 		curvey[i] = 0;
-		step_ter[i] = 1023;
 	}
 
 	for (i = 0; i < POINTS; i++) {
-		if (linearx[i] < kx) {
-			curvex[i] = linearx[i];/*u32*/
-			curvey[i] = linearx[i] * ky;
+		if (oo_lut_x[i] < kx) {
+			curvex[i] = oo_lut_x[i];/*u32*/
+			curvey[i] = oo_lut_x[i] * ky;
 			curvey[i] = div64_u64(curvey[i], kx ? kx : 1);
 			temp = curvey[i] << GAIN_BIT;/*u12*/
-			gain[i] = div64_u64(temp, curvex[i]);
-			step_ter[i] = 1024;
+			gain[i] = div64_u64(temp, oo_lut_x[i]);
 		} else{
 			/*norm in Decasteliau() function*/
-			step_alpha = (linearx[i] - kx);
-			step_ter[i] = step_alpha;
+			step_alpha = (oo_lut_x[i] - kx);
 			/* calc each point from 1st to N-th layer*/
 			Decasteliau(
 				&beziercurve[0], myAnchorY, step_alpha,
@@ -777,7 +773,9 @@ int genEBZCurve(
 			/*range_ebz_x);*/
 			curvex[i] = kx + step_alpha;
 			temp = curvey[i] << GAIN_BIT;
-			gain[i] = div64_u64(temp, curvex[i]);
+			gain[i] = div64_u64(temp, oo_lut_x[i]);
+			if (gain[i] < (1 << GAIN_BIT))
+				gain[i] = 1 << GAIN_BIT;
 		}
 	}
 	gain[POINTS - 1] = 1 << GAIN_BIT;
@@ -794,8 +792,6 @@ void vframe_hdr_plus_sei_s_init(struct hdr10_plus_sei_s *hdr10_plus_sei)
 	/*int percentilevalue_init[PERCENTILE_ORDER] = {*/
 	/*	0, 1, 2, 79, 2537, 9900, 9901, 9902, 9904};*/
 
-	hdr10_plus_sei->num_distributions[0] = PERCENTILE_ORDER - 1;
-
 	for (i = 0; i < 3; i++)
 		hdr10_plus_sei->maxscl[0][i] = hdr_plus_sei.maxscl[0][i];
 
@@ -803,8 +799,11 @@ void vframe_hdr_plus_sei_s_init(struct hdr10_plus_sei_s *hdr10_plus_sei)
 		hdr_plus_sei.tgt_sys_disp_max_lumi;
 
 	/*for hdmitx output no number, default 9*/
-	if (hdr10_plus_sei->num_distributions[0] == 0)
+	if (hdr_plus_sei.num_distribution_maxrgb_percentiles[0] == 0)
 		hdr10_plus_sei->num_distributions[0] = 9;
+	else
+		hdr10_plus_sei->num_distributions[0] =
+			hdr_plus_sei.num_distribution_maxrgb_percentiles[0];
 
 	for (i = 0; i < (hdr10_plus_sei->num_distributions[0]); i++) {
 		hdr10_plus_sei->distribution_index[0][i] =
@@ -909,17 +908,21 @@ void vframe_hdr_sei_s_init(
 		0, 10000, 90, 2000, 4000, 8000, 10000, 10001, 10002
 	};
 
+	for (i = 0; i < 9; i++)
+		percentilevalue_init[i] = percentile[i];
+
+	if (hdr10_plus_printk & 8) {
+		for (i = 0; i < 9; i++) {
+			pr_hdr(
+				"percentilevalue_init[%d] = %d\n",
+				i, percentilevalue_init[i]);
+		}
+	}
+
 	hdr10_plus_sei->num_distributions[0] = PERCENTILE_ORDER - 1;
 
 	for (i = 0; i < 3; i++)
-		hdr10_plus_sei->maxscl[0][i] = source_lumin * 10;
-	percentilevalue_init[1] = source_lumin * 10;
-	percentilevalue_init[3] = source_lumin * 2;
-	percentilevalue_init[4] = source_lumin * 4;
-	percentilevalue_init[5] = source_lumin * 8;
-	percentilevalue_init[6] = source_lumin * 10;
-	percentilevalue_init[7] = source_lumin * 10 + 1;
-	percentilevalue_init[8] = source_lumin * 10 + 2;
+		hdr10_plus_sei->maxscl[0][i] = percentilevalue_init[8] * 10;
 
 	hdr10_plus_sei->targeted_system_display_maximum_luminance =	0;
 
@@ -940,25 +943,24 @@ void vframe_hdr_sei_s_init(
 			P_init[i] << (PROCESSING_MAX - 10);
 
 	for (i = 0; i < 3; i++)
-		hdr_plus_sei.average_maxrgb[i] = source_lumin;
+		hdr_plus_sei.average_maxrgb[i] = percentilevalue_init[8];
 
 	hdr_plus_sei.num_distribution_maxrgb_percentiles[0] = 0;
 }
 
 unsigned int gain[POINTS];
-unsigned int gain_ter[POINTS];
 u64 curvex[POINTS], curvey[POINTS];
 
 /*input o->10000, should adaptive scale by shift and gamut*/
 static int match_ootf_output(
-	struct scene2094metadata metadata,
+	struct scene2094metadata *metadata,
 	struct hdr10pgen_param_s *p_hdr10pgen_param,
 	int panel_lumin)
 {
 	unsigned int scale_float;
 	unsigned int maxl;
 
-	maxl = metadata.maxscenesourceluminance;
+	maxl = metadata->maxscenesourceluminance;
 	if (!maxl)
 		maxl = 1000;
 	if (maxl < panel_lumin)
@@ -968,7 +970,10 @@ static int match_ootf_output(
 	scale_float = 10000 * 1024 / maxl;
 
 	p_hdr10pgen_param->shift = _log2(scale_float) - 10;
-	p_hdr10pgen_param->scale_gmt = scale_float >> p_hdr10pgen_param->shift;
+	/* right shifting by more than 31 bits has undefined behavior. */
+	if (p_hdr10pgen_param->shift < 32)
+		p_hdr10pgen_param->scale_gmt =
+			scale_float >> p_hdr10pgen_param->shift;
 	memcpy(p_hdr10pgen_param->gain, gain, sizeof(unsigned int) * POINTS);
 
 	if (hdr10_plus_printk & 4)
@@ -1006,7 +1011,6 @@ int hdr10_plus_ootf_gen(
 	memset(curvex,   0, sizeof(uint64_t) * POINTS);
 	memset(curvey,   0, sizeof(uint64_t) * POINTS);
 	memset(gain,	 0, sizeof(unsigned int) * POINTS);
-	memset(gain_ter, 0, sizeof(unsigned int) * POINTS);
 
 	basisootf_params_init(&basisootf_params);
 
@@ -1068,7 +1072,7 @@ int hdr10_plus_ootf_gen(
 
 	/*step 5. gen bezier curve*/
 	genEBZCurve(
-		&curvex[0], &curvey[0], &gain[0], &gain_ter[0],
+		&curvex[0], &curvey[0], &gain[0],
 		kx, ky, &anchory[0], order);
 
 	/* debug */
@@ -1080,7 +1084,7 @@ int hdr10_plus_ootf_gen(
 		}
 	}
 
-	match_ootf_output(metadata, p_hdr10pgen_param, panel_lumin);
+	match_ootf_output(&metadata, p_hdr10pgen_param, panel_lumin);
 	hdr10_plus_printk = 0;
 
 	return 0;

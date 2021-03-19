@@ -42,7 +42,9 @@ static u32 first_checkin_apts;
 static u32 first_apts;
 static u32 pcrscr_lantcy = 200*90;
 static u32 video_pts;
+static u64 video_pts_u64;
 static u32 audio_pts;
+static u32 avsync_counts;
 static u32 last_apts_gap;
 static u32 last_vpts_gap;
 
@@ -52,6 +54,7 @@ static u32 system_time_scale_remainder;
 #ifdef MODIFY_TIMESTAMP_INC_WITH_PLL
 #define PLL_FACTOR 10000
 static u32 timestamp_inc_factor = PLL_FACTOR;
+
 void set_timestamp_inc_factor(u32 factor)
 {
 	timestamp_inc_factor = factor;
@@ -78,11 +81,45 @@ void timestamp_vpts_inc(s32 val)
 }
 EXPORT_SYMBOL(timestamp_vpts_inc);
 
+u64 timestamp_vpts_get_u64(void)
+{
+	return video_pts_u64;
+}
+EXPORT_SYMBOL(timestamp_vpts_get_u64);
+
+void timestamp_vpts_set_u64(u64 pts)
+{
+	video_pts_u64 = pts;
+}
+EXPORT_SYMBOL(timestamp_vpts_set_u64);
+
+void timestamp_vpts_inc_u64(s32 val)
+{
+	video_pts_u64 += val;
+}
+EXPORT_SYMBOL(timestamp_vpts_inc_u64);
+
 u32 timestamp_apts_get(void)
 {
 	return audio_pts;
 }
 EXPORT_SYMBOL(timestamp_apts_get);
+
+u64 timestamp_apts_get_u64(void)
+{
+	u64 pts_val_video;
+	u64 pts_val;
+
+	pts_val_video = div64_u64(timestamp_vpts_get_u64() * 9, 100);
+	pts_val = ((u64)timestamp_apts_get()) & 0x00000000FFFFFFFF;
+	if (pts_val_video & (1LL << 32))
+		pts_val |= (1LL << 32);
+
+	pts_val_video = div64_u64(pts_val * 100, 9);
+
+	return pts_val_video;
+}
+EXPORT_SYMBOL(timestamp_apts_get_u64);
 
 void timestamp_apts_set(u32 pts)
 {
@@ -125,18 +162,19 @@ EXPORT_SYMBOL(timestamp_apts_started);
 
 u32 timestamp_pcrscr_get(void)
 {
+	u32 tmp_pcr;
 	if (tsync_get_mode() != TSYNC_MODE_PCRMASTER)
 		return system_time;
 
-	if (tsdemux_pcrscr_valid_cb && tsdemux_pcrscr_valid_cb()) {
+	if (tsync_get_demux_pcrscr_valid()) {
 		if (tsync_pcr_demux_pcr_used() == 0) {
 			return system_time;
 			}
 		else {
-			if (tsdemux_pcrscr_get_cb) {
-				if (tsdemux_pcrscr_get_cb() > pcrscr_lantcy)
+			if (tsync_get_demux_pcr(&tmp_pcr)) {
+				if (tmp_pcr > pcrscr_lantcy)
 					return
-					tsdemux_pcrscr_get_cb() - pcrscr_lantcy;
+					tmp_pcr - pcrscr_lantcy;
 				else
 					return 0;
 			}
@@ -148,12 +186,40 @@ u32 timestamp_pcrscr_get(void)
 }
 EXPORT_SYMBOL(timestamp_pcrscr_get);
 
+u64 timestamp_pcrscr_get_u64(void)
+{
+	u64 pts_val_video;
+	u64 pts_val;
+
+	pts_val_video = div64_u64(timestamp_vpts_get_u64() * 9, 100);
+	pts_val = ((u64)timestamp_pcrscr_get()) & 0x00000000FFFFFFFF;
+	if (pts_val_video & (1LL << 32))
+		pts_val |= (1LL << 32);
+
+	pts_val_video = div64_u64(pts_val * 100, 9);
+
+	return pts_val_video;
+}
+EXPORT_SYMBOL(timestamp_pcrscr_get_u64);
+
+u32 timestamp_avsync_counter_get(void)
+{
+	return avsync_counts;
+}
+EXPORT_SYMBOL(timestamp_avsync_counter_get);
+
+void timestamp_avsync_counter_set(u32 counts)
+{
+	avsync_counts = counts;
+}
+EXPORT_SYMBOL(timestamp_avsync_counter_set);
+
 void timestamp_set_pcrlatency(u32 latency)
 {
-	if (latency < 500 * 90)
+	if (latency < 3000 * 90)
 		pcrscr_lantcy = latency;
 	else
-		pcrscr_lantcy = 500 * 90;
+		pcrscr_lantcy = 3000 * 90;
 }
 EXPORT_SYMBOL(timestamp_set_pcrlatency);
 
@@ -170,11 +236,9 @@ void timestamp_clac_pts_latency(u8 type, u32 pts)
 
 	if (tsync_get_mode() != TSYNC_MODE_PCRMASTER)
 		return;
-	if (tsdemux_pcrscr_valid_cb && tsdemux_pcrscr_valid_cb()
+	if (tsync_get_demux_pcrscr_valid()
 		&& tsync_pcr_demux_pcr_used()) {
-		if (tsdemux_pcrscr_get_cb)
-			demux_pcr = tsdemux_pcrscr_get_cb();
-		else
+		if (tsync_get_demux_pcr(&demux_pcr) == 0)
 			return;
 		if (demux_pcr == 0 ||
 			demux_pcr == 0xffffffff) {
@@ -261,8 +325,10 @@ EXPORT_SYMBOL(timestamp_clean_pts_latency);
 
 u32 timestamp_tsdemux_pcr_get(void)
 {
-	if (tsdemux_pcrscr_get_cb)
-		return tsdemux_pcrscr_get_cb();
+	u32 tmp_pcr = 0;
+
+	if (tsync_get_demux_pcr(&tmp_pcr))
+		return tmp_pcr;
 
 	return (u32)-1;
 }

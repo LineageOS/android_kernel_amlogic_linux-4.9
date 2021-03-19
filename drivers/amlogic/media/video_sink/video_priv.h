@@ -19,6 +19,7 @@
 #define VIDEO_PRIV_HEADER_HH
 
 #include <linux/amlogic/media/video_sink/vpp.h>
+#include "video_reg.h"
 
 #define VIDEO_ENABLE_STATE_IDLE       0
 #define VIDEO_ENABLE_STATE_ON_REQ     1
@@ -46,6 +47,7 @@
 #define DEBUG_FLAG_OMX_DV_DROP_FRAME        0x8000000
 #define DEBUG_FLAG_COMPOSER_NO_DROP_FRAME     0x10000000
 #define DEBUG_FLAG_AXIS_NO_UPDATE     0x20000000
+#define DEBUG_FLAG_NO_CLIP_SETTING    0x40000000
 
 #define VOUT_TYPE_TOP_FIELD 0
 #define VOUT_TYPE_BOT_FIELD 1
@@ -63,7 +65,6 @@
 #define VIDEO_NOTIFY_NEED_NO_COMP  0x20
 
 #define MAX_VD_LAYER 2
-
 #define COMPOSE_MODE_NONE			0
 #define COMPOSE_MODE_3D			1
 #define COMPOSE_MODE_DV			2
@@ -82,12 +83,17 @@
 #define CANVAS_TABLE_CNT 1
 #endif
 
+#define DISPBUF_TO_PUT_MAX 3
+#define MAX_PIP_WINDOW    16
+#define VPP_FILER_COEFS_NUM   33
+
 enum vd_path_id {
 	VFM_PATH_DEF = -1,
 	VFM_PATH_AMVIDEO = 0,
 	VFM_PATH_PIP = 1,
 	VFM_PATH_VIDEO_RENDER0 = 2,
 	VFM_PATH_VIDEO_RENDER1 = 3,
+	VFM_PATH_AUTO = 0xfe,
 	VFM_PATH_INVAILD = 0xff
 };
 
@@ -106,8 +112,8 @@ struct video_layer_s;
 
 struct mif_pos_s {
 	u32 id;
-	u32 vd_reg_offt;
-	u32 afbc_reg_offt;
+	struct hw_vd_reg_s *p_vd_mif_reg;
+	struct hw_afbc_reg_s *p_vd_afbc_reg;
 
 	/* frame original size */
 	u32 src_w;
@@ -191,6 +197,40 @@ struct blend_setting_s {
 	struct vpp_frame_par_s *frame_par;
 };
 
+struct clip_setting_s {
+	u32 id;
+	u32 misc_reg_offt;
+
+	u32 clip_max;
+	u32 clip_min;
+
+	bool clip_done;
+};
+
+struct pip_alpha_scpxn_s {
+	u32 scpxn_bgn_h[MAX_PIP_WINDOW];
+	u32 scpxn_end_h[MAX_PIP_WINDOW];
+	u32 scpxn_bgn_v[MAX_PIP_WINDOW];
+	u32 scpxn_end_v[MAX_PIP_WINDOW];
+};
+
+struct fgrain_setting_s {
+	u32 id;
+	u32 start_x;
+	u32 end_x;
+	u32 start_y;
+	u32 end_y;
+	u32 fmt_mode; /* only support 420 */
+	u32 bitdepth; /* 8 bit or 10 bit */
+	u32 reverse;
+	u32 afbc; /* afbc or not */
+	u32 last_in_mode; /* related with afbc */
+	u32 used;
+	/* lut dma */
+	u32 fgs_table_adr;
+	u32 table_size;
+};
+
 enum mode_3d_e {
 	mode_3d_disable = 0,
 	mode_3d_enable,
@@ -202,9 +242,9 @@ struct video_layer_s {
 
 	/* reg map offsett*/
 	u32 misc_reg_offt;
-	u32 vd_reg_offt;
-	u32 afbc_reg_offt;
-
+	struct hw_vd_reg_s vd_mif_reg;
+	struct hw_afbc_reg_s vd_afbc_reg;
+	struct hw_fg_reg_s fg_reg;
 	u8 cur_canvas_id;
 #ifdef CONFIG_AMLOGIC_MEDIA_VSYNC_RDMA
 	u8 next_canvas_id;
@@ -232,6 +272,8 @@ struct video_layer_s {
 	struct mif_pos_s mif_setting;
 	struct scaler_setting_s sc_setting;
 	struct blend_setting_s bld_setting;
+	struct fgrain_setting_s fgrain_setting;
+	struct clip_setting_s clip_setting;
 
 	u32 new_vframe_count;
 
@@ -254,6 +296,45 @@ struct video_layer_s {
 	u8 enable_3d_mode;
 
 	u32 global_debug;
+
+	bool need_switch_vf;
+	bool do_switch;
+	bool force_black;
+};
+
+enum {
+	ONLY_CORE0,
+	ONLY_CORE1,
+	NEW_CORE0_CORE1,
+	OLD_CORE0_CORE1,
+};
+
+enum cpu_type_e {
+	MESON_CPU_MAJOR_ID_COMPATIBALE = 0x1,
+	MESON_CPU_MAJOR_ID_TM2_REVB,
+	MESON_CPU_MAJOR_ID_SC2_,
+	MESON_CPU_MAJOR_ID_T5_,
+	MESON_CPU_MAJOR_ID_UNKNOWN,
+};
+
+struct amvideo_device_data_s {
+	enum cpu_type_e cpu_type;
+	u32 sr_reg_offt;
+	u32 sr_reg_offt2;
+	u8 layer_support[MAX_VD_LAYER];
+	u8 afbc_support[MAX_VD_LAYER];
+	u8 pps_support[MAX_VD_LAYER];
+	u8 alpha_support[MAX_VD_LAYER];
+	u8 dv_support;
+	u8 sr0_support;
+	u8 sr1_support;
+	u32 core_v_disable_width_max[MAX_SR_NUM];
+	u32 core_v_enable_width_max[MAX_SR_NUM];
+	u8 supscl_path;
+	u8 fgrain_support[MAX_VD_LAYER];
+	u8 has_hscaler_8tap[MAX_VD_LAYER];
+	u8 has_pre_hscaler_ntap[MAX_VD_LAYER];
+	u8 has_pre_vscaler_ntap[MAX_VD_LAYER];
 };
 
 /* from video_hw.c */
@@ -261,7 +342,11 @@ extern struct video_layer_s vd_layer[MAX_VD_LAYER];
 extern struct disp_info_s glayer_info[MAX_VD_LAYER];
 extern struct video_dev_s *cur_dev;
 extern bool legacy_vpp;
-
+extern bool hscaler_8tap_enable[MAX_VD_LAYER];
+extern int pre_hscaler_ntap_enable[MAX_VD_LAYER];
+extern int pre_hscaler_ntap_set[MAX_VD_LAYER];
+extern int pre_vscaler_ntap_enable[MAX_VD_LAYER];
+extern int pre_vscaler_ntap_set[MAX_VD_LAYER];
 bool is_dolby_vision_enable(void);
 bool is_dolby_vision_on(void);
 bool is_dolby_vision_stb_mode(void);
@@ -339,6 +424,9 @@ void vd_scaler_setting(
 void vd_blend_setting(
 	u8 layer_id,
 	struct blend_setting_s *setting);
+void vd_clip_setting(
+	u8 layer_id,
+	struct clip_setting_s *setting);
 void proc_vd_vsc_phase_per_vsync(
 	u8 layer_id,
 	struct video_layer_s *layer,
@@ -364,15 +452,20 @@ int detect_vout_type(
 int calc_hold_line(void);
 u32 get_cur_enc_line(void);
 void vpu_work_process(void);
+int vpp_crc_check(u32 vpp_crc_en);
+void enable_vpp_crc_viu2(u32 vpp_crc_en);
+int vpp_crc_viu2_check(u32 vpp_crc_en);
+void dump_pps_coefs_info(u8 layer_id, u8 bit9_mode, u8 coef_type);
 
 int video_hw_init(void);
-int video_early_init(void);
+int video_early_init(struct amvideo_device_data_s *p_amvideo);
 int video_late_uninit(void);
 
 /* from video.c */
 extern u32 osd_vpp_misc;
 extern u32 osd_vpp_misc_mask;
 extern bool update_osd_vpp_misc;
+extern u32 osd_preblend_en;
 extern u32 framepacking_support;
 extern unsigned int framepacking_blank;
 extern unsigned int process_3d_type;
@@ -381,6 +474,7 @@ extern unsigned int force_3d_scaler;
 extern int toggle_3d_fa_frame;
 #endif
 extern bool reverse;
+extern u32  mirror;
 extern struct vframe_s vf_local;
 extern struct vframe_s vf_local2;
 extern struct vframe_s local_pip;
@@ -392,10 +486,12 @@ extern u32 force_blackout;
 extern atomic_t video_unreg_flag;
 extern atomic_t video_inirq_flag;
 extern struct video_recv_s *gvideo_recv[2];
+extern uint load_pps_coef;
 
 bool black_threshold_check(u8 id);
 struct vframe_s *get_cur_dispbuf(void);
 s32 set_video_path_select(const char *recv_name, u8 layer_id);
+s32 set_sideband_type(s32 type, u8 layer_id);
 
 /*for video related files only.*/
 void video_module_lock(void);
@@ -412,6 +508,26 @@ struct vframe_s *dvel_toggle_frame(
 #ifdef CONFIG_AMLOGIC_MEDIA_VIDEOCAPTURE
 int ext_frame_capture_poll(int endflags);
 #endif
+bool is_meson_tm2_revb(void);
+bool is_meson_sc2_cpu(void);
+bool is_meson_t5_cpu(void);
 
+void set_alpha(u8 layer_id,
+	       u32 win_en,
+	       struct pip_alpha_scpxn_s *alpha_win);
+void fgrain_config(u8 layer_id,
+		   struct vpp_frame_par_s *frame_par,
+		   struct mif_pos_s *mif_setting,
+		   struct fgrain_setting_s *setting,
+		   struct vframe_s *vf);
+void fgrain_setting(u8 layer_id,
+		    struct fgrain_setting_s *setting,
+		    struct vframe_s *vf);
+void fgrain_update_table(u8 layer_id,
+			 struct vframe_s *vf);
+void video_secure_set(void);
+bool has_hscaler_8tap(u8 layer_id);
+bool has_pre_hscaler_ntap(u8 layer_id);
+bool has_pre_vscaler_ntap(u8 layer_id);
 #endif
 /*VIDEO_PRIV_HEADER_HH*/

@@ -54,7 +54,7 @@ static uint32_t ddc_write_1byte(uint8_t slave, uint8_t offset_addr,
 	mdelay(2);
 	if (hdmitx_rd_reg(HDMITX_DWC_IH_I2CM_STAT0) & (1 << 0)) {
 		st = 0;
-		pr_info("ddc w1b error 0x%02x 0x%02x 0x%02x\n",
+		pr_info("E: ddc w1b 0x%02x 0x%02x 0x%02x\n",
 			slave, offset_addr, data);
 	} else
 		st = 1;
@@ -80,7 +80,7 @@ static uint32_t ddc_readext_8byte(uint8_t slave, uint8_t offset_addr,
 	mdelay(2);
 	if (hdmitx_rd_reg(HDMITX_DWC_IH_I2CM_STAT0) & (1 << 0)) {
 		st = 0;
-		pr_info("hdmitx: ddc rdext8b error 0x%02x 0x%02x\n",
+		pr_info("E: ddc rdext8b 0x%02x 0x%02x\n",
 			slave, offset_addr);
 	} else
 		st = 1;
@@ -106,7 +106,7 @@ static uint32_t ddc_read_8byte(uint8_t slave, uint8_t offset_addr,
 	mdelay(2);
 	if (hdmitx_rd_reg(HDMITX_DWC_IH_I2CM_STAT0) & (1 << 0)) {
 		st = 0;
-		pr_info("hdmitx: ddc rd8b error 0x%02x 0x%02x 0x%02x\n",
+		pr_info("E: ddc rd8b 0x%02x 0x%02x 0x%02x\n",
 			slave, offset_addr, *data);
 	} else
 		st = 1;
@@ -133,7 +133,7 @@ static uint32_t ddc_readext_1byte(uint8_t slave, uint8_t address, uint8_t *data)
 	mdelay(2);
 	if (hdmitx_rd_reg(HDMITX_DWC_IH_I2CM_STAT0) & (1 << 0)) {
 		st = 0;
-		pr_info("hdmitx: ddc rd8b error 0x%02x 0x%02x\n",
+		pr_info("E: hdmitx: ddc rd8b 0x%02x 0x%02x\n",
 			slave, offset_addr);
 	} else
 		st = 1;
@@ -157,7 +157,7 @@ static uint32_t ddc_read_1byte(uint8_t slave, uint8_t offset_addr,
 	mdelay(2);
 	if (hdmitx_rd_reg(HDMITX_DWC_IH_I2CM_STAT0) & (1 << 0)) {
 		st = 0;
-		pr_info("ddc rd8b error 0x%02x 0x%02x\n",
+		pr_info("E: ddc rd8b 0x%02x 0x%02x\n",
 			slave, offset_addr);
 	} else
 		st = 1;
@@ -226,3 +226,61 @@ void edid_read_head_8bytes(void)
 	ddc_read_8byte(EDID_SLAVE, 0x00, head);
 }
 
+#define EDID_WAIT_TIMEOUT	10
+void hdmitx_read_edid(unsigned char *rx_edid)
+{
+	unsigned int timeout = 0;
+	unsigned int i;
+	unsigned int byte_num = 0;
+	unsigned char blk_no = 1;
+
+	if (!rx_edid)
+		return;
+	mutex_lock(&ddc_mutex);
+	/* Program SLAVE/ADDR */
+	hdmitx_wr_reg(HDMITX_DWC_I2CM_SLAVE, 0x50);
+	hdmitx_wr_reg(HDMITX_DWC_IH_I2CM_STAT0, 1 << 1);
+	/* Read complete EDID data sequentially */
+	while (byte_num < 128 * blk_no) {
+		hdmitx_wr_reg(HDMITX_DWC_I2CM_ADDRESS, byte_num & 0xff);
+		if ((byte_num >= 256) && (byte_num < 512) && (blk_no > 2)) {
+			/* Program SEGMENT/SEGPTR */
+			hdmitx_wr_reg(HDMITX_DWC_I2CM_SEGADDR, 0x30);
+			hdmitx_wr_reg(HDMITX_DWC_I2CM_SEGPTR, 0x1);
+			hdmitx_wr_reg(HDMITX_DWC_I2CM_OPERATION, 1 << 3);
+		} else {
+			hdmitx_wr_reg(HDMITX_DWC_I2CM_OPERATION, 1 << 2);
+		}
+		/* Wait until I2C done */
+		timeout = 0;
+		while (!(hdmitx_rd_reg(HDMITX_DWC_IH_I2CM_STAT0) & (1 << 1)) &&
+		       (timeout < EDID_WAIT_TIMEOUT)) {
+			usleep_range(2000, 2010);
+			timeout++;
+		}
+		if (timeout == EDID_WAIT_TIMEOUT)
+			pr_info(HW "ddc timeout\n");
+		hdmitx_wr_reg(HDMITX_DWC_IH_I2CM_STAT0, 1 << 1);
+		/* Read back 8 bytes */
+		for (i = 0; i < 8; i++) {
+			rx_edid[byte_num] =
+				hdmitx_rd_reg(HDMITX_DWC_I2CM_READ_BUFF0 + i);
+			if (byte_num == 126) {
+				blk_no = rx_edid[126] + 1;
+				if (blk_no > 4) {
+					pr_info(HW "edid extension block number:");
+					pr_info(HW " %d, reset to MAX 3\n",
+						blk_no - 1);
+					blk_no = 4; /* Max extended block */
+				}
+			}
+			byte_num++;
+		}
+	}
+	/* Because DRM will use segment registers,
+	 * so clear the registers to default
+	 */
+	hdmitx_wr_reg(HDMITX_DWC_I2CM_SEGADDR, 0x0);
+	hdmitx_wr_reg(HDMITX_DWC_I2CM_SEGPTR, 0x0);
+	mutex_unlock(&ddc_mutex);
+}

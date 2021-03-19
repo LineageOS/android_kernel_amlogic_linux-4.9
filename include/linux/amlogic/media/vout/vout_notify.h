@@ -36,16 +36,16 @@ struct vframe_match_s {
 struct vout_op_s {
 	struct vinfo_s *(*get_vinfo)(void);
 	int (*set_vmode)(enum vmode_e);
-	enum vmode_e (*validate_vmode)(char *);
+	enum vmode_e (*validate_vmode)(char *name, unsigned int frac);
+	int (*check_same_vmodeattr)(char *name);
 	int (*vmode_is_supported)(enum vmode_e);
 	int (*disable)(enum vmode_e);
 	int (*set_state)(int);
 	int (*clr_state)(int);
 	int (*get_state)(void);
+	int (*get_disp_cap)(char *buf);
 	int (*set_vframe_rate_hint)(int);
-	int (*set_vframe_rate_end_hint)(void);
-	int (*set_vframe_rate_policy)(int);
-	int (*get_vframe_rate_policy)(void);
+	int (*get_vframe_rate_hint)(void);
 	void (*set_bist)(unsigned int);
 	int (*vout_suspend)(void);
 	int (*vout_resume)(void);
@@ -61,6 +61,9 @@ struct vout_server_s {
 struct vout_module_s {
 	struct list_head vout_server_list;
 	struct vout_server_s *curr_vout_server;
+	unsigned int init_flag;
+	/* fr_policy: 0=disable, 1=nearby, 2=force */
+	unsigned int fr_policy;
 };
 
 extern int vout_register_client(struct notifier_block *p);
@@ -69,13 +72,15 @@ extern int vout_notifier_call_chain(unsigned int long, void *p);
 extern int vout_register_server(struct vout_server_s *p);
 extern int vout_unregister_server(struct vout_server_s *p);
 
+int get_vout_disp_cap(char *buf);
 extern struct vinfo_s *get_current_vinfo(void);
 extern enum vmode_e get_current_vmode(void);
-extern int set_vframe_rate_hint(int duration);
-extern int set_vframe_rate_end_hint(void);
+int set_vframe_rate_hint(int duration);
+int get_vframe_rate_hint(void);
 extern int set_vframe_rate_policy(int pol);
 extern int get_vframe_rate_policy(void);
 extern void set_vout_bist(unsigned int bist);
+int set_vframe_rate_end_hint(void);
 
 #ifdef CONFIG_AMLOGIC_VOUT2_SERVE
 extern int vout2_register_client(struct notifier_block *p);
@@ -84,17 +89,17 @@ extern int vout2_notifier_call_chain(unsigned int long, void *p);
 extern int vout2_register_server(struct vout_server_s *p);
 extern int vout2_unregister_server(struct vout_server_s *p);
 
+int get_vout2_disp_cap(char *buf);
 extern struct vinfo_s *get_current_vinfo2(void);
 extern enum vmode_e get_current_vmode2(void);
-extern int set_vframe2_rate_hint(int duration);
-extern int set_vframe2_rate_end_hint(void);
+int set_vframe2_rate_hint(int duration);
+int get_vframe2_rate_hint(void);
 extern int set_vframe2_rate_policy(int pol);
 extern int get_vframe2_rate_policy(void);
 extern void set_vout2_bist(unsigned int bist);
+int set_vframe2_rate_end_hint(void);
 
 #endif
-
-extern int vout_get_vsource_fps(int duration);
 
 /* vdac ctrl,adc/dac ref signal,cvbs out signal
  * module index: atv demod:0x01; dtv demod:0x02; tvafe:0x4; dac:0x8
@@ -107,6 +112,7 @@ extern void vdac_enable(bool on, unsigned int module_sel);
 #define VOUT_EVENT_OSD_BLANK           0x00030000
 #define VOUT_EVENT_OSD_DISP_AXIS       0x00040000
 #define VOUT_EVENT_OSD_PREBLEND_ENABLE 0x00050000
+#define VOUT_EVENT_SYS_INIT            0x00060000
 
 /* ********** vout_ioctl ********** */
 #define VOUT_IOC_TYPE            'C'
@@ -126,7 +132,7 @@ extern int set_vout_mode(char *name);
 extern void set_vout_init(enum vmode_e mode);
 extern void update_vout_viu(void);
 extern int set_vout_vmode(enum vmode_e mode);
-extern enum vmode_e validate_vmode(char *name);
+enum vmode_e validate_vmode(char *name, unsigned int frac);
 extern int set_current_vmode(enum vmode_e mode);
 
 #endif /* _VOUT_NOTIFY_H_ */

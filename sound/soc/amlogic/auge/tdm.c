@@ -33,7 +33,7 @@
 
 #include <linux/amlogic/clk_measure.h>
 #include <linux/amlogic/cpu_version.h>
-
+#include <linux/amlogic/media/sound/spdif_info.h>
 #include <linux/amlogic/media/sound/aout_notify.h>
 
 #include "ddr_mngr.h"
@@ -396,16 +396,17 @@ static int aml_tdm_prepare(struct snd_pcm_substream *substream)
 
 		if (p_tdm->chipinfo && p_tdm->chipinfo->async_fifo) {
 			int offset = p_tdm->chipinfo->reset_reg_offset;
+			int ss = p_tdm->samesource_sel;
 
 			pr_debug("%s(), reset fddr\n", __func__);
 			aml_frddr_reset(p_tdm->fddr, offset);
 			aml_tdm_out_reset(p_tdm->id, offset);
 
-			if (p_tdm->chipinfo->same_src_fn
-				&& (p_tdm->samesource_sel >= 0)
-				&& (aml_check_sharebuffer_valid(p_tdm->fddr,
-					p_tdm->samesource_sel))
-				&& p_tdm->en_share)
+			if (p_tdm->chipinfo->same_src_fn &&
+			    (p_tdm->samesource_sel >= 0) &&
+			    aml_check_sharebuffer_valid(p_tdm->fddr, ss) &&
+			    (runtime->channels > 2) &&
+			    p_tdm->en_share)
 				aml_spdif_out_reset(p_tdm->samesource_sel - 3,
 						offset);
 		}
@@ -477,7 +478,7 @@ static int aml_dai_tdm_prepare(struct snd_pcm_substream *substream,
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct aml_tdm *p_tdm = snd_soc_dai_get_drvdata(cpu_dai);
-	int bit_depth;
+	int bit_depth, separated = 0;
 
 	bit_depth = snd_pcm_format_width(runtime->format);
 
@@ -493,10 +494,13 @@ static int aml_dai_tdm_prepare(struct snd_pcm_substream *substream,
 			&& (aml_check_sharebuffer_valid(p_tdm->fddr,
 				p_tdm->samesource_sel))
 			&& p_tdm->en_share) {
-				sharebuffer_prepare(substream,
-					fr, p_tdm->samesource_sel,
+				sharebuffer_prepare(
+					substream,
+					fr,
+					p_tdm->samesource_sel,
 					p_tdm->lane_ss,
-					p_tdm->chipinfo->reset_reg_offset);
+					p_tdm->chipinfo->reset_reg_offset,
+					p_tdm->chipinfo->separate_tohdmitx_en);
 					/* sharebuffer default uses spdif_a */
 				spdif_set_audio_clk(p_tdm->samesource_sel - 3,
 					p_tdm->clk,
@@ -505,9 +509,19 @@ static int aml_dai_tdm_prepare(struct snd_pcm_substream *substream,
 
 		/* i2s source to hdmix */
 		if (p_tdm->i2s2hdmitx) {
-			i2s_to_hdmitx_ctrl(p_tdm->id);
-			aout_notifier_call_chain(AOUT_EVENT_IEC_60958_PCM,
-				substream);
+			if (p_tdm->chipinfo) {
+				separated =
+				p_tdm->chipinfo->separate_tohdmitx_en;
+			}
+
+			i2s_to_hdmitx_ctrl(separated, p_tdm->id);
+			if (spdif_get_codec() == MULTI_CHANNEL_LPCM)
+				aout_notifier_call_chain
+					(AOUT_EVENT_IEC_60958_PCM,
+					 substream);
+			else
+				pr_warn("%s(), i2s2hdmi with wrong fmt\n",
+					__func__);
 		}
 
 		fifo_id = aml_frddr_get_fifo_id(fr);
@@ -722,10 +736,6 @@ static int aml_dai_tdm_trigger(struct snd_pcm_substream *substream, int cmd,
 					p_tdm->samesource_sel,
 					p_tdm->chipinfo->same_src_spdif_reen);
 
-			if (p_tdm->chipinfo	&&
-				p_tdm->chipinfo->async_fifo)
-				aml_frddr_check(p_tdm->fddr);
-
 			aml_frddr_enable(p_tdm->fddr, false);
 		} else {
 			bool toddr_stopped = false;
@@ -804,6 +814,9 @@ static int aml_tdm_set_lanes(struct aml_tdm *p_tdm,
 			}
 		}
 		swap_val = 0x76543210;
+		/* TODO: find why LFE and FC(2ch, 3ch) HDMITX needs swap */
+		if (p_tdm->i2s2hdmitx)
+			swap_val = 0x76542310;
 		if (p_tdm->lane_cnt > LANE_MAX1)
 			swap_val1 = 0xfedcba98;
 		aml_tdm_set_lane_channel_swap(p_tdm->actrl,
@@ -958,9 +971,7 @@ static int aml_dai_tdm_hw_params(struct snd_pcm_substream *substream,
 	if (ret)
 		return ret;
 
-	/* Must enabe channel number for VAD */
-	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-		&& (vad_tdm_is_running(p_tdm->id)))
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 		tdmin_set_chnum_en(p_tdm->actrl, p_tdm->id, true);
 
 	/* share buffer trigger */
@@ -1013,9 +1024,7 @@ static int aml_dai_tdm_hw_free(struct snd_pcm_substream *substream,
 		aml_tdm_set_channel_mask(p_tdm->actrl,
 			substream->stream, p_tdm->id, i, 0);
 
-	/* Disable channel number for VAD */
-	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-		&& (vad_tdm_is_running(p_tdm->id)))
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 		tdmin_set_chnum_en(p_tdm->actrl, p_tdm->id, false);
 
 	/* share buffer free */
@@ -1032,7 +1041,7 @@ static int aml_dai_tdm_hw_free(struct snd_pcm_substream *substream,
 
 	/* disable clock and gate */
 	if (!p_tdm->contns_clk && !IS_ERR(p_tdm->mclk)) {
-		pr_info("%s(), disable mclk for %s", __func__, cpu_dai->name);
+		pr_info("%s(), disable mclk for %s\n", __func__, cpu_dai->name);
 		clk_disable_unprepare(p_tdm->mclk);
 	}
 

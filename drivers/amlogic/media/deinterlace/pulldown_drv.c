@@ -347,7 +347,7 @@ unsigned int pulldown_detection(struct pulldown_detected_s *res,
 
 unsigned char pulldown_init(unsigned short width, unsigned short height)
 {
-	flm22_sure_num = (height * 100)/480;
+	flm22_sure_num = (height * 100) / 480;
 	flm22_sure_smnum = (flm22_sure_num * flm22_ratio)/100;
 	pd_param.width = width;
 	pd_param.height = height;
@@ -403,6 +403,8 @@ static struct pd_param_s pd_params[] = {
 	  &(pd_param.flm22_en)      },
 	{ "flm32_en",
 	     &(pd_param.flm32_en)   },
+	{ "flm22_force",
+	     &(pd_param.flm22_force)   },
 	{ "flm22_flag",
 	  &(pd_param.flm22_flag)    },
 	{ "flm22_avg_flag",
@@ -455,6 +457,7 @@ static ssize_t pd_parm_store(struct device *dev,
 		}
 	}
 
+	kfree(buf_orig);
 	return count;
 }
 
@@ -528,7 +531,7 @@ void pd_device_files_add(struct device *dev)
 
 void pd_device_files_del(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_pd_param);
+	device_remove_file(dev, &dev_attr_pd_param);
 }
 #ifdef DEBUG_SUPPORT
 module_param_named(flm22_sure_num, flm22_sure_num, uint, 0644);

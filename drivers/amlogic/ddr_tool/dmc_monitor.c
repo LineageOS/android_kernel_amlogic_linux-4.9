@@ -29,6 +29,7 @@
 #include <linux/irqreturn.h>
 #include <linux/module.h>
 #include <linux/mm.h>
+#include <linux/highmem.h>
 
 #include <linux/cpu.h>
 #include <linux/smp.h>
@@ -37,15 +38,17 @@
 #include <linux/interrupt.h>
 #include <linux/amlogic/cpu_version.h>
 #include <linux/amlogic/page_trace.h>
-#include <linux/arm-smccc.h>
 #include <linux/amlogic/dmc_monitor.h>
 #include <linux/amlogic/ddr_port.h>
 
 static struct dmc_monitor *dmc_mon;
 
-static unsigned long init_dev_mask   __initdata;
-static unsigned long init_start_addr __initdata;
-static unsigned long init_end_addr   __initdata;
+static unsigned long init_dev_mask;
+static unsigned long init_start_addr;
+static unsigned long init_end_addr;
+
+static struct ddr_port_desc *desc;
+static int ports = -1, chip = -1;
 
 static int __init early_dmc_param(char *buf)
 {
@@ -71,14 +74,39 @@ static int __init early_dmc_param(char *buf)
 }
 early_param("dmc_monitor", early_dmc_param);
 
-unsigned long dmc_rw(unsigned long addr, unsigned long value, int rw)
+void show_violation_mem(unsigned long addr)
 {
-	struct arm_smccc_res smccc;
+	struct page *page;
+	unsigned long *p, *q;
 
-	arm_smccc_smc(DMC_MON_RW, addr + dmc_mon->io_base,
-		      value, rw, 0, 0, 0, 0, &smccc);
+	if (!pfn_valid(__phys_to_pfn(addr)))
+		return;
 
-	return smccc.a0;
+	page = phys_to_page(addr);
+	p = kmap_atomic(page);
+	if (!p)
+		return;
+
+	q = p + ((addr & (PAGE_SIZE - 1)) / sizeof(*p));
+	pr_emerg(DMC_TAG "[%08lx]:%016lx, f:%8lx, m:%p, a:%ps\n",
+		(unsigned long)q, *q, page->flags & 0xffffffff,
+		page->mapping,
+		(void *)get_page_trace(page));
+	kunmap_atomic(p);
+}
+
+unsigned long dmc_prot_rw(unsigned long addr, unsigned long value, int rw)
+{
+	if (dmc_mon->io_mem) {
+		if (rw == DMC_WRITE) {
+			writel(value, dmc_mon->io_mem + addr);
+			return 0;
+		} else {
+			return readl(dmc_mon->io_mem + addr);
+		}
+	} else {
+		return dmc_rw(addr + dmc_mon->io_base, value, rw);
+	}
 }
 
 static int dev_name_to_id(const char *dev_name)
@@ -170,6 +198,9 @@ static size_t dump_reg(char *buf)
 	sz += sprintf(buf + sz, "IO_BASE:%lx\n", dmc_mon->io_base);
 	sz += sprintf(buf + sz, "RANGE:%lx - %lx\n",
 		      dmc_mon->addr_start, dmc_mon->addr_end);
+	sz += sprintf(buf + sz, "CHIP:%d, ver:%d\n",
+		      dmc_mon->chip,
+		      get_meson_cpu_version(MESON_CPU_VERSION_LVL_MINOR));
 	sz += sprintf(buf + sz, "MONITOR DEVICE:\n");
 	for (i = 0; i < sizeof(dmc_mon->device) * 8; i++) {
 		if (dmc_mon->device & (1 << i))
@@ -177,6 +208,11 @@ static size_t dump_reg(char *buf)
 	}
 
 	return sz;
+}
+
+size_t dump_dmc_reg(char *buf)
+{
+	return dump_reg(buf);
 }
 
 static irqreturn_t dmc_monitor_irq_handler(int irq, void *dev_instance)
@@ -324,10 +360,10 @@ static struct class dmc_monitor_class = {
 
 static int dmc_monitor_probe(struct platform_device *pdev)
 {
-	int r = 0, irq, ports;
+	int r = 0, irq;
 	unsigned int io;
 	struct device_node *node = pdev->dev.of_node;
-	struct ddr_port_desc *desc = NULL;
+	struct resource *res;
 
 	pr_info("%s\n", __func__);
 	r = get_cpu_type();
@@ -335,18 +371,21 @@ static int dmc_monitor_probe(struct platform_device *pdev)
 	if (!dmc_mon)
 		return -ENOMEM;
 
-	ports = ddr_find_port_desc(r, &desc);
-	if (ports < 0) {
-		pr_info("can't get port desc\n");
-		goto inval;
-	}
-	dmc_mon->chip = r;
+	dmc_mon->chip = chip;
 	dmc_mon->port_num = ports;
 	dmc_mon->port = desc;
-	if (dmc_mon->chip >= MESON_CPU_MAJOR_ID_G12A)
-		dmc_mon->ops = &g12_dmc_mon_ops;
-	else
+	if (dmc_mon->chip >= MESON_CPU_MAJOR_ID_G12A) {
+		if (((dmc_mon->chip == MESON_CPU_MAJOR_ID_TM2) &&
+		     is_meson_rev_b()) ||
+		    (dmc_mon->chip == MESON_CPU_MAJOR_ID_SC2))
+			dmc_mon->ops = &tm2_dmc_mon_ops;
+		else
+			dmc_mon->ops = &g12_dmc_mon_ops;
+	} else {
+	#ifdef CONFIG_AMLOGIC_DMC_MONITOR_GX
 		dmc_mon->ops = &gx_dmc_mon_ops;
+	#endif
+	}
 
 	r = of_property_read_u32(node, "reg_base", &io);
 	if (r < 0) {
@@ -355,6 +394,11 @@ static int dmc_monitor_probe(struct platform_device *pdev)
 	}
 
 	dmc_mon->io_base = io;
+
+	/* for register not in secure world */
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res)
+		dmc_mon->io_mem = ioremap(res->start, res->end - res->start);
 
 	irq = of_irq_get(node, 0);
 	r = request_irq(irq, dmc_monitor_irq_handler,
@@ -415,6 +459,14 @@ static struct platform_driver dmc_monitor_driver = {
 static int __init dmc_monitor_init(void)
 {
 	int ret;
+
+	chip = get_cpu_type();
+
+	ports = ddr_find_port_desc(chip, &desc);
+	if (ports < 0) {
+		pr_info("can't get port desc\n");
+		return -ENODATA;
+	}
 
 	ret = platform_driver_register(&dmc_monitor_driver);
 	return ret;

@@ -57,9 +57,10 @@
 		ramoops@0x07400000 {
 			compatible = "ramoops";
 			reg = <0x07400000 0x00100000>;
-			record-size = <0x8000>;
-			console-size = <0x8000>;
-			ftrace-size = <0x40000>;
+			record-size = <0x20000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x80000>;
+			pmsg-size = <0x20000>;
 		};
 
 		secmon_reserved:linux,secmon {
@@ -86,7 +87,8 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			/* ion_codec_mm max can alloc size 80M*/
-			size = <0xd000000>;
+			//size = <0xd000000>;
+			size = <0x12800000>;	//ary
 			alignment = <0x400000>;
 			linux,contiguous-region;
 			alloc-ranges = <0x30000000 0x10000000>;
@@ -111,6 +113,7 @@
 		/*di CMA pool */
 		di_cma_reserved:linux,di_cma {
 			compatible = "shared-dma-pool";
+			status = "disable";
 			reusable;
 			/* buffer_size = 3621952(yuv422 8bit)
 			 *  | 4736064(yuv422 10bit)
@@ -120,7 +123,8 @@
 			 * 10x4074560=40M(0x28) support 10bit
 			 */
 			//size = <0x02800000>;
-			size = <0x05800000>;
+			//size = <0x05800000>;
+			size = <0x0>;
 			alignment = <0x400000>;
 			alloc-ranges = <0x30000000 0x10000000>;
 		};
@@ -137,23 +141,24 @@
 			alignment = <0x100000>;
 			//no-map;
 		};
-		/*  vdin0 CMA pool */
-		//vdin0_cma_reserved:linux,vdin0_cma {
-		//	compatible = "shared-dma-pool";
-		//	reusable;
-		/* 1920x1080x2x4  =16+4 M */
-		//	size = <0x04000000>;
-		//	alignment = <0x400000>;
-		//};
 		/*  vdin1 CMA pool */
 		vdin1_cma_reserved:linux,vdin1_cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			/* 1920x1080x2x4  =16 M */
-			size = <0x01000000>;
+			/* up to 1920x1080 yuv422 8bit and 5 buffers
+			 * 1920x1080x2x5 = 20 M
+			 */
+			size = <0x01400000>;
 			alignment = <0x400000>;
 			alloc-ranges = <0x0 0x30000000>;
 		};
+	};
+
+	cma_shrinker {
+		compatible = "amlogic, cma-shrinker";
+		status = "okay";
+		adj  = <0 100 200 250 900 950>;
+		free = <7680 24288 28528 32600 32768 36624>;
 	};
 
 	amlogic_battery:dummy-battery {
@@ -291,7 +296,7 @@
 		compatible = "amlogic, dim-g12a";
 		status = "okay";
 		/* 0:use reserved; 1:use cma; 2:use cma as reserved */
-		flag_cma = <1>;
+		flag_cma = <4>;//<1>;
 		//memory-region = <&di_reserved>;
 		memory-region = <&di_cma_reserved>;
 		interrupts = <0 46 1
@@ -357,21 +362,11 @@
 		cma_mode = <1>;
 	};
 
-	dvb {
-		compatible = "amlogic, dvb";
-		dev_name = "dvb";
+	demux {
+		compatible = "amlogic, dvb-demux";
+		dev_name = "dvb-demux";
+		status = "okay";
 
-	//	fe0_mode = "external";
-	//	fe0_demod = "Atbm8881";
-	//	fe0_i2c_adap_id = <&i2c2>;
-	//	fe0_demod_i2c_addr = <0xc0>;
-	//	fe0_ts = <1>;
-	//	fe0_reset_value = <0>;
-	//	fe0_reset_gpio = <&gpio GPIOZ_1 GPIO_ACTIVE_HIGH>;
-
-	//	ts1 = "parallel";
-	//	ts1_control = <0>;
-	//	ts1_invert = <0>;
 		interrupts = <0 23 1
 		0 5 1
 		0 21 1
@@ -386,8 +381,7 @@
 		"dvr1_irq",
 		"dvrfill0_fill",
 		"dvrfill1_flush";
-	//	pinctrl-names = "p_ts1";
-	//	pinctrl-0 = <&dvb_p_ts1_pins>;
+
 		clocks = <&clkc CLKID_DEMUX
 		&clkc CLKID_AHB_ARB0
 		&clkc CLKID_DOS_PARSER>;
@@ -397,7 +391,7 @@
 	unifykey{
 		compatible = "amlogic, unifykey";
 		status = "ok";
-		unifykey-num = <17>;
+		unifykey-num = <30>;
 		unifykey-index-0 = <&keysn_0>;
 		unifykey-index-1 = <&keysn_1>;
 		unifykey-index-2 = <&keysn_2>;
@@ -415,6 +409,19 @@
 		unifykey-index-14= <&keysn_14>;
 		unifykey-index-15= <&keysn_15>;
 		unifykey-index-16= <&keysn_16>;
+		unifykey-index-17= <&keysn_17>;
+		unifykey-index-18= <&keysn_18>;
+		unifykey-index-19= <&keysn_19>;
+		unifykey-index-20= <&keysn_20>;
+		unifykey-index-21= <&keysn_21>;
+		unifykey-index-22= <&keysn_22>;
+		unifykey-index-23= <&keysn_23>;
+		unifykey-index-24= <&keysn_24>;
+		unifykey-index-25= <&keysn_25>;
+		unifykey-index-26= <&keysn_26>;
+		unifykey-index-27= <&keysn_27>;
+		unifykey-index-28= <&keysn_28>;
+		unifykey-index-29= <&keysn_29>;
 
 		keysn_0: key_0{
 			key-name = "usid";
@@ -502,6 +509,71 @@
 		keysn_16:key_16{
 			key-name = "oemkey";
 			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_17:key_17{
+			key-name = "KEY_WIDEVINE";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_18:key_18{
+			key-name = "KEY_PLAYREADY_PRIVATE";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_19:key_19{
+			key-name = "KEY_PLAYREADY_PUBLIC";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_20:key_20{
+			key-name = "KEY_HDCP_TX14";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_21:key_21{
+			key-name = "KEY_HDCP_TX22";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_22:key_22{
+			key-name = "KEY_HDCP_RX14";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_23:key_23{
+			key-name = "KEY_HDCP_RX22";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_24:key_24{
+			key-name = "KEY_HDCP_RX22_FW";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_25:key_25{
+			key-name = "KEY_HDCP_RX22_FW_PRIVATE";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_26:key_26{
+			key-name = "KEY_KEYMASTER3";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_27:key_27{
+			key-name = "PROVISION_FIELD_ID";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_28:key_28{
+			key-name = "PROVISION_FIELD_PROTECT_KEY";
+			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_29:key_29{
+			key-name = "KEY_KM3_ATTEST_DEV_ID_BOX";
+			key-device = "provision";
 			key-permit = "read","write","del";
 		};
 	};//End unifykey
@@ -668,7 +740,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			//suffix-name = "alsaPORT-tdm";
+			suffix-name = "alsaPORT-i2s2hdmi";
 			cpu {
 				sound-dai = <&aml_tdmc>;
 				dai-tdm-slot-tx-mask = <1 1>;
@@ -678,7 +750,7 @@
 				system-clock-frequency = <12288000>;
 			};
 			codec {
-				sound-dai = <&dummy_codec &dummy_codec>;
+				sound-dai = <&dummy_codec>;
 			};
 		};
 
@@ -687,7 +759,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-pdm";
+			suffix-name = "alsaPORT-pdm-builtinmic";
 			cpu {
 				sound-dai = <&aml_pdm>;
 			};
@@ -702,7 +774,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-spdifb2hdmi";
+			suffix-name = "alsaPORT-spdif";
 			cpu {
 				sound-dai = <&aml_spdif>;
 				system-clock-frequency = <6144000>;
@@ -718,7 +790,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-spdif";
+			suffix-name = "alsaPORT-spdifb";
 			cpu {
 				sound-dai = <&aml_spdif_b>;
 				system-clock-frequency = <6144000>;
@@ -975,17 +1047,12 @@
 	aml_tdmc: tdmc {
 		compatible = "amlogic, g12a-snd-tdmc";
 		#sound-dai-cells = <0>;
-		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
-		#dai-tdm-lane-slot-mask-out = <1 0 1 1>;
-		#dai-tdm-lane-oe-slot-mask-in = <0 0 0 0>;
-		dai-tdm-lane-oe-slot-mask-out = <1 0 0 0>;
+		dai-tdm-lane-slot-mask-out = <1 1 1 1>;
 		dai-tdm-clk-sel = <2>;
 		clocks = <&clkaudio CLKID_AUDIO_MCLK_C
 				&clkc CLKID_MPLL2>;
 		clock-names = "mclk", "clk_srcpll";
-		pinctrl-names = "tdm_pins";
-		pinctrl-0 = <&tdmc_mclk &tdmout_c &tdmin_c>;
-		mclk_pad = <1>;  /* 0: mclk_0; 1: mclk_1 */
+		i2s2hdmi = <1>;
 	};
 
 
@@ -1338,6 +1405,10 @@
 &vdin0 {
 	/*memory-region = <&vdin0_cma_reserved>;*/
 	status = "disabled";
+	/* up to 1920x1080 yuv422 8bit and 5 buffers
+	 * 1920x1080x2x5 = 20 M
+	 */
+	cma_size = <20>;
 	/*vdin write mem color depth support:
 	 *bit0:support 8bit
 	 *bit1:support 9bit
@@ -1345,7 +1416,7 @@
 	 *bit3:support 12bit
 	 *bit4:support yuv422 10bit full pack mode (from txl new add)
 	 */
-	tv_bit_mode = <0x15>;
+	tv_bit_mode = <0x1>;
 };
 &vdin1 {
 	memory-region = <&vdin1_cma_reserved>;

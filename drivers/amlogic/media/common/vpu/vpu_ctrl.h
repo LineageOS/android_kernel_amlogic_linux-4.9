@@ -280,9 +280,9 @@ static struct vpu_ctrl_s vpu_mem_pd_g12a[] = {
 	{VPU_VIU2_OFIFO,      HHI_VPU_MEM_PD_REG1, 0x3,  2,   2},
 	{VPU_VKSTONE,         HHI_VPU_MEM_PD_REG1, 0x3,  4,   2},
 	{VPU_DOLBY_CORE3,     HHI_VPU_MEM_PD_REG1, 0x3,  6,   2},
-	{VPU_DOLBY0,          HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
-	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
-	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2},
+	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
+	{VPU_DOLBY2,          HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
+/*	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2}, */
 	{VPU_VPU_ARB,         HHI_VPU_MEM_PD_REG1, 0x3, 14,   2},
 	{VPU_AFBC_DEC,        HHI_VPU_MEM_PD_REG1, 0x3, 16,   2},
 	{VPU_VD2_SCALE,       HHI_VPU_MEM_PD_REG1, 0x3, 18,   2},
@@ -324,9 +324,9 @@ static struct vpu_ctrl_s vpu_mem_pd_g12b[] = {
 	{VPU_VIU2_OFIFO,      HHI_VPU_MEM_PD_REG1, 0x3,  2,   2},
 	{VPU_VKSTONE,         HHI_VPU_MEM_PD_REG1, 0x3,  4,   2},
 	{VPU_DOLBY_CORE3,     HHI_VPU_MEM_PD_REG1, 0x3,  6,   2},
-	{VPU_DOLBY0,          HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
-	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
-	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2},
+	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
+	{VPU_DOLBY2,          HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
+/*	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2}, */
 	{VPU_VPU_ARB,         HHI_VPU_MEM_PD_REG1, 0x3, 14,   2},
 	{VPU_AFBC_DEC,        HHI_VPU_MEM_PD_REG1, 0x3, 16,   2},
 	{VPU_VD2_SCALE,       HHI_VPU_MEM_PD_REG1, 0x3, 18,   2},
@@ -425,9 +425,9 @@ static struct vpu_ctrl_s vpu_mem_pd_sm1[] = {
 	{VPU_VIU2,            HHI_VPU_MEM_PD_REG1, 0xf,  0,   4},
 	{VPU_VKSTONE,         HHI_VPU_MEM_PD_REG1, 0x3,  4,   2},
 	{VPU_DOLBY_CORE3,     HHI_VPU_MEM_PD_REG1, 0x3,  6,   2},
-	{VPU_DOLBY0,          HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
-	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
-	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2},
+	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
+	{VPU_DOLBY2,          HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
+/*	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2}, */
 	{VPU_VPU_ARB,         HHI_VPU_MEM_PD_REG1, 0x3, 14,   2},
 	{VPU_AFBC_DEC,        HHI_VPU_MEM_PD_REG1, 0x3, 16,   2},
 	{VPU_VD2_SCALE,       HHI_VPU_MEM_PD_REG1, 0x3, 18,   2},
@@ -480,8 +480,7 @@ static struct vpu_ctrl_s vpu_mem_pd_tm2[] = {
 	{VPU_VKSTONE,         HHI_VPU_MEM_PD_REG1, 0x3,  4,   2},
 	{VPU_DOLBY_CORE3,     HHI_VPU_MEM_PD_REG1, 0x3,  6,   2},
 	{VPU_DOLBY0,          HHI_VPU_MEM_PD_REG1, 0x3,  8,   2},
-	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
-	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG1, 0x3, 12,   2},
+	{VPU_DOLBY2,          HHI_VPU_MEM_PD_REG1, 0x3, 10,   2},
 	{VPU_VPU_ARB,         HHI_VPU_MEM_PD_REG1, 0x3, 14,   2},
 	{VPU_AFBC_DEC,        HHI_VPU_MEM_PD_REG1, 0x3, 16,   2},
 	{VPU_VD2_SCALE,       HHI_VPU_MEM_PD_REG1, 0x3, 18,   2},
@@ -503,8 +502,8 @@ static struct vpu_ctrl_s vpu_mem_pd_tm2[] = {
 	{VPU_DS,              HHI_VPU_MEM_PD_REG2, 0x3, 18,   2},
 	{VPU_LUT3D,           HHI_VPU_MEM_PD_REG2, 0x3, 20,   2},
 	{VPU_DI_PRE,          HHI_VPU_MEM_PD_REG2, 0x3, 24,   2},
-	{VPU_DOLBY_S0,        HHI_VPU_MEM_PD_REG2, 0x3, 26,   2},
-	{VPU_DOLBY_S1,        HHI_VPU_MEM_PD_REG2, 0x3, 28,   2},
+	{VPU_DOLBY1A,         HHI_VPU_MEM_PD_REG2, 0x3, 26,   2},
+	{VPU_DOLBY1B,         HHI_VPU_MEM_PD_REG2, 0x3, 28,   2},
 	{VPU_RDMA,            HHI_VPU_MEM_PD_REG2, 0x3, 30,   2},
 	{VPU_TCON,            HHI_VPU_MEM_PD_REG3, 0x3,  0,  16},
 	{VPU_TCON,            HHI_VPU_MEM_PD_REG3, 0x3, 16,  16},
@@ -514,6 +513,68 @@ static struct vpu_ctrl_s vpu_mem_pd_tm2[] = {
 	{VPU_VDIN_WR_MIF2,    HHI_VPU_MEM_PD_REG4, 0x3,  6,   2},
 	{VPU_DMA,             HHI_VPU_MEM_PD_REG4, 0xf,  8,   4},
 	{VPU_MOD_MAX,         VPU_REG_END,         0,    0,   0},
+};
+
+static struct vpu_ctrl_s vpu_mem_pd_sc2[] = {
+	/* vpu module,        reg,             val,  bit, len */
+	{VPU_VIU_OSD1,        PWRCTRL_MEM_PD5, 0x3,  0,   2},
+	{VPU_VIU_OSD2,        PWRCTRL_MEM_PD5, 0x3,  2,   2},
+	{VPU_VIU_VD1,         PWRCTRL_MEM_PD5, 0x3,  4,   2},
+	{VPU_VIU_VD2,         PWRCTRL_MEM_PD5, 0x3,  6,   2},
+	{VPU_VIU_CHROMA,      PWRCTRL_MEM_PD5, 0x3,  8,   2},
+	{VPU_VIU_OFIFO,       PWRCTRL_MEM_PD5, 0x3, 10,   2},
+	{VPU_VIU_OSD_SCALE,   PWRCTRL_MEM_PD5, 0x3, 14,   2},
+	{VPU_VIU_VDIN0,       PWRCTRL_MEM_PD5, 0x3, 16,   2},
+	{VPU_VIU_VDIN1,       PWRCTRL_MEM_PD5, 0x3, 18,   2},
+	{VPU_VIU_SRSCL,       PWRCTRL_MEM_PD5, 0x3, 20,   2},
+	{VPU_AFBC_DEC1,       PWRCTRL_MEM_PD5, 0x3, 22,   2},
+	{VPU_VIU_DI_SCALE,    PWRCTRL_MEM_PD5, 0x3, 24,   2},
+	{VPU_DI_PRE,          PWRCTRL_MEM_PD5, 0x3, 26,   2},
+	{VPU_DI_POST,         PWRCTRL_MEM_PD5, 0x3, 28,   2},
+	{VPU_SHARP,           PWRCTRL_MEM_PD5, 0x3, 30,   2},
+	{VPU_VIU2,            PWRCTRL_MEM_PD6, 0xf,  0,   4},
+	{VPU_VKSTONE,         PWRCTRL_MEM_PD6, 0x3,  4,   2},
+	{VPU_DOLBY_CORE3,     PWRCTRL_MEM_PD6, 0x3,  6,   2},
+	/*{VPU_DOLBY0,          PWRCTRL_MEM_PD6, 0x3,  8,   2},*//*dolby tv*/
+	{VPU_DOLBY2,         PWRCTRL_MEM_PD6, 0x3, 10,   2},/*dolby graphic*/
+	/*{VPU_DOLBY1B,         PWRCTRL_MEM_PD6, 0x3, 12,   2},*/
+	{VPU_VPU_ARB,         PWRCTRL_MEM_PD6, 0x3, 14,   2},
+	{VPU_AFBC_DEC,        PWRCTRL_MEM_PD6, 0x3, 16,   2},
+	{VPU_VD2_SCALE,       PWRCTRL_MEM_PD6, 0x3, 18,   2},
+	{VPU_VENCP,           PWRCTRL_MEM_PD6, 0x3, 20,   2},
+	{VPU_VENCL,           PWRCTRL_MEM_PD6, 0x3, 22,   2},
+	{VPU_VENCI,           PWRCTRL_MEM_PD6, 0x3, 24,   2},
+	{VPU_LC_STTS,         PWRCTRL_MEM_PD6, 0x3, 26,   2},
+	{VPU_LDIM_STTS,       PWRCTRL_MEM_PD6, 0x3, 28,   2},
+	{VPU_VD2_OSD2_SCALE,  PWRCTRL_MEM_PD6, 0x3, 30,   2},
+	{VPU_VIU_WM,          PWRCTRL_MEM_PD7, 0x3,  0,   2},
+	{VPU_TCON,            PWRCTRL_MEM_PD7, 0x3,  2,   2},
+	{VPU_VIU_OSD3,        PWRCTRL_MEM_PD7, 0x3,  4,   2},
+	{VPU_VIU_OSD4,        PWRCTRL_MEM_PD7, 0x3,  6,   2},
+	{VPU_MAIL_AFBCD,      PWRCTRL_MEM_PD7, 0x3,  8,   2},
+	{VPU_VD1_SCALE,       PWRCTRL_MEM_PD7, 0x3, 10,   2},
+	{VPU_OSD_BLD34,       PWRCTRL_MEM_PD7, 0x3, 12,   2},
+	{VPU_PRIME_DOLBY_RAM, PWRCTRL_MEM_PD7, 0x3, 14,   2},
+	{VPU_VD2_OFIFO,       PWRCTRL_MEM_PD7, 0x3, 16,   2},
+	{VPU_LUT3D,           PWRCTRL_MEM_PD7, 0x3, 20,   2},
+	{VPU_VIU2_OSD_ROT,    PWRCTRL_MEM_PD7, 0x3, 22,   2},
+	{VPU_DI_PRE,          PWRCTRL_MEM_PD7, 0x3, 24,   2},
+	{VPU_DOLBY1A,         PWRCTRL_MEM_PD7, 0x3, 26,   2},/*dolby core1a*/
+	/*{VPU_DOLBY1B,        PWRCTRL_MEM_PD7, 0x3, 28,   2},*//*dolby core1b*/
+	{VPU_TCON,            PWRCTRL_MEM_PD8, 0xffff,  0,  16},
+	{VPU_TCON,            PWRCTRL_MEM_PD8, 0xffff, 16,  16},
+	{VPU_AXI_WR1,         PWRCTRL_MEM_PD9, 0x3,  0,   2},
+	{VPU_AXI_WR0,         PWRCTRL_MEM_PD9, 0x3,  2,   2},
+	{VPU_AFBCE,           PWRCTRL_MEM_PD9, 0x3,  4,   2},
+	{VPU_VDIN_WR_MIF2,    PWRCTRL_MEM_PD9, 0x3,  6,   2},
+	{VPU_DMA,             PWRCTRL_MEM_PD9, 0xf,  8,   4},
+	{VPU_HDMI,            PWRCTRL_MEM_PD9, 0x3,  12,  2},
+	{VPU_FGRAIN0,         PWRCTRL_MEM_PD9, 0x3,  14,  2},
+	{VPU_FGRAIN1,         PWRCTRL_MEM_PD9, 0x3,  16,  2},
+	{VPU_DI_AFBCD,        PWRCTRL_MEM_PD9, 0x3f, 18,  6},
+	{VPU_DI_AFBCE,        PWRCTRL_MEM_PD9, 0xf,  24,  4},
+	{VPU_DI_DOLBY,        PWRCTRL_MEM_PD9, 0x3,  28,  2},
+	{VPU_MOD_MAX,         VPU_REG_END,     0,    0,   0},
 };
 
 /* ******************************************************* */
@@ -693,49 +754,25 @@ static struct vpu_ctrl_s vpu_clk_gate_g12a[] = {
 /* ******************************************************* */
 /*              VPU_HDMI ISO pre: before reset               */
 /* ******************************************************* */
-static struct vpu_ctrl_s vpu_hdmi_iso_pre_gxb[] = {
-	/* reg,                val, bit, len */
-	{AO_RTI_GEN_PWR_SLEEP0,  1,   8,   1},
-	{VPU_REG_END,            0,   0,   0},
+static struct vpu_ctrl_s vpu_power_gxb[] = {
+	/* 0, reg,                    val, bit, len */
+	{0,   AO_RTI_GEN_PWR_SLEEP0,  1,   8,   1},
+	{0,   VPU_REG_END,            0,   0,   0},
 };
 
 /* ******************************************************* */
 /*                 VPU_HDMI ISO                            */
 /* ******************************************************* */
-static struct vpu_ctrl_s vpu_hdmi_iso_gxb[] = {
-	/* reg,                val, bit, len */
-	{AO_RTI_GEN_PWR_SLEEP0,  1,   9,   1},
-	{VPU_REG_END,            0,   0,   0},
+static struct vpu_ctrl_s vpu_iso_gxb[] = {
+	/* 0, reg,                    val, bit, len */
+	{0,   AO_RTI_GEN_PWR_SLEEP0,  1,   9,   1},
+	{0,   VPU_REG_END,            0,   0,   0},
 };
 
-static struct vpu_ctrl_s vpu_hdmi_iso_sm1[] = {
-	/* reg,                val, bit, len */
-	{AO_RTI_GEN_PWR_ISO0,    1,   8,   1},
-	{VPU_REG_END,            0,   0,   0},
-};
-
-/* ******************************************************* */
-/*                 VPU module init table                   */
-/* ******************************************************* */
-static struct vpu_ctrl_s vpu_module_init_gxm[] = {
-	/* 0, reg,                       val,        bit, len */
-	{0,   DOLBY_CORE1_CLKGATE_CTRL,  0x55555555, 0,   32},
-	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 0x55555555, 0,   32},
-	{0,   DOLBY_CORE3_CLKGATE_CTRL,  0x55555555, 0,   32},
-	{0,   VPU_REG_END,               0,          0,   0},
-};
-
-static struct vpu_ctrl_s vpu_module_init_txlx[] = {
-	/* 0, reg,                       val, bit, len */
-	{0,   DOLBY_TV_CLKGATE_CTRL,     1,   10,  2},
-	{0,   DOLBY_TV_CLKGATE_CTRL,     1,   2,   2},
-	{0,   DOLBY_TV_CLKGATE_CTRL,     1,   4,   2},
-	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 1,   10,  2},
-	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 1,   2,   2},
-	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 1,   4,   2},
-	{0,   DOLBY_CORE3_CLKGATE_CTRL,  0,   1,   1},
-	{0,   DOLBY_CORE3_CLKGATE_CTRL,  1,   2,   2},
-	{0,   VPU_REG_END,               0,   0,   0},
+static struct vpu_ctrl_s vpu_iso_sm1[] = {
+	/* 0, reg,                    val, bit, len */
+	{0,   AO_RTI_GEN_PWR_ISO0,    1,   8,   1},
+	{0,   VPU_REG_END,            0,   0,   0},
 };
 
 /* ******************************************************* */
@@ -772,6 +809,30 @@ static struct vpu_reset_s vpu_reset_tl1[] = {
 				(1<<9) | (1<<4) | (1<<12))},
 	{RESET7_LEVEL_TXLX, (1<<7)},
 	{VPU_REG_END,       0},
+};
+
+/* ******************************************************* */
+/*                 VPU module init table                   */
+/* ******************************************************* */
+static struct vpu_ctrl_s vpu_module_init_gxm[] = {
+	/* 0, reg,                       val,        bit, len */
+	{0,   DOLBY_CORE1_CLKGATE_CTRL,  0x55555555, 0,   32},
+	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 0x55555555, 0,   32},
+	{0,   DOLBY_CORE3_CLKGATE_CTRL,  0x55555555, 0,   32},
+	{0,   VPU_REG_END,               0,          0,   0},
+};
+
+static struct vpu_ctrl_s vpu_module_init_txlx[] = {
+	/* 0, reg,                       val, bit, len */
+	{0,   DOLBY_TV_CLKGATE_CTRL,     1,   10,  2},
+	{0,   DOLBY_TV_CLKGATE_CTRL,     1,   2,   2},
+	{0,   DOLBY_TV_CLKGATE_CTRL,     1,   4,   2},
+	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 1,   10,  2},
+	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 1,   2,   2},
+	{0,   DOLBY_CORE2A_CLKGATE_CTRL, 1,   4,   2},
+	{0,   DOLBY_CORE3_CLKGATE_CTRL,  0,   1,   1},
+	{0,   DOLBY_CORE3_CLKGATE_CTRL,  1,   2,   2},
+	{0,   VPU_REG_END,               0,   0,   0},
 };
 
 

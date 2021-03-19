@@ -76,6 +76,8 @@ obj-$(CONFIG_AMLOGIC_VRTC)		+= vrtc/
 
 obj-$(CONFIG_AMLOGIC_SMARTCARD)		+= smartcard/
 
+obj-$(CONFIG_AMLOGIC_SMARTCARD)		+= smartcard_sc2/
+
 obj-$(CONFIG_AMLOGIC_CEC)		+= cec/
 
 obj-$(CONFIG_AMLOGIC_UNIFYKEY)    += unifykey/
@@ -146,4 +148,10 @@ obj-$(CONFIG_AMLOGIC_PIXEL_PROBE) += pixel_probe/
 
 obj-$(CONFIG_AMLOGIC_FIRMWARE) += firmware/
 
-obj-$(CONFIG_AMLOGIC_UVM) += uvm/
+obj-$(CONFIG_AMLOGIC_DVB_COMPAT) += dvb/
+
+obj-$(CONFIG_AMLOGIC_RESET_MESON) += reset/
+
+obj-$(CONFIG_AMLOGIC_DVB) += dvb/
+
+obj-$(CONFIG_AMLOGIC_DVB_DMX)		+= dvb/

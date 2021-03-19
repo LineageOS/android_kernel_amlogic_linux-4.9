@@ -62,6 +62,7 @@ static inline int codecio_reg_read(u32 bus_type, u32 reg, u32 *val)
 				"Not supported bus type %d or addr %x to read.\n",
 				bus_type,
 				reg);
+			dump_stack();
 			return -1;
 		}
 
@@ -81,6 +82,7 @@ static inline int codecio_reg_write(u32 bus_type, u32 reg, u32 val)
 				"Not supported bus type %d or addr %x to write.\n",
 				bus_type,
 				reg);
+			dump_stack();
 			return -1;
 		}
 
@@ -96,7 +98,7 @@ int codecio_read_cbus(unsigned int reg)
 
 	ret = codecio_reg_read(CODECIO_CBUS_BASE, reg << 2, &val);
 	if (ret) {
-		pr_err("read cbus reg %x error %d\n", reg, ret);
+		// pr_err("read cbus reg %x error %d\n", reg, ret);
 		return -1;
 	} else
 		return val;
@@ -120,7 +122,7 @@ int codecio_read_dosbus(unsigned int reg)
 
 	ret = codecio_reg_read(CODECIO_DOSBUS_BASE, reg << 2, &val);
 	if (ret) {
-		pr_err("read cbus reg %x error %d\n", reg, ret);
+		// pr_err("read cbus reg %x error %d\n", reg, ret);
 		return -1;
 	} else
 		return val;

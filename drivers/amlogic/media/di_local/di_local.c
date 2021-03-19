@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * drivers/amlogic/media/di_local/di_local.c
  *
@@ -40,6 +41,9 @@
 #include <linux/of_irq.h>
 #include <linux/uaccess.h>
 #include <linux/of_fdt.h>
+#include <linux/amlogic/media/vfm/vframe.h>
+#include <linux/amlogic/media/vpu/vpu.h>	//VPU_MEM_POWER_ON
+#include "di_pqa.h"
 
 /*for di_ext_ops*/
 /*#include <linux/amlogic/media/video_sink/video.h> */
@@ -52,9 +56,9 @@
 /*#define CLASS_NAME	"dev_pl_demo" */
 #define DEV_COUNT	1
 
-#define PR_ERR(fmt, args ...) pr_err("dil:err:"fmt, ## args)
-#define PR_WARN(fmt, args ...) pr_err("dil:warn:"fmt, ## args)
-#define PR_INF(fmt, args ...) pr_info("dil:"fmt, ## args)
+#define PR_ERR(fmt, args ...) pr_err("dil:err:" fmt, ## args)
+#define PR_WARN(fmt, args ...) pr_err("dil:warn:" fmt, ## args)
+#define PR_INF(fmt, args ...) pr_info("dil:" fmt, ## args)
 
 struct dil_dev_s {
 	struct platform_device	*pdev;
@@ -69,6 +73,8 @@ static struct dil_dev_s *pdv;
 static const struct di_ext_ops *dil_api;	//temp
 
 static unsigned int diffver_flag;
+
+static unsigned int cpuver_id;
 
 /***************************************
  * dil api for make a distinction between old/new DI function *
@@ -85,11 +91,25 @@ unsigned int dil_get_diffver_flag(void)
 EXPORT_SYMBOL(dil_get_diffver_flag);
 
 /***************************************
+ * dil api for cpu version *
+ **************************************/
+void dil_set_cpuver_flag(unsigned int para)
+{
+	cpuver_id = para;
+}
+EXPORT_SYMBOL(dil_set_cpuver_flag);
+unsigned int dil_get_cpuver_flag(void)
+{
+	return cpuver_id;
+}
+EXPORT_SYMBOL(dil_get_cpuver_flag);
+
+/***************************************
  * di api for other module *
  **************************************/
 bool dil_attach_ext_api(const struct di_ext_ops *di_api)
 {
-	#if 0
+	#ifdef MARK_HIS
 	if (!di_api) {
 		PR_ERR("%s:null\n", __func__);
 		return false;
@@ -106,7 +126,7 @@ EXPORT_SYMBOL(dil_attach_ext_api);
 
 unsigned int DI_POST_REG_RD(unsigned int addr)
 {
-	#if 0
+	#ifdef MARK_HIS
 	if (IS_ERR_OR_NULL(de_devp))
 		return 0;
 	if (de_devp->flags & DI_SUSPEND_FLAG) {
@@ -125,7 +145,7 @@ EXPORT_SYMBOL(DI_POST_REG_RD);
 
 int DI_POST_WR_REG_BITS(u32 adr, u32 val, u32 start, u32 len)
 {
-	#if 0
+	#ifdef MARK_HIS
 	if (IS_ERR_OR_NULL(de_devp))
 		return 0;
 	if (de_devp->flags & DI_SUSPEND_FLAG) {
@@ -150,6 +170,20 @@ void DI_POST_UPDATE_MC(void)
 }
 EXPORT_SYMBOL(DI_POST_UPDATE_MC);
 
+void dim_post_keep_cmd_release2(struct vframe_s *vframe)
+{
+	if (dil_api && dil_api->post_keep_cmd_release2)
+		dil_api->post_keep_cmd_release2(vframe);
+}
+EXPORT_SYMBOL(dim_post_keep_cmd_release2);
+
+void dim_polic_cfg(unsigned int cmd, bool on)
+{
+	if (dil_api && dil_api->polic_cfg)
+		dil_api->polic_cfg(cmd, on);
+}
+EXPORT_SYMBOL(dim_polic_cfg);
+
 /***************************************
  * reserved mem for di *
  **************************************/
@@ -173,6 +207,34 @@ void dil_get_flg(unsigned int *flg)
 }
 EXPORT_SYMBOL(dil_get_flg);
 
+/**********************************
+ * ext_api used by DI
+ ********************************/
+
+void ext_switch_vpu_mem_pd_vmod(unsigned int vmod, bool on)
+{
+	switch_vpu_mem_pd_vmod(vmod,
+			       on ? VPU_MEM_POWER_ON : VPU_MEM_POWER_DOWN);
+}
+
+const struct ext_ops_s ext_ops_4_di = {
+	.switch_vpu_mem_pd_vmod		= ext_switch_vpu_mem_pd_vmod,
+	/*no use ?*/
+/*	.vf_get_receiver_name		= vf_get_receiver_name,*/
+	.switch_vpu_clk_gate_vmod	= switch_vpu_clk_gate_vmod,
+	.get_current_vscale_skip_count	= get_current_vscale_skip_count,
+	.cvs_alloc_table = canvas_pool_alloc_canvas_table,
+	.cvs_free_table	= canvas_pool_free_canvas_table,
+};
+
+bool dil_attch_ext_api(const struct ext_ops_s **exp_4_di)
+{
+	*exp_4_di = &ext_ops_4_di;
+
+	return true;
+}
+EXPORT_SYMBOL(dil_attch_ext_api);
+
 /***************************************
  * reserved mem for di *
  **************************************/
@@ -188,7 +250,7 @@ static int __init rmem_dil_init(struct reserved_mem *rmem,
 		if (!of_get_flat_dt_prop(rmem->fdt_node, "no-map", NULL))
 			devp->flg_map = 1;
 
-#if 0
+#ifdef MARK_HIS
 		o_size = rmem->size / DI_CHANNEL_NUB;
 
 		for (ch = 0; ch < DI_CHANNEL_NUB; ch++) {
@@ -304,7 +366,24 @@ static struct platform_driver dev_driver_tab = {
 
 };
 
-#if 1
+#ifdef MARK_HIS
+int dil_init(void)
+{
+	PR_INF("%s.\n", __func__);
+	if (platform_driver_register(&dev_driver_tab)) {
+		PR_ERR("%s: can't register\n", __func__);
+		return -ENODEV;
+	}
+	PR_INF("%s ok.\n", __func__);
+	return 0;
+}
+
+void dil_exit(void)
+{
+	platform_driver_unregister(&dev_driver_tab);
+	PR_INF("%s: ok.\n", __func__);
+}
+#else
 static int __init dil_init(void)
 {
 	PR_INF("%s.\n", __func__);
@@ -329,22 +408,5 @@ MODULE_DESCRIPTION("AMLOGIC DI_LOCAL driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("4.0.0");
 
-#else
-int dil_init(void)
-{
-	PR_INF("%s.\n", __func__);
-	if (platform_driver_register(&dev_driver_tab)) {
-		PR_ERR("%s: can't register\n", __func__);
-		return -ENODEV;
-	}
-	PR_INF("%s ok.\n", __func__);
-	return 0;
-}
-
-void dil_exit(void)
-{
-	platform_driver_unregister(&dev_driver_tab);
-	PR_INF("%s: ok.\n", __func__);
-}
-
 #endif
+

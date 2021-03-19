@@ -117,7 +117,7 @@
 #define SC_FREE(p) vfree(p)
 
 #endif
-#define MAX_SC_LIST 64
+#define MAX_SC_LIST 128
 #define MK_TAG(a, b, c, d) (((a) << 24) | ((b) << 16) |\
 					((c) << 8) | d)
 #define SMGT_IDENTIFY_TAG MK_TAG('Z', 'S', 'C', 'Z')
@@ -190,6 +190,7 @@ struct codec_mm_scatter_mgt {
 	int free_10_100ms_cnt;
 	int free_100ms_up_cnt;
 
+	struct device *dev;
 	struct delayed_work dealy_work;
 	int scatter_task_run_num;
 	struct codec_mm_scatter *cache_scs[2];
@@ -944,6 +945,12 @@ static int codec_mm_page_alloc_from_one_pages(
 			page |= sid;
 			pages[alloced++] = page;
 			neednum--;
+
+			/* Invalidate range of cache lines. */
+			dma_sync_single_for_device(smgt->dev,
+				virt_to_phys(vpage),
+				PAGE_SIZE,
+				DMA_FROM_DEVICE);
 		} else {
 			/*can't alloced memofy from ONEPAGE alloc */
 			WAR_LOG("Out of memory OnePage alloc =%d,%d\n",
@@ -2718,15 +2725,19 @@ static int codec_mm_scatter_scatter_clear(
 *return the total num alloced.
 *0 is all freeed.
 *N is have some pages not alloced.
+*flags: 0: cache only,
+*       1: all no user;
+*       2: all, ignore the time check.
 */
 static int codec_mm_scatter_free_all_ignorecache_in(
-	struct codec_mm_scatter_mgt *smgt)
+	struct codec_mm_scatter_mgt *smgt, int flags)
 {
 	int need_retry = 1;
 	int retry_num = 0;
 
 	mutex_lock(&smgt->monitor_lock);
 	pr_info("force free all scatter ignorecache!\n");
+	/*free cache: always*/
 	do {
 		struct codec_mm_scatter *mms;
 		/*clear cache first. */
@@ -2747,9 +2758,16 @@ static int codec_mm_scatter_free_all_ignorecache_in(
 		/*alloced again on timer?*/
 		  /* check again. */
 	} while (smgt->cache_scs[0] != NULL);
-	do {
-		need_retry = codec_mm_scatter_scatter_clear(smgt, 1);
-	} while ((smgt->scatters_cnt > 0) && (retry_num++ < 1000));
+	/* free cache nouser
+	 *	if flags==2  force
+	 */
+	if (flags >= 1) {
+		do {
+			need_retry = codec_mm_scatter_scatter_clear(
+					smgt, flags == 2);
+		} while ((smgt->scatters_cnt > 0) && (retry_num++ < 1000));
+	}
+
 	if (need_retry || smgt->scatters_cnt > 0) {
 		pr_info("can't free all scatter, because some have used!!\n");
 		/*codec_mm_dump_all_scatters();*/
@@ -2769,10 +2787,10 @@ int codec_mm_scatter_free_all_ignorecache(int flags)
 {
 	if (flags & 1)
 		codec_mm_scatter_free_all_ignorecache_in(
-			codec_mm_get_scatter_mgt(0));
-	if (flags & 2)
+			codec_mm_get_scatter_mgt(0), 2);
+	if (flags & 2)/*free cache and unused pages*/
 		codec_mm_scatter_free_all_ignorecache_in(
-			codec_mm_get_scatter_mgt(1));
+			codec_mm_get_scatter_mgt(1), 1);
 	return 0;
 }
 
@@ -2858,7 +2876,7 @@ static struct mconfig codec_mm_sc_configs[] = {
 
 static struct mconfig_node codec_mm_sc;
 
-int codec_mm_scatter_mgt_init(void)
+int codec_mm_scatter_mgt_init(struct device *dev)
 {
 	struct codec_mm_scatter_mgt *smgt;
 
@@ -2878,6 +2896,9 @@ int codec_mm_scatter_mgt_init(void)
 	g_scatter.support_from_slot_sys = smgt->support_from_slot_sys;
 	g_scatter.no_cache_size_M = smgt->no_cache_size_M;
 	g_scatter.no_alloc_from_sys = 0;
+
+	smgt->dev = dev;
+
 	INIT_REG_NODE_CONFIGS("media.codec_mm",
 		&codec_mm_sc, "scatter",
 		codec_mm_sc_configs,

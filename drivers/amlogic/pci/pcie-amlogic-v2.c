@@ -31,11 +31,14 @@
 #include <linux/amlogic/power_ctrl.h>
 #include "../drivers/pci/host/pcie-designware.h"
 #include "pcie-amlogic.h"
-
+#include <dt-bindings/power/sc2-pd.h>
 #include <dt-bindings/clock/amlogic,axg-clkc.h>
 #include <linux/clk-provider.h>
 #include "../clk/clkc.h"
-
+#include <linux/amlogic/pwr_ctrl.h>
+#ifdef CONFIG_AMLOGIC_PCIE
+#include <linux/irqnr.h>
+#endif
 
 struct amlogic_pcie {
 	struct pcie_port	pp;
@@ -57,6 +60,60 @@ struct amlogic_pcie {
 };
 
 #define to_amlogic_pcie(x)	container_of(x, struct amlogic_pcie, pp)
+
+#ifdef CONFIG_AMLOGIC_PCIE
+static struct amlogic_pcie *pcie_host;
+int IsQualcommDevices;
+
+void mask_pcie_irq(void)
+{
+	struct irq_desc *desc = NULL;
+
+	if (pcie_host) {
+		desc = irq_to_desc(
+			(unsigned int)(pcie_host->pp.msi_irq));
+		if (desc)
+			mask_irq(desc);
+	}
+}
+
+void unmask_pcie_irq(void)
+{
+	struct irq_desc *desc = NULL;
+
+	if (pcie_host) {
+		desc = irq_to_desc(
+			(unsigned int)(pcie_host->pp.msi_irq));
+		if (desc)
+			unmask_irq(desc);
+	}
+}
+
+void amlogic_pcie_reset_gpio_ctrl(unsigned int val)
+{
+	struct pcie_port *pp = NULL;
+	struct device *dev = NULL;
+
+	if (!pcie_host)
+		return;
+
+	pp = &pcie_host->pp;
+	if (!pp)
+		return;
+
+	dev = pp->dev;
+	if (!dev)
+		return;
+
+	if (pcie_host->reset_gpio >= 0 &&
+	    gpio_is_valid(pcie_host->reset_gpio)) {
+		dev_info(dev, "PCIe reset GPIO %s\n",
+			 val ? "assert" : "deassert");
+		gpio_set_value_cansleep(pcie_host->reset_gpio, val);
+	}
+}
+EXPORT_SYMBOL(amlogic_pcie_reset_gpio_ctrl);
+#endif
 
 static void amlogic_elb_writel(struct amlogic_pcie *amlogic_pcie, u32 val,
 								u32 reg)
@@ -573,13 +630,17 @@ static int amlogic_pcie_link_up(struct pcie_port *pp)
 	int   cnt = 0;
 	u32   val = 0;
 	u32   linkup = 0;
+	int   i = 0;
 	struct amlogic_pcie *amlogic_pcie = to_amlogic_pcie(pp);
 
-	val = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
-	linkup = ((val & PCIE_PHY_DEBUG_R1_LINK_UP) &&
-		(!(val & PCIE_PHY_DEBUG_R1_LINK_IN_TRAINING)));
-	if (linkup)
-		return linkup;
+	for (i = 0; i < 10000; i++) {
+		val = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
+		linkup = ((val & PCIE_PHY_DEBUG_R1_LINK_UP) &&
+			(!(val & PCIE_PHY_DEBUG_R1_LINK_IN_TRAINING)));
+		if (linkup)
+			return linkup;
+		udelay(9);
+	}
 
 	while (smlh_up == 0 || rdlh_up == 0
 		|| ltssm_up == 0 || speed_okay == 0) {
@@ -806,7 +867,7 @@ static int __init amlogic_pcie_probe(struct platform_device *pdev)
 	else
 		amlogic_pcie->pwr_ctl = pwr_ctl;
 
-	if (pwr_ctl) {
+	if (pwr_ctl == 1) {
 		prop = of_get_property(dev->of_node,
 			"pcie-ctrl-sleep-shift", NULL);
 		if (prop)
@@ -851,8 +912,10 @@ static int __init amlogic_pcie_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (pwr_ctl)
+	if (pwr_ctl == 1)
 		power_switch_to_pcie(amlogic_pcie->phy);
+	else if (pwr_ctl == 2)
+		pwr_ctrl_psci_smc(PDID_PCIE, PWR_ON);
 
 	if (!amlogic_pcie->phy->phy_base) {
 		phy_base = platform_get_resource_byname(
@@ -994,6 +1057,9 @@ static int __init amlogic_pcie_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, amlogic_pcie);
 	device_create_file(&pdev->dev, &dev_attr_phyread_v2);
 	device_create_file(&pdev->dev, &dev_attr_phywrite_v2);
+#ifdef CONFIG_AMLOGIC_PCIE
+	pcie_host = amlogic_pcie;
+#endif
 	return 0;
 
 fail_clk:
@@ -1085,6 +1151,7 @@ static int amlogic_pcie_suspend_noirq(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct amlogic_pcie *amlogic_pcie = platform_get_drvdata(pdev);
+	u32 val;
 
 	if (!amlogic_pcie->pm_enable) {
 		dev_info(dev, "don't noirq suspend amlogic pcie\n");
@@ -1108,15 +1175,26 @@ static int amlogic_pcie_suspend_noirq(struct device *dev)
 
 	dev_info(dev, "amlogic_pcie_suspend_noirq\n");
 
-	clk_disable_unprepare(amlogic_pcie->clk);
-	clk_disable_unprepare(amlogic_pcie->bus_clk);
-	clk_disable_unprepare(amlogic_pcie->phy_clk);
-	amlogic_pcie->phy->reset_state = 0;
+	val = amlogic_cfg_readl(amlogic_pcie, PCIE_CFG0);
+	val &= (~APP_LTSSM_ENABLE);
+	amlogic_cfg_writel(amlogic_pcie, val, PCIE_CFG0);
+	usleep_range(500, 510);
 
 	if (amlogic_pcie->pcie_num == 1) {
 		writel(0x1d, amlogic_pcie->pcie_aml_regs_v2.pcie_phy_r[0]);
 		amlogic_pcie->phy->power_state = 0;
 	}
+
+	usleep_range(500, 510);
+
+	clk_disable_unprepare(amlogic_pcie->clk);
+	clk_disable_unprepare(amlogic_pcie->phy_clk);
+	usleep_range(500, 510);
+	clk_disable_unprepare(amlogic_pcie->bus_clk);
+	amlogic_pcie->phy->reset_state = 0;
+
+	if (IsQualcommDevices)
+		amlogic_pcie_reset_gpio_ctrl(0);
 
 	return 0;
 }
@@ -1126,6 +1204,12 @@ static int amlogic_pcie_resume_noirq(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct amlogic_pcie *amlogic_pcie = platform_get_drvdata(pdev);
 	unsigned long rate = 100000000;
+	u32 val;
+
+	if (IsQualcommDevices) {
+		amlogic_pcie_reset_gpio_ctrl(1);
+		IsQualcommDevices = 0;
+	}
 
 	if (!amlogic_pcie->pm_enable) {
 		dev_info(dev, "don't noirq resume amlogic pcie\n");
@@ -1135,12 +1219,6 @@ static int amlogic_pcie_resume_noirq(struct device *dev)
 	if (amlogic_pcie->phy->device_attch == 0) {
 		dev_info(dev, "PCIE phy power off, no resume noirq\n");
 		return 0;
-	}
-
-	if (amlogic_pcie->pcie_num == 1) {
-		writel(0x1c, amlogic_pcie->pcie_aml_regs_v2.pcie_phy_r[0]);
-		amlogic_pcie->phy->power_state = 1;
-		udelay(500);
 	}
 
 	if (amlogic_pcie->device_attch == 0) {
@@ -1154,10 +1232,23 @@ static int amlogic_pcie_resume_noirq(struct device *dev)
 
 	amlogic_pcie->phy->reset_state = 1;
 
-	clk_prepare_enable(amlogic_pcie->phy_clk);
 	clk_prepare_enable(amlogic_pcie->bus_clk);
+	usleep_range(500, 510);
+
+	clk_prepare_enable(amlogic_pcie->phy_clk);
 	clk_prepare_enable(amlogic_pcie->clk);
-	udelay(500);
+	usleep_range(500, 510);
+
+	if (amlogic_pcie->pcie_num == 1) {
+		writel(0x1c, amlogic_pcie->pcie_aml_regs_v2.pcie_phy_r[0]);
+		amlogic_pcie->phy->power_state = 1;
+		usleep_range(500, 510);
+	}
+
+	val = amlogic_cfg_readl(amlogic_pcie, PCIE_CFG0);
+	val |= (APP_LTSSM_ENABLE);
+	amlogic_cfg_writel(amlogic_pcie, val, PCIE_CFG0);
+	usleep_range(500, 510);
 
 	return 0;
 }
@@ -1196,4 +1287,4 @@ static int __init amlogic_pcie_init(void)
 {
 	return platform_driver_probe(&amlogic_pcie_driver, amlogic_pcie_probe);
 }
-subsys_initcall(amlogic_pcie_init);
+device_initcall(amlogic_pcie_init);

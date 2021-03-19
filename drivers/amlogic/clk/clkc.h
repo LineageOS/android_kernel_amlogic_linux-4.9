@@ -257,6 +257,11 @@ extern const struct clk_ops meson_g12a_pll_ops;
 extern const struct clk_ops meson_g12a_pcie_pll_ops;
 extern const struct clk_ops meson_g12a_mpll_ro_ops;
 extern const struct clk_ops meson_g12a_mpll_ops;
+extern const struct clk_ops meson_sc2_mpll_ro_ops;
+extern const struct clk_ops meson_sc2_mpll_ops;
+extern const struct clk_ops meson_sc2_pll_ro_ops;
+extern const struct clk_ops meson_sc2_pll_ops;
+extern const struct clk_ops meson_sc2_pcie_pll_ops;
 
 extern const struct clk_ops meson_tl1_pll_ro_ops;
 extern const struct clk_ops meson_tl1_pll_ops;
@@ -302,6 +307,9 @@ void meson_tl1_sdemmc_init(void);
 void meson_tl1_media_init(void);
 void meson_tl1_gpu_init(void);
 void meson_tl1_misc_init(void);
+
+/*sc2*/
+void meson_sc2_sdemmc_init(void __iomem *clk_base);
 
 extern int clk_numbers;
 #endif /* __CLKC_H */

@@ -39,8 +39,8 @@
 #include <linux/amlogic/media/video_sink/vpp.h>
 #include <linux/amlogic/media/video_sink/video.h>
 #include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
+#include <linux/amlogic/media/di/di.h>
 
-#include "video_priv.h"
 #include "video_receiver.h"
 
 /* #define ENABLE_DV */
@@ -75,6 +75,10 @@ static inline struct vframe_s *common_vf_get(struct video_recv_s *ins)
 	vf = vf_get(ins->recv_name);
 
 	if (vf) {
+		if (vf->type & VIDTYPE_V4L_EOS) {
+			vf_put(vf, ins->recv_name);
+			return NULL;
+		}
 		if (vf->disp_pts && vf->disp_pts_us64) {
 			vf->pts = vf->disp_pts;
 			vf->pts_us64 = vf->disp_pts_us64;
@@ -131,6 +135,8 @@ static void common_vf_unreg_provider(struct video_recv_s *ins)
 	ulong flags;
 	bool layer1_used = false;
 	bool layer2_used = false;
+	int i;
+	bool wait = false;
 
 	if (!ins)
 		return;
@@ -141,8 +147,13 @@ static void common_vf_unreg_provider(struct video_recv_s *ins)
 		schedule();
 
 	spin_lock_irqsave(&ins->lock, flags);
-	ins->buf_to_put = NULL;
+	ins->buf_to_put_num = 0;
+	for (i = 0; i < DISPBUF_TO_PUT_MAX; i++)
+		ins->buf_to_put[i] = NULL;
 	ins->rdma_buf = NULL;
+	ins->original_vf = NULL;
+	ins->switch_vf = false;
+	ins->last_switch_state = false;
 
 	if (ins->cur_buf) {
 		ins->local_buf = *ins->cur_buf;
@@ -159,15 +170,21 @@ static void common_vf_unreg_provider(struct video_recv_s *ins)
 		layer2_used = true;
 	}
 
-	if (!layer1_used && !layer2_used)
+	if (!layer1_used && !layer2_used) {
 		ins->cur_buf = NULL;
+	} else {
+		ins->request_exit = true;
+		ins->do_exit = false;
+		ins->exited = false;
+		wait = true;
+	}
 
 	if (layer1_used)
 		safe_switch_videolayer(
-			0, false, false);
+			0, false, true);
 	if (layer2_used)
 		safe_switch_videolayer(
-			1, false, false);
+			1, false, true);
 
 	pr_info("common_vf_unreg_provider %s: vd1 used: %s, vd2 used: %s, black_out:%d, cur_buf:%p\n",
 		ins->recv_name,
@@ -178,12 +195,16 @@ static void common_vf_unreg_provider(struct video_recv_s *ins)
 
 	ins->active = false;
 	atomic_dec(&video_unreg_flag);
+
+	while (wait && (!ins->exited || ins->request_exit))
+		schedule();
 }
 
 static void common_vf_light_unreg_provider(
 	struct video_recv_s *ins)
 {
 	ulong flags;
+	int i;
 
 	if (!ins)
 		return;
@@ -194,7 +215,9 @@ static void common_vf_light_unreg_provider(
 		schedule();
 
 	spin_lock_irqsave(&ins->lock, flags);
-	ins->buf_to_put = NULL;
+	ins->buf_to_put_num = 0;
+	for (i = 0; i < DISPBUF_TO_PUT_MAX; i++)
+		ins->buf_to_put[i] = NULL;
 	ins->rdma_buf = NULL;
 
 	if (ins->cur_buf) {
@@ -225,6 +248,9 @@ static int common_receiver_event_fun(
 		common_vf_light_unreg_provider(ins);
 		ins->drop_vf_cnt = 0;
 		ins->active = true;
+		ins->request_exit = false;
+		ins->do_exit = false;
+		ins->exited = false;
 	}
 	return 0;
 }
@@ -281,48 +307,74 @@ static void common_toggle_frame(
 	}
 	if (ins->cur_buf &&
 	    (ins->cur_buf != &ins->local_buf) &&
-	    (ins->cur_buf != vf)) {
-		ins->frame_count++;
+	    (ins->original_vf != vf)) {
 #ifdef CONFIG_AMLOGIC_MEDIA_VSYNC_RDMA
+		int i = 0;
+
 		if (is_vsync_rdma_enable()) {
-			if (ins->rdma_buf == ins->cur_buf)
-				ins->buf_to_put = ins->cur_buf;
-			else
+			if (ins->rdma_buf == ins->cur_buf) {
+				if (ins->buf_to_put_num < DISPBUF_TO_PUT_MAX) {
+					ins->buf_to_put[ins->buf_to_put_num] =
+					    ins->original_vf;
+					ins->buf_to_put_num++;
+				} else {
+					common_vf_put(
+						ins, ins->original_vf);
+				}
+			} else {
 				common_vf_put(
-					ins, ins->cur_buf);
-		} else {
-			if (ins->buf_to_put) {
-				common_vf_put(
-					ins, ins->buf_to_put);
-				ins->buf_to_put = NULL;
+					ins, ins->original_vf);
 			}
-			common_vf_put(ins, ins->cur_buf);
+		} else {
+			for (i = 0; i < ins->buf_to_put_num; i++) {
+				if (ins->buf_to_put[i]) {
+					common_vf_put(
+						ins, ins->buf_to_put[i]);
+					ins->buf_to_put[i] = NULL;
+				}
+			}
+			ins->buf_to_put_num = 0;
+			common_vf_put(ins, ins->original_vf);
 		}
 #else
-		common_vf_put(ins, ins->cur_buf);
+		common_vf_put(ins, ins->original_vf);
 #endif
+		ins->frame_count++;
 	}
-	if (ins->cur_buf != vf)
+	if (ins->original_vf != vf)
 		vf->type_backup = vf->type;
 	ins->cur_buf = vf;
+	ins->original_vf = vf;
 }
 
 /*********************************************************
  * recv func APIs
  *********************************************************/
 static s32 recv_common_early_process(
-	struct video_recv_s *ins)
+	struct video_recv_s *ins, u32 op)
 {
+	int i;
+
 	if (!ins) {
 		pr_err("recv_common_early_process error, empty ins\n");
 		return -1;
 	}
 
-	if (ins->buf_to_put) {
-		ins->buf_to_put->rendered = true;
-		common_vf_put(
-			ins, ins->buf_to_put);
-		ins->buf_to_put = NULL;
+	/* not over vsync */
+	if (!op) {
+		for (i = 0; i < ins->buf_to_put_num; i++) {
+			if (ins->buf_to_put[i]) {
+				ins->buf_to_put[i]->rendered = true;
+				common_vf_put(
+					ins, ins->buf_to_put[i]);
+				ins->buf_to_put[i] = NULL;
+			}
+		}
+		ins->buf_to_put_num = 0;
+	}
+	if (ins->do_exit) {
+		ins->exited = true;
+		ins->do_exit = false;
 	}
 	return 0;
 }
@@ -338,6 +390,12 @@ static struct vframe_s *recv_common_dequeue_frame(
 	if (!ins) {
 		pr_err("recv_common_dequeue_frame error, empty ins\n");
 		return NULL;
+	}
+
+	if (ins->request_exit) {
+		ins->do_exit = true;
+		ins->exited = false;
+		ins->request_exit = false;
 	}
 
 	vf = common_vf_peek(ins);
@@ -403,7 +461,9 @@ static struct vframe_s *recv_common_dequeue_frame(
 				common_toggle_frame(ins, vf);
 				toggle_vf = vf;
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
-				dvel_toggle_frame(vf, true);
+				if (glayer_info[0].display_path_id ==
+				    ins->path_id)
+					dvel_toggle_frame(vf, true);
 #endif
 			}
 		} else {
@@ -414,18 +474,79 @@ static struct vframe_s *recv_common_dequeue_frame(
 		drop_count++;
 		vf = common_vf_peek(ins);
 	}
+
+#ifdef CONFIG_AMLOGIC_MEDIA_DEINTERLACE
+	if (toggle_vf &&
+	    (toggle_vf->flag & VFRAME_FLAG_DOUBLE_FRAM) &&
+	    (glayer_info[0].display_path_id == ins->path_id)) {
+		if (toggle_vf->di_instance_id == di_api_get_instance_id()) {
+			if (ins->switch_vf) {
+				ins->switch_vf = false;
+				pr_info("set switch_vf false\n");
+			}
+		} else {
+			if (ins->switch_vf == false) {
+				ins->switch_vf = true;
+				pr_info("set switch_vf true\n");
+			}
+		}
+	}
+#endif
+
+	if (toggle_vf && (toggle_vf->flag & VFRAME_FLAG_DOUBLE_FRAM)) {
+		/* new frame */
+		if (ins->switch_vf && toggle_vf->vf_ext) {
+			ins->cur_buf = toggle_vf->vf_ext;
+			toggle_vf = ins->cur_buf;
+		}
+	} else if (ins->cur_buf) {
+		/* repeat frame */
+		if (ins->switch_vf && ins->cur_buf->vf_ext
+		    && (ins->cur_buf->flag & VFRAME_FLAG_DOUBLE_FRAM)) {
+			ins->cur_buf = ins->cur_buf->vf_ext;
+			toggle_vf = ins->cur_buf;
+		} else if (!ins->switch_vf &&
+			(ins->cur_buf != ins->original_vf)) {
+			ins->cur_buf = ins->original_vf;
+			toggle_vf = ins->cur_buf;
+		}
+	}
+#ifdef CONFIG_AMLOGIC_MEDIA_DEINTERLACE
+	if (ins->switch_vf
+	    && (ins->switch_vf != ins->last_switch_state)) {
+		di_api_post_disable();
+	}
+#endif
+
+	ins->last_switch_state = ins->switch_vf;
 	return toggle_vf;
 }
 
 static s32 recv_common_return_frame(
 	struct video_recv_s *ins, struct vframe_s *vf)
 {
-	if (!ins) {
-		pr_err("recv_common_return_frame error, empty ins\n");
+	if (!ins || !vf) {
+		pr_err("recv_common_return_frame error, ins: %p, vf: %p\n",
+		       ins, vf);
 		return -1;
 	}
-	if (vf)
+
+	if ((vf == ins->cur_buf) &&
+	    (ins->cur_buf == &ins->local_buf)) {
+		pr_info("recv_common_return_frame skip the local vf =%p\n",
+			ins->original_vf);
+		return 0;
+	}
+
+	if (vf == ins->cur_buf) {
+		common_vf_put(ins, ins->original_vf);
+		ins->cur_buf = NULL;
+		ins->original_vf = NULL;
+		pr_info("recv_common_return_frame force return the display vf: %p\n",
+			ins->original_vf);
+	} else {
 		common_vf_put(ins, vf);
+	}
 	return 0;
 }
 
@@ -496,3 +617,14 @@ void destroy_video_receiver(struct video_recv_s *ins)
 	kfree(ins);
 	pr_info("destroy_video_receiver\n");
 }
+
+void switch_vf(struct video_recv_s *ins, bool switch_flag)
+{
+	if (!ins) {
+		pr_err("switch_vf: ins is NULL.\n");
+		return;
+	}
+	ins->switch_vf = switch_flag;
+	pr_info("set switch_flag %d\n", switch_flag);
+}
+

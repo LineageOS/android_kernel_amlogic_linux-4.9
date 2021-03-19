@@ -18,6 +18,7 @@
 #ifndef _SCPI_PROTOCOL_H_
 #define _SCPI_PROTOCOL_H_
 #include <linux/types.h>
+#include <linux/amlogic/meson_mhu_common.h>
 
 enum scpi_client_id {
 	SCPI_CL_NONE,
@@ -27,6 +28,7 @@ enum scpi_client_id {
 	SCPI_CL_THERMAL,
 	SCPI_CL_REMOTE,
 	SCPI_CL_LED_TIMER,
+	SCPI_CL_SET_CEC_DATA,
 	SCPI_MAX,
 };
 
@@ -73,9 +75,12 @@ enum scpi_std_cmd {
 
 	SCPI_CMD_GET_CEC1		= 0xB4,
 	SCPI_CMD_GET_CEC2		= 0xB5,
+	SCPI_CMD_SET_CEC_DATA		= 0xB6,
 	SCPI_CMD_BL4_WAIT_UNLOCK	= 0xD6,
 	SCPI_CMD_BL4_SEND		= 0xD7,
 	SCPI_CMD_BL4_LISTEN		= 0xD8,
+	SCPI_CMD_UINTTEST		= 0xFA,
+	SCPI_CMD_LEDS_STATE		= 0xF7,
 	SCPI_CMD_COUNT
 };
 
@@ -103,6 +108,7 @@ struct bl40_msg_buf {
 	char buf[512];
 } __packed;
 
+/*donot add more scpi api*/
 unsigned long scpi_clk_get_val(u16 clk_id);
 int scpi_clk_set_val(u16 clk_id, unsigned long rate);
 int scpi_dvfs_get_idx(u8 domain);
@@ -117,9 +123,25 @@ int scpi_get_ring_value(unsigned char *val);
 int scpi_get_wakeup_reason(u32 *wakeup_reason);
 int scpi_clr_wakeup_reason(void);
 int scpi_get_cec_val(enum scpi_std_cmd index, u32 *p_cec);
+int scpi_send_cec_data(u32 cmd_id, u32 *val, u32 size);
 u8  scpi_get_ethernet_calc(void);
 int scpi_get_cpuinfo(enum scpi_get_pfm_type type, u32 *freq, u32 *vol);
 int scpi_init_dsp_cfg0(u32 id, u32 addr, u32 cfg0);
 int scpi_unlock_bl40(void);
 int scpi_send_bl40(unsigned int cmd, struct bl40_msg_buf *bl40_buf);
+
+enum scpi_chan {
+	SCPI_DSPA = 0, /* to dspa */
+	SCPI_DSPB = 1, /* to dspb */
+	SCPI_AOCPU = 2, /* to aocpu */
+	SCPI_SECPU = 3, /* to secpu */
+	SCPI_OTHER = 4, /* to other core */
+	SCPI_MAXNUM,
+};
+/* use this api send data to aocpu/secpu/dsp/cm3/cm4
+ * donnot need add other api for your self
+ * channel: SPCI_DSPA/SCPI_AOCPU and other
+ */
+int scpi_send_data(void *data, int size, int channel,
+		   int cmd, void *revdata, int revsize);
 #endif /*_SCPI_PROTOCOL_H_*/

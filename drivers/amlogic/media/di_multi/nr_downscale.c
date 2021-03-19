@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * drivers/amlogic/media/di_multi/nr_downscale.c
  *
@@ -48,29 +49,29 @@ static void nr_ds_hw_init(unsigned int width, unsigned int height)
 	v_step = height / height_out;
 
 	/*Switch MIF to NR_DS*/
-	dim_RDMA_WR_BITS(VIUB_MISC_CTRL0, 3, 5, 2);
+	DIM_RDMA_WR_BITS(VIUB_MISC_CTRL0, 3, 5, 2);
 	/* config dsbuf_ocol*/
-	dim_RDMA_WR_BITS(NR_DS_BUF_SIZE_REG, width_out, 0, 8);
+	DIM_RDMA_WR_BITS(NR_DS_BUF_SIZE_REG, width_out, 0, 8);
 	/* config dsbuf_orow*/
-	dim_RDMA_WR_BITS(NR_DS_BUF_SIZE_REG, height_out, 8, 8);
+	DIM_RDMA_WR_BITS(NR_DS_BUF_SIZE_REG, height_out, 8, 8);
 
-	dim_RDMA_WR_BITS(NRDSWR_X, (width_out - 1), 0, 13);
-	dim_RDMA_WR_BITS(NRDSWR_Y, (height_out - 1), 0, 13);
+	DIM_RDMA_WR_BITS(NRDSWR_X, (width_out - 1), 0, 13);
+	DIM_RDMA_WR_BITS(NRDSWR_Y, (height_out - 1), 0, 13);
 
-	dim_RDMA_WR_BITS(NRDSWR_CAN_SIZE, (height_out - 1), 0, 13);
-	dim_RDMA_WR_BITS(NRDSWR_CAN_SIZE, (width_out - 1), 16, 13);
+	DIM_RDMA_WR_BITS(NRDSWR_CAN_SIZE, (height_out - 1), 0, 13);
+	DIM_RDMA_WR_BITS(NRDSWR_CAN_SIZE, (width_out - 1), 16, 13);
 	/* little endian */
-	dim_RDMA_WR_BITS(NRDSWR_CAN_SIZE, 1, 13, 1);
+	DIM_RDMA_WR_BITS(NRDSWR_CAN_SIZE, 1, 13, 1);
 
-	dim_RDMA_WR_BITS(NR_DS_CTRL, v_step, 16, 6);
-	dim_RDMA_WR_BITS(NR_DS_CTRL, h_step, 24, 6);
+	DIM_RDMA_WR_BITS(NR_DS_CTRL, v_step, 16, 6);
+	DIM_RDMA_WR_BITS(NR_DS_CTRL, h_step, 24, 6);
 }
 
 /*
  * init nr ds buffer
  */
 void dim_nr_ds_buf_init(unsigned int cma_flag, unsigned long mem_start,
-			struct device *dev)
+			struct device *dev, bool tvp_flg)
 {
 	unsigned int i = 0;
 	bool ret;
@@ -79,15 +80,16 @@ void dim_nr_ds_buf_init(unsigned int cma_flag, unsigned long mem_start,
 	if (cma_flag == 0) {
 		nrds_dev.nrds_addr = mem_start;
 	} else {
-		#if 0
+		#ifdef MARK_HIS
 		nrds_dev.nrds_pages = dma_alloc_from_contiguous(dev,
-			NR_DS_PAGE_NUM, 0);
+								NR_DS_PAGE_NUM,
+								0);
 		if (nrds_dev.nrds_pages)
 			nrds_dev.nrds_addr = page_to_phys(nrds_dev.nrds_pages);
 		else
 			PR_ERR("DI: alloc nr ds mem error.\n");
 		#else
-		ret = dim_mm_alloc_api(cma_flag, NR_DS_PAGE_NUM, &omm);
+		ret = dim_mm_alloc_api(cma_flag, NR_DS_PAGE_NUM, &omm, tvp_flg);
 		if (ret) {
 			nrds_dev.nrds_pages = omm.ppage;
 			nrds_dev.nrds_addr = omm.addr;
@@ -116,8 +118,9 @@ void dim_nr_ds_buf_uninit(unsigned int cma_flag, struct device *dev)
 					   nrds_dev.nrds_addr);
 			nrds_dev.nrds_addr = 0;
 			nrds_dev.nrds_pages = NULL;
-		} else
+		} else {
 			PR_INF("no release nr ds mem.\n");
+		}
 	}
 	for (i = 0; i < NR_DS_BUF_NUM; i++)
 		nrds_dev.buf[i] = 0;
@@ -135,12 +138,15 @@ void dim_nr_ds_init(unsigned int width, unsigned int height)
 	if (nrds_dev.canvas_idx != 0)
 		return;
 
-	if (ext_ops.canvas_pool_alloc_canvas_table("nr_ds",
-	    &nrds_dev.canvas_idx, 1, CANVAS_MAP_TYPE_1)) {
+	if (ops_ext()->cvs_alloc_table("nr_ds",
+				       &nrds_dev.canvas_idx,
+				       1, CANVAS_MAP_TYPE_1)) {
 		PR_ERR("%s alloc nrds canvas error.\n", __func__);
 		return;
 	}
 	PR_INF("%s alloc nrds canvas %u.\n", __func__, nrds_dev.canvas_idx);
+	get_datal()->cvs.nr_ds_idx = nrds_dev.canvas_idx;
+	get_datal()->cvs.en |= DI_CVS_EN_DS;
 }
 
 /*
@@ -153,7 +159,7 @@ void dim_nr_ds_mif_config(void)
 	mem_addr = nrds_dev.buf[nrds_dev.cur_buf_idx];
 	canvas_config(nrds_dev.canvas_idx, mem_addr,
 		      NR_DS_WIDTH, NR_DS_HEIGHT, 0, 0);
-	dim_RDMA_WR_BITS(NRDSWR_CTRL,
+	DIM_RDMA_WR_BITS(NRDSWR_CTRL,
 			 nrds_dev.canvas_idx, 0, 8);
 	dim_nr_ds_hw_ctrl(true);
 }
@@ -164,9 +170,9 @@ void dim_nr_ds_mif_config(void)
 void dim_nr_ds_hw_ctrl(bool enable)
 {
 	/*Switch MIF to NR_DS*/
-	dim_RDMA_WR_BITS(VIUB_MISC_CTRL0, enable ? 3 : 2, 5, 2);
-	dim_RDMA_WR_BITS(NRDSWR_CTRL, enable ? 1 : 0, 12, 1);
-	dim_RDMA_WR_BITS(NR_DS_CTRL, enable ? 1 : 0, 30, 1);
+	DIM_RDMA_WR_BITS(VIUB_MISC_CTRL0, enable ? 3 : 2, 5, 2);
+	DIM_RDMA_WR_BITS(NRDSWR_CTRL, enable ? 1 : 0, 12, 1);
+	DIM_RDMA_WR_BITS(NR_DS_CTRL, enable ? 1 : 0, 30, 1);
 }
 
 /*
@@ -200,12 +206,12 @@ void dim_dump_nrds_reg(unsigned int base_addr)
 
 	pr_info("-----nrds reg start-----\n");
 	pr_info("[0x%x][0x%x]=0x%x\n",
-		base_addr + (0x2006 << 2), i, dim_RDMA_RD(0x2006));
+		base_addr + (0x2006 << 2), i, DIM_RDMA_RD(0x2006));
 	for (i = 0x37f9; i < 0x37fd; i++)
 		pr_info("[0x%x][0x%x]=0x%x\n",
-			base_addr + (i << 2), i, dim_RDMA_RD(i));
+			base_addr + (i << 2), i, DIM_RDMA_RD(i));
 	for (i = 0x3740; i < 0x3744; i++)
 		pr_info("[0x%x][0x%x]=0x%x\n",
-			base_addr + (i << 2), i, dim_RDMA_RD(i));
+			base_addr + (i << 2), i, DIM_RDMA_RD(i));
 	pr_info("-----nrds reg end-----\n");
 }

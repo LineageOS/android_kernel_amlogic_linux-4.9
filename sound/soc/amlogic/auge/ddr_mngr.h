@@ -159,6 +159,10 @@ struct ddr_chipinfo {
 	 * 2: vad
 	 */
 	int wakeup;
+
+	bool chnum_sync;
+
+	bool burst_finished_flag;
 };
 
 struct toddr {
@@ -308,6 +312,8 @@ void aml_frddr_set_format(struct frddr *fr,
 	unsigned int chnum,
 	unsigned int msb,
 	unsigned int frddr_type);
+
+unsigned int aml_frddr_get_fifo_cnt(struct frddr *fr);
 
 void aml_frddr_reset(struct frddr *fr, int offset);
 

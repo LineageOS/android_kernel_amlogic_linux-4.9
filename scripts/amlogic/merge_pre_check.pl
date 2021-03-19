@@ -23,8 +23,6 @@ sub get_kernel_version
 	#print "$k_v\n";
 }
 
-
-
 #Check mesonxx_defconfig
 sub check_defconfig
 {
@@ -135,11 +133,16 @@ sub check_msg_49_2
 	my $i = 0;
 	my $len = @str;
 
+	if( $msg =~ /^Revert\s/ )
+	{
+		return 0;
+	}
+
 	if( $len < 4 )
 	{
 		$err_cnt += 5;
 		$err_msg .= "	module: message [n/m]\n\n";
-		$err_msg .= "	PD#XXXX\n\n";
+		$err_msg .= "	PD#SWPL-XXXX\n\n";
 		$err_msg .= "	Problem:\n	detailed description\n\n";
 		$err_msg .= "	Solution:\n	detailed description\n\n";
 		$err_msg .= "	Verify:\n	detailed description\n\n";
@@ -157,10 +160,10 @@ sub check_msg_49_2
 		$err_msg .= "	$err_cnt: Should be no 'kernel' in kernel commit message\n";
 	}
 
-	if( $str[++ $i] !~ /^PD\#.+(\d)$/ )
+	if( $str[++ $i] !~ /^PD\#SWPL-.+(\d)$/ )
 	{
 		$err_cnt += 1;
-		$err_msg .= "	$err_cnt: PD#XXXX\n";
+		$err_msg .= "	$err_cnt: PD#SWPL-XXXX\n";
 
 	}
 
@@ -198,6 +201,23 @@ sub check_msg_49_2
 	{
 		$err_cnt += 1;
 		$err_msg .= "	$err_cnt: Verify:\n	detailed description\n";
+	}
+}
+
+sub check_nonascii_character
+{
+	my $add_msg = `git format-patch -1 --stdout`;
+	my @add_str = split /[\n]/, $add_msg;
+	my $i = 0;
+	my $len = @add_str;
+
+	for ($i = 0; $i < $len; $i = $i + 1)
+	{
+		if ($add_str[$i] =~ m/[^\x00-\x7f]/)
+		{
+			$err_cnt += 1;
+			$err_msg  .= "	$add_str[$i]\n";
+		}
 	}
 }
 
@@ -332,6 +352,8 @@ check_defconfig();
 #Check commit message
 
 check_commit_msg();
+
+check_nonascii_character();
 
 out_review();
 #out

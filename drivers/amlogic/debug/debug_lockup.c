@@ -26,6 +26,7 @@
 #include <linux/debugfs.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
+#include <linux/amlogic/debug_ftrace_ramoops.h>
 
 /*isr trace*/
 #define ns2ms			(1000 * 1000)
@@ -33,7 +34,7 @@
 #define LONG_SIRQ		(500 * ns2ms)
 #define CHK_WINDOW		(1000 * ns2ms)
 #define IRQ_CNT			256
-#define CCCNT_WARN		1000
+#define CCCNT_WARN		15000
 #define CPU			8
 static unsigned long long t_base[IRQ_CNT];
 static unsigned long long t_isr[IRQ_CNT];
@@ -73,6 +74,9 @@ void notrace isr_in_hook(unsigned int cpu, unsigned long long *tin,
 {
 	if (irq >= IRQ_CNT || !isr_check_en || oops_in_progress)
 		return;
+
+	pstore_ftrace_io_tag((unsigned long)irq, (unsigned long)act);
+
 	cpu_irq[cpu] = irq;
 	cpu_action[cpu] = act;
 	*tin = sched_clock();
@@ -103,6 +107,8 @@ void notrace isr_out_hook(unsigned int cpu, unsigned long long tin,
 	t_total[irq] = (tout-t_base[irq]);
 	cnt_total[irq]++;
 
+	pstore_ftrace_io_tag(0xFFF1, (unsigned long)irq);
+
 	if (tout > isr_thr + tin) {
 		t_diff = tout - tin;
 		do_div(t_diff, ns2ms);
@@ -113,7 +119,7 @@ void notrace isr_out_hook(unsigned int cpu, unsigned long long tin,
 	if (t_total[irq] < CHK_WINDOW)
 		return;
 
-	if (t_isr[irq] * 100 >= 35 * t_total[irq]) {
+	if (t_isr[irq] * 100 >= 35 * t_total[irq] || cnt_total[irq] > CCCNT_WARN) {
 		t_isr_tmp = t_isr[irq];
 		do_div(t_isr_tmp, ns2ms);
 		t_total_tmp = t_total[irq];
@@ -121,8 +127,8 @@ void notrace isr_out_hook(unsigned int cpu, unsigned long long tin,
 		ratio = t_isr_tmp * 100;
 		do_div(ratio, t_total_tmp);
 		pr_err("IRQRatio___ERR.irq:%d ratio:%llu\n", irq, ratio);
-		pr_err("t_isr:%llu  t_total:%llu, cnt:%d\n",
-			t_isr_tmp, t_total_tmp, cnt_total[irq]);
+		pr_err("t_isr:%llu  t_total:%llu, cnt:%d, %pf t:%lld\n",
+			t_isr_tmp, t_total_tmp, cnt_total[irq], cpu_action[cpu], tout - tin);
 	}
 	t_base[irq] = sched_clock();
 	t_isr[irq] = 0;
@@ -135,11 +141,14 @@ void notrace sirq_in_hook(unsigned int cpu, unsigned long long *tin, void *p)
 {
 	cpu_sirq[cpu] = p;
 	*tin = sched_clock();
+	pstore_ftrace_io_tag(0xFFE0, (unsigned long)p);
 }
 void notrace sirq_out_hook(unsigned int cpu, unsigned long long tin, void *p)
 {
 	unsigned long long tout = sched_clock();
 	unsigned long long t_diff;
+
+	pstore_ftrace_io_tag(0xFFE1, (unsigned long)p);
 
 	if (cpu_sirq[cpu] && tin && (tout > tin + sirq_thr) &&
 		!oops_in_progress) {
@@ -277,11 +286,9 @@ void pr_lockup_info(int c)
 
 		pr_err("\ndump_cpu[%d] irq:%3d preempt:%x  %s\n",
 			cpu, cpu_irq[cpu], preempt,	 p->comm);
-		if (preempt & HARDIRQ_MASK)
-			pr_err("IRQ %pf, %x\n", cpu_action[cpu],
+		pr_err("IRQ %pf, %x\n", cpu_action[cpu],
 			(unsigned int)(preempt & HARDIRQ_MASK));
-		if (preempt & SOFTIRQ_MASK)
-			pr_err("SotIRQ %pf, %x\n", cpu_sirq[cpu],
+		pr_err("SotIRQ %pf, %x\n", cpu_sirq[cpu],
 			(unsigned int)(preempt & SOFTIRQ_MASK));
 
 		if (t_i_d[cpu]) {

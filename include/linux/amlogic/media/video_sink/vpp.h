@@ -24,7 +24,7 @@
 #define TV_REVERSE
 
 extern bool super_scaler;
-
+extern struct sr_info_s sr_info;
 #define VPP_FLAG_WIDEMODE_MASK      0x0000000F
 #define VPP_FLAG_INTERLACE_OUT      0x00000010
 #define VPP_FLAG_INTERLACE_IN       0x00000020
@@ -49,6 +49,9 @@ extern bool super_scaler;
 #define SPEED_CHECK_DONE	0
 #define SPEED_CHECK_HSKIP	1
 #define SPEED_CHECK_VSKIP	2
+
+#define H_MIRROR   1
+#define V_MIRROR   2
 
 enum vppfilter_state_e {
 	vppfilter_fail = -1,
@@ -198,6 +201,15 @@ struct disp_info_s {
 	bool pps_support;
 
 	bool need_no_compress;
+	s32 sideband_type;
+	bool fgrain_support;
+	bool fgrain_enable;
+	bool fgrain_start;
+	bool fgrain_force_update;
+	bool lut_dma_support;
+	bool dv_support;
+	bool alpha_support;
+	u32 mirror;
 };
 
 enum select_scaler_path_e {
@@ -234,6 +246,10 @@ struct sr_info_s {
 	u32 core1_v_disable_width_max;
 	u32 sr_reg_offt;
 	u32 sr_reg_offt2;	/*for tl1*/
+	u32 sr0_sharp_sync_ctrl;
+	u32 sr1_sharp_sync_ctrl;
+	u8 supscl_path;
+	u8 core_support;
 };
 
 #ifdef TV_3D_FUNCTION_OPEN

@@ -100,6 +100,7 @@
 		/*di CMA pool */
 		di_cma_reserved:linux,di_cma {
 			compatible = "shared-dma-pool";
+			status = "disable";
 			reusable;
 			/* buffer_size = 3621952(yuv422 8bit)
 			 *  | 4736064(yuv422 10bit)
@@ -108,7 +109,8 @@
 			 * 10x4736064=45.2M(0x2e) support 12bit
 			 * 10x4074560=40M(0x28) support 10bit
 			 */
-			size = <0x0 0x05800000>;
+			//size = <0x0 0x0B000000>;
+			size = <0x0 0x0>;
 			alignment = <0x0 0x400000>;
 		};
 		/*  POST PROCESS MANAGER */
@@ -121,7 +123,8 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			/* ion_codec_mm max can alloc size 80M*/
-			size = <0x0 0x16400000>;
+			//size = <0x0 0x16400000>;
+			size = <0x0 0x1b000000>;/*ary*/
 			alignment = <0x0 0x400000>;
 			linux,contiguous-region;
 		};
@@ -148,6 +151,13 @@
 			size = <0x0 0x04000000>;
 			alignment = <0x0 0x400000>;
 		};
+	};
+
+	cma_shrinker {
+		compatible = "amlogic, cma-shrinker";
+		status = "okay";
+		adj  = <0 100 200 250 900 950>;
+		free = <18432 23040 27648 32256 36864 46080>;
 	};
 
 	amlogic_battery:dummy-battery {
@@ -246,7 +256,7 @@
 		compatible = "amlogic, dim-g12a";
 		status = "okay";
 		/* 0:use reserved; 1:use cma; 2:use cma as reserved */
-		flag_cma = <1>;
+		flag_cma = <4>;	//<1>;
 		//memory-region = <&di_reserved>;
 		memory-region = <&di_cma_reserved>;
 		interrupts = <0 46 1
@@ -668,7 +678,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-spdifb2hdmi";
+			suffix-name = "alsaPORT-spdif";
 			cpu {
 				sound-dai = <&aml_spdif>;
 				system-clock-frequency = <6144000>;
@@ -684,7 +694,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-spdif";
+			suffix-name = "alsaPORT-spdifb";
 			cpu {
 				sound-dai = <&aml_spdif_b>;
 				system-clock-frequency = <6144000>;
@@ -1395,6 +1405,10 @@
 };
 
 &defendkey {
+	status = "okay";
+};
+
+&dummy_venc {
 	status = "okay";
 };
 

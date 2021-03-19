@@ -28,6 +28,7 @@
 #include <linux/delay.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
+#include <linux/mmc/core.h>
 #include <linux/mmc/sdio.h>
 #include <linux/mmc/sd.h>
 #include <linux/mmc/slot-gpio.h>
@@ -46,13 +47,13 @@ struct mmc_host *sdio_host;
 
 static unsigned int log2i(unsigned int val)
 {
-	unsigned int ret = -1;
+	int ret = -1;
 
 	while (val != 0) {
 		val >>= 1;
 		ret++;
 	}
-	return ret;
+	return (ret == -1) ? 0 : ret;
 }
 
 #ifdef AML_CALIBRATION
@@ -129,7 +130,10 @@ static int aml_sd_emmc_cali_transfer(struct mmc_host *mmc,
 	struct scatterlist sg;
 
 	cmd.opcode = opcode;
-	cmd.arg = CALI_PATTERN_OFFSET;
+	if (opcode == 18)
+		cmd.arg = CALI_PATTERN_OFFSET;
+	else
+		cmd.arg = 0;
 	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
 
 	stop.opcode = MMC_STOP_TRANSMISSION;
@@ -1121,8 +1125,8 @@ void aml_mmc_clk_switch_on(
 	host->is_gated = false;
 }
 
-static void aml_mmc_clk_switch(struct amlsd_platform *pdata,
-	int clk_div, int clk_src_sel)
+void aml_mmc_clk_switch(struct amlsd_platform *pdata,
+			int clk_div, int clk_src_sel)
 {
 	u32 vclkc = 0;
 	struct amlsd_host *host = pdata->host;
@@ -1374,6 +1378,11 @@ int aml_emmc_clktree_init(struct amlsd_host *host)
 		return PTR_ERR(host->cfg_div_clk);
 
 	ret = clk_prepare_enable(host->cfg_div_clk);
+	if (ret)
+		pr_info("enable cfg_div_clk, ret=%d\n", ret);
+	ret = clk_set_rate(host->mux_parent[0], 24000000);
+	if (ret)
+		pr_info("set mux_parent[0] ret:%d\n", ret);
 	pr_debug("[%s] clock: 0x%x\n",
 		__func__, readl(host->base + SD_EMMC_CLOCK_V3));
 	return ret;
@@ -2248,8 +2257,17 @@ static void meson_mmc_start_cmd(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	if (mrq->cmd->opcode == MMC_SEND_STATUS)
 		des_cmd_cur->timeout = 0xb;
-	if (mrq->cmd->opcode == MMC_ERASE)
+	if (mrq->cmd->opcode == MMC_ERASE) {
 		des_cmd_cur->timeout = 0xf;
+		if ((mrq->cmd->arg == MMC_SECURE_TRIM2_ARG) ||
+		    (mrq->cmd->arg == MMC_SECURE_ERASE_ARG)) {
+			des_cmd_cur->timeout = 0;
+			INIT_DELAYED_WORK(
+				&host->timeout, aml_emmc_erase_timeout);
+			schedule_delayed_work(
+				&host->timeout, EMMC_ERASE_TIMEOUT);
+		}
+	}
 	if (mrq->cmd->opcode == MMC_SWITCH)
 		des_cmd_cur->timeout = 0xf;
 
@@ -3193,6 +3211,8 @@ static int meson_mmc_probe(struct platform_device *pdev)
 		memset(pdata, 0, sizeof(struct amlsd_platform));
 		if (amlsd_get_platform_data(pdev, pdata, mmc, i)) {
 			mmc_free_host(mmc);
+			if (host->data->tdma_f)
+				host->data->tdma_f = 0;
 			break;
 		}
 		dev_set_name(&mmc->class_dev, "%s", pdata->pinname);
@@ -3207,8 +3227,8 @@ static int meson_mmc_probe(struct platform_device *pdev)
 
 		/* data desc buffer */
 #ifdef CFG_SDEMMC_PIO
-		pr_err(">>>>>>>>hostbase %p, dmode %s\n",
-				host->base, pdata->dmode);
+		pr_debug(">>>>>>>>hostbase %p, dmode %s\n",
+			 host->base, pdata->dmode);
 		if (!strcmp(pdata->dmode, "pio")) {
 			host->desc_buf = host->base + SD_EMMC_DESC_OFF;
 			host->desc_dma_addr
@@ -3357,6 +3377,14 @@ static int meson_mmc_probe(struct platform_device *pdev)
 		if (ret)
 			dev_warn(mmc_dev(host->mmc),
 					"Unable to creat sysfs attributes\n");
+		ret = device_create_file(&pdev->dev, &dev_attr_emmc_tx_window);
+		if (ret)
+			dev_warn(mmc_dev(host->mmc),
+				 "Unable to creat sysfs attributes\n");
+		ret = device_create_file(&pdev->dev, &dev_attr_mmc_rx_window);
+		if (ret)
+			dev_warn(mmc_dev(host->mmc),
+				 "Unable to creat sysfs attributes\n");
 	}
 	return 0;
 
@@ -3468,7 +3496,7 @@ static struct meson_mmc_data mmc_data_txlx = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3c,
 	.ds_pin_poll_en = 0x4a,
 	.ds_pin_poll_bit = 11,
@@ -3489,7 +3517,7 @@ static struct meson_mmc_data mmc_data_axg = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3e,
 	.ds_pin_poll_en = 0x4c,
 	.ds_pin_poll_bit = 13,
@@ -3509,7 +3537,7 @@ static struct meson_mmc_data mmc_data_gxlx = {
 	.port_b_base = 0xd0072000,
 	.port_c_base = 0xd0074000,
 	.pinmux_base = 0xc8834400,
-	.clksrc_base = 0xc883c000,
+	.clksrc_base = 0xc883c25c,
 	.ds_pin_poll = 0x3c,
 	.ds_pin_poll_en = 0x4a,
 	.ds_pin_poll_bit = 15,
@@ -3529,7 +3557,7 @@ static struct meson_mmc_data mmc_data_txhd = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3c,
 	.ds_pin_poll_en = 0x4a,
 	.ds_pin_poll_bit = 11,
@@ -3550,7 +3578,7 @@ static struct meson_mmc_data mmc_data_g12a = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3a,
 	.ds_pin_poll_en = 0x48,
 	.ds_pin_poll_bit = 13,
@@ -3577,7 +3605,7 @@ static struct meson_mmc_data mmc_data_g12b_a = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3a,
 	.ds_pin_poll_en = 0x48,
 	.ds_pin_poll_bit = 13,
@@ -3602,7 +3630,7 @@ static struct meson_mmc_data mmc_data_g12b = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3a,
 	.ds_pin_poll_en = 0x48,
 	.ds_pin_poll_bit = 13,
@@ -3630,7 +3658,7 @@ static struct meson_mmc_data mmc_data_tl1 = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3a,
 	.ds_pin_poll_en = 0x48,
 	.ds_pin_poll_bit = 13,
@@ -3652,7 +3680,7 @@ static struct meson_mmc_data mmc_data_sm1 = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3a,
 	.ds_pin_poll_en = 0x48,
 	.ds_pin_poll_bit = 13,
@@ -3666,7 +3694,7 @@ static struct meson_mmc_data mmc_data_sm1 = {
 	.sdmmc.ddr.tx_phase = 0,
 	.sdmmc.hs2.core_phase = 2,
 	.sdmmc.hs2.tx_phase = 0,
-	.sdmmc.hs4.tx_delay = 16,
+	.sdmmc.hs4.tx_delay = 19,
 	.sdmmc.sd_hs.core_phase = 3,
 	.sdmmc.sdr104.core_phase = 2,
 	.sdmmc.sdr104.tx_phase = 0,
@@ -3678,7 +3706,7 @@ static struct meson_mmc_data mmc_data_tm2 = {
 	.port_b_base = 0xffe05000,
 	.port_c_base = 0xffe07000,
 	.pinmux_base = 0xff634400,
-	.clksrc_base = 0xff63c000,
+	.clksrc_base = 0xff63c25c,
 	.ds_pin_poll = 0x3a,
 	.ds_pin_poll_en = 0x48,
 	.ds_pin_poll_bit = 13,
@@ -3690,6 +3718,28 @@ static struct meson_mmc_data mmc_data_tm2 = {
 	.sdmmc.hs2.core_phase = 2,
 	.sdmmc.hs4.core_phase = 0,
 	.sdmmc.hs4.tx_delay = 16,
+	.sdmmc.sd_hs.core_phase = 2,
+	.sdmmc.sdr104.core_phase = 2,
+};
+
+static struct meson_mmc_data mmc_data_sc2 = {
+	.chip_type = MMC_CHIP_SC2,
+	.port_a_base = 0xfe088000,
+	.port_b_base = 0xfe08a000,
+	.port_c_base = 0xfe08c000,
+	.pinmux_base = 0xfe004000,
+	.clksrc_base = 0xfe000168,
+	.ds_pin_poll = 0x3a,
+	.ds_pin_poll_en = 0x48,
+	.ds_pin_poll_bit = 13,
+	.sdmmc.init.core_phase = 3,
+	.sdmmc.init.tx_phase = 0,
+	.sdmmc.init.rx_phase = 0,
+	.sdmmc.hs.core_phase = 3,
+	.sdmmc.ddr.core_phase = 2,
+	.sdmmc.hs2.core_phase = 2,
+	.sdmmc.hs4.core_phase = 0,
+	.sdmmc.hs4.tx_delay = 18,
 	.sdmmc.sd_hs.core_phase = 2,
 	.sdmmc.sdr104.core_phase = 2,
 };
@@ -3755,6 +3805,10 @@ static const struct of_device_id meson_mmc_of_match[] = {
 		.compatible = "amlogic, meson-mmc-tm2",
 		.data = &mmc_data_tm2,
 	},
+	{
+		.compatible = "amlogic, meson-mmc-sc2",
+		.data = &mmc_data_sc2,
+	},
 
 	{}
 };
@@ -3780,7 +3834,7 @@ static void __exit meson_mmc_cleanup(void)
 	platform_driver_unregister(&meson_mmc_driver);
 }
 
-module_init(meson_mmc_init);
+rootfs_initcall(meson_mmc_init);
 module_exit(meson_mmc_cleanup);
 
 MODULE_DESCRIPTION("Amlogic S912/GXM SD/eMMC driver");

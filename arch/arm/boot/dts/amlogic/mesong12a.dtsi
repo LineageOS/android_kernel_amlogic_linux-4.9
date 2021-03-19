@@ -285,6 +285,11 @@
 		sys_poweroff = <0x84000008>;
 	};
 
+	dolby_fw: dolby_fw {
+		compatible = "amlogic, dolby_fw";
+		mem_size = <0x100000>;
+		status = "okay";
+	};
 	vpu {
 		compatible = "amlogic, vpu-g12a";
 		dev_name = "vpu";
@@ -306,6 +311,11 @@
 
 	meson_uvm{
 		compatible = "amlogic, meson_uvm";
+		status = "okay";
+	};
+
+	meson_videotunnel{
+		compatible = "amlogic, meson_videotunnel";
 		status = "okay";
 	};
 
@@ -1053,12 +1063,12 @@
 		bus-range = <0x0 0xff>;
 		#address-cells = <3>;
 		#size-cells = <2>;
+		device_type = "pci";
 		interrupt-map-mask = <0 0 0 0>;
 		interrupt-map = <0 0 0 0 &gic GIC_SPI 223 IRQ_TYPE_EDGE_RISING>;
-		device_type = "pci";
 		ranges = <0x81000000 0 0 0xfc600000 0x0 0x100000
 			/* downstream I/O */
-			0x82000000 0xfc700000 0x0 0xfc700000 0 0x1900000>;
+			0x82000000 0x0 0xfc700000 0xfc700000 0 0x1900000>;
 			/* non-prefetchable memory */
 		num-lanes = <1>;
 		pcie-num = <1>;
@@ -1186,10 +1196,23 @@
 		vdin_id = <1>;
 	};
 
+	vout_sys: vout_sys {
+		compatible = "amlogic, vout_sys_serve";
+		status = "okay";
+		reg = <0xff8000ac 0x4>;
+	};
+
 	vout {
 		compatible = "amlogic, vout";
 		dev_name = "vout";
 		status = "okay";
+
+		/* fr_policy:
+		 *    0: disable
+		 *    1: nearby (only for 60->59.94 and 30->29.97)
+		 *    2: force (60/50/30/24/59.94/23.97)
+		 */
+		fr_policy = <2>;
 	};
 
 	vout2 {
@@ -1200,6 +1223,34 @@
 			<&clkc CLKID_VPU_CLKC_MUX>;
 		clock-names = "vpu_clkc0",
 			"vpu_clkc";
+
+		/* fr_policy:
+		 *    0: disable
+		 *    1: nearby (only for 60->59.94 and 30->29.97)
+		 *    2: force (60/50/30/24/59.94/23.97)
+		 */
+		fr_policy = <2>;
+	};
+
+	dummy_venc: dummy_venc {
+		compatible = "amlogic, dummy_venc";
+		status = "okay";
+		clocks = <&clkc CLKID_VCLK2_ENCP
+			&clkc CLKID_VCLK2_VENCP0
+			&clkc CLKID_VCLK2_VENCP1
+			&clkc CLKID_VCLK2_ENCI
+			&clkc CLKID_VCLK2_VENCI0
+			&clkc CLKID_VCLK2_VENCI1
+			&clkc CLKID_VCLK2_ENCL
+			&clkc CLKID_VCLK2_VENCL>;
+		clock-names = "encp_top_gate",
+			"encp_int_gate0",
+			"encp_int_gate1",
+			"venci_top_gate",
+			"enci_int_gate0",
+			"enci_int_gate1",
+			"encl_top_gate",
+			"encl_int_gate";
 	};
 
 	vdac {
@@ -1546,6 +1597,40 @@
 		};
 	};
 
+	sd_emmc_b3:sd3@ffe05000 {
+		status = "disabled";
+		compatible = "amlogic, meson-mmc-g12a";
+		reg = <0x0 0xffe05000 0x0 0x800>;
+		interrupts = <0 190 4>;
+
+		pinctrl-names = "sdio_all_pins",
+			"sdio_clk_cmd_pins";
+		pinctrl-0 = <&sdio_x_en_pins &sdio_x_all_pins>;
+		pinctrl-1 = <&sdio_x_en_pins &sdio_x_clk_cmd_pins>;
+
+		clocks = <&clkc CLKID_SD_EMMC_B>,
+			<&clkc CLKID_SD_EMMC_B_P0_COMP>,
+			<&clkc CLKID_FCLK_DIV2>,
+			<&clkc CLKID_FCLK_DIV5>,
+			<&xtal>;
+		clock-names = "core", "clkin0", "clkin1", "clkin2", "xtal";
+
+		bus-width = <4>;
+		cap-sd-highspeed;
+		cap-mmc-highspeed;
+		max-frequency = <100000000>;
+		disable-wp;
+		sdio {
+			pinname = "sdio";
+			ocr_avail = <0x200080>; /**VDD voltage 3.3 ~ 3.4 */
+			max_req_size = <0x20000>; /**128KB*/
+			card_type = <3>;
+			/* 3:sdio device(ie:sdio-wifi),
+			 * 5:NON sdio device(means sd/mmc card)
+			 */
+		};
+	};
+
 	sd_emmc_a:sdio@ffe03000 {
 		status = "disabled";
 		compatible = "amlogic, meson-mmc-g12a";
@@ -1593,23 +1678,14 @@
 		pinctrl-0 = <&all_nand_pins>;
 		pinctrl-1 = <&all_nand_pins>;
 		pinctrl-2 = <&nand_cs_pins>;
-		clocks = <&clkc CLKID_SD_EMMC_C>,
-				<&clkc CLKID_SD_EMMC_C_P0_COMP>;
-		clock-names = "core", "clkin";
-
 		device_id = <0>;
-		/*fip/tpl configurations, must be same
-		 * with uboot if bl_mode was set as 1
-		 * bl_mode: 0 compact mode; 1 descrete mode
-		 * if bl_mode was set as 1, fip configuration will work
-		 */
+		clocks = <&clkc CLKID_SD_EMMC_C>,
+			<&clkc CLKID_FCLK_DIV2>;
+		clock-names = "gate", "fdiv2pll";
 		bl_mode = <1>;
-		/*copy count of fip*/
 		fip_copies = <4>;
-		/*size of each fip copy */
 		fip_size = <0x200000>;
 		nand_clk_ctrl = <0xFFE07000>;
-		/*partions defined in dts */
 	};
 
 	meson_cooldev: meson-cooldev@0 {
@@ -1818,6 +1894,7 @@
 		status = "okay";
 		reg = <0xff638000 0x100
 		       0xff638c00 0x100>;
+		sec_base = <0xff639000>;
 		interrupts = <0 52 1>;
 		interrupt-names = "ddr_bandwidth";
 	};
@@ -2451,6 +2528,7 @@
 		mux {
 			groups = "pwm_e";
 			function = "pwm_e";
+			drive-strength = <0>;
 		};
 	};
 

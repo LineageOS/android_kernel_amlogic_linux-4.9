@@ -62,6 +62,16 @@ enum core3_switch_type {
 	CORE3_AFTER_VD2_HDR,
 };
 
+enum core_type {
+	DOLBY_TVCORE = 0,
+	DOLBY_CORE1A,
+	DOLBY_CORE1B,
+	DOLBY_CORE1C,
+	DOLBY_CORE2A,
+	DOLBY_CORE2B,
+	DOLBY_CORE2C,
+};
+
 /*! @brief Output CSC configuration.*/
 # pragma pack(push, 1)
 struct TgtOutCscCfg {
@@ -547,6 +557,8 @@ enum cpuID_e {
 	_CPU_MAJOR_ID_TXLX,
 	_CPU_MAJOR_ID_G12,
 	_CPU_MAJOR_ID_TM2,
+	_CPU_MAJOR_ID_TM2_REVB,
+	_CPU_MAJOR_ID_SC2,
 	_CPU_MAJOR_ID_UNKNOWN,
 };
 
@@ -654,5 +666,7 @@ extern int VSYNC_WR_MPEG_REG_BITS(u32 adr, u32 val, u32 start, u32 len);
 extern u32 VSYNC_RD_MPEG_REG(u32 adr);
 extern int VSYNC_WR_MPEG_REG(u32 adr, u32 val);
 #endif
-
+void dv_mem_power_on(enum vpu_mod_e mode);
+void dv_mem_power_off(enum vpu_mod_e mode);
+int get_dv_mem_power_flag(enum vpu_mod_e mode);
 #endif

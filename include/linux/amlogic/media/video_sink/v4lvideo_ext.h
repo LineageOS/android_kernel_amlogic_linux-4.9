@@ -18,11 +18,25 @@
 #ifndef V4LVIDEO_EXT_H
 #define V4LVIDEO_EXT_H
 
+#define V4LVIDEO_FLAG_DI_NR      1
+#define V4LVIDEO_FLAG_DI_DEC     2
+
+#include <linux/dma-buf.h>
+
 int v4lvideo_assign_map(char **receiver_name, int *inst);
 
 int v4lvideo_alloc_map(int *inst);
 
+void v4lvideo_dec_count_increase(void);
+
+void v4lvideo_dec_count_decrease(void);
+
 void v4lvideo_release_map(int inst);
+
+struct metadata {
+	char *p_md;
+	char *p_comp;
+};
 
 struct file_private_data {
 	struct vframe_s vf;
@@ -31,10 +45,19 @@ struct file_private_data {
 	int keep_id;
 	int keep_head_id;
 	struct file *file;
+	ulong vb_handle;
+	ulong v4l_dec_ctx;
+	u32 v4l_inst_id;
+	struct vframe_s vf_ext;
+	struct vframe_s *vf_ext_p;
+	u32 flag;
+	struct metadata md;
+	void *private;
+	struct file *cnt_file;
 };
 
 struct v4l_data_t {
-	struct vframe_s *vf;
+	struct file_private_data *file_private_data;
 	char *dst_addr;
 	u32 phy_addr[3];
 	int byte_stride;
@@ -42,9 +65,10 @@ struct v4l_data_t {
 	uint32_t height;
 };
 
-void v4lvideo_data_copy(struct v4l_data_t *v4l_data);
-struct vframe_s *v4lvideo_get_vf(int fd);
+void v4lvideo_data_copy(struct v4l_data_t *v4l_data, struct dma_buf *dmabuf);
+struct file_private_data *v4lvideo_get_vf(int fd);
 void dim_post_keep_cmd_release2(struct vframe_s *vframe);
+int is_v4lvideo_buf_file(struct file *file);
+
 
 #endif /* V4LVIDEO_EXT_H */
-

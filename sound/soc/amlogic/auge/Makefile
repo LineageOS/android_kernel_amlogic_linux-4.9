@@ -1,11 +1,13 @@
 obj-$(CONFIG_AMLOGIC_SND_SOC_AUGE)	+= audio_controller.o \
 						audio_io.o \
+						pinctrl/pctrl-audio.o \
 						audio_clks.o \
 						axg,clocks.o \
 						g12a,clocks.o \
 						tl1,clocks.o \
 						sm1,clocks.o \
 						tm2,clocks.o \
+						sc2-clocks.o \
 						card_utils.o \
 						tdm.o \
 						tdm_hw.o \
