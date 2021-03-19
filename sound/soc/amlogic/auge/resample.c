@@ -45,6 +45,8 @@ struct resample_chipinfo {
 
 	bool dividor_fn;
 	int resample_version;
+
+	bool chnum_sync;
 };
 
 struct audioresample {
@@ -124,6 +126,20 @@ bool get_resample_enable(enum resample_idx id)
 	}
 
 	return p_resample->enable;
+}
+
+bool get_resample_enable_chnum_sync(enum resample_idx id)
+{
+	struct audioresample *p_resample;
+
+	p_resample = ((id == RESAMPLE_A) ? s_resample_a : s_resample_b);
+
+	if (!p_resample || !p_resample->chipinfo) {
+		pr_debug("Not init audio resample\n");
+		return false;
+	}
+
+	return p_resample->chipinfo->chnum_sync;
 }
 
 int set_resample_source(enum resample_idx id, enum toddr_src src)
@@ -534,6 +550,10 @@ static int new_resample_init(struct audioresample *p_resample)
 	return 0;
 }
 
+static struct resample_chipinfo axg_resample_chipinfo = {
+	.resample_version = 0,
+};
+
 static struct resample_chipinfo g12a_resample_chipinfo = {
 	.dividor_fn = true,
 	.resample_version = 0,
@@ -567,9 +587,26 @@ static struct resample_chipinfo sm1_resample_b_chipinfo = {
 	.resample_version = 1,
 };
 
+static struct resample_chipinfo tm2_revb_resample_a_chipinfo = {
+	.num        = 2,
+	.id         = RESAMPLE_A,
+	.dividor_fn = true,
+	.resample_version = 1,
+	.chnum_sync = true,
+};
+
+static struct resample_chipinfo tm2_revb_resample_b_chipinfo = {
+	.num        = 2,
+	.id         = RESAMPLE_B,
+	.dividor_fn = true,
+	.resample_version = 1,
+	.chnum_sync = true,
+};
+
 static const struct of_device_id resample_device_id[] = {
 	{
 		.compatible = "amlogic, axg-resample",
+		.data = &axg_resample_chipinfo,
 	},
 	{
 		.compatible = "amlogic, g12a-resample",
@@ -590,6 +627,14 @@ static const struct of_device_id resample_device_id[] = {
 	{
 		.compatible = "amlogic, sm1-resample-b",
 		.data = &sm1_resample_b_chipinfo,
+	},
+	{
+		.compatible = "amlogic, tm2-revb-resample-a",
+		.data = &tm2_revb_resample_a_chipinfo,
+	},
+	{
+		.compatible = "amlogic, tm2-revb-resample-b",
+		.data = &tm2_revb_resample_b_chipinfo,
 	},
 	{}
 };
@@ -616,11 +661,12 @@ static int resample_platform_probe(struct platform_device *pdev)
 	/* match data */
 	p_chipinfo = (struct resample_chipinfo *)
 		of_device_get_match_data(dev);
-	if (!p_chipinfo)
+	if (!p_chipinfo) {
 		dev_warn_once(dev, "check whether to update resample chipinfo\n");
-	else
-		p_resample->id = p_chipinfo->id;
+		return -EINVAL;
+	}
 
+	p_resample->id = p_chipinfo->id;
 	p_resample->chipinfo = p_chipinfo;
 
 	if (p_chipinfo->id == 0) {
@@ -688,10 +734,13 @@ static int resample_platform_probe(struct platform_device *pdev)
 	else
 		s_resample_a = p_resample;
 
-	if (p_chipinfo && p_chipinfo->resample_version == 1)
+	if (p_chipinfo && p_chipinfo->resample_version == 1) {
 		new_resample_init(p_resample);
-	else if (p_chipinfo && p_chipinfo->resample_version == 0)
+		if (p_chipinfo->chnum_sync)
+			aml_resample_chsync_enable(p_resample->id);
+	} else if (p_chipinfo && p_chipinfo->resample_version == 0) {
 		resample_clk_set(p_resample, DEFAULT_SPK_SAMPLERATE);
+	}
 
 	aml_set_resample(p_resample->id, p_resample->enable,
 			 p_resample->resample_module);

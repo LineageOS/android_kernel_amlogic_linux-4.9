@@ -23,7 +23,7 @@
 #include <linux/amlogic/media/vfm/vframe.h>
 #include "linux/amlogic/media/amvecm/ve.h"
 
-#define VLOCK_VER "Ref.2019/9/17:log level 3 enc mode not work properly"
+#define VLOCK_VER "Ref.2020/03/27: improve auto pll mode for tm2 verb"
 
 #define VLOCK_REG_NUM	33
 
@@ -89,6 +89,13 @@ struct stvlock_sig_sts {
 	u32 val_m;
 	struct vdin_sts vdinsts;
 };
+
+#define diff(a, b)	\
+	({typeof(a) x = (a);\
+	  typeof(b) y = (b);\
+	  (x > y) ? (x - y) : (y - x);\
+	  })
+
 extern void amve_vlock_process(struct vframe_s *vf);
 extern void amve_vlock_resume(void);
 extern void vlock_param_set(unsigned int val, enum vlock_param_e sel);
@@ -164,8 +171,13 @@ enum vlock_pll_sel {
 
 #define XTAL_VLOCK_CLOCK   24000000/*vlock use xtal clock*/
 
-#define VLOCK_SUPPORT_HDMI (1 << 0)
-#define VLOCK_SUPPORT_CVBS (1 << 1)
+#define VLOCK_SUPPORT_HDMI 0x1
+#define VLOCK_SUPPORT_CVBS 0x2
+/*25 to 50, 30 to 60*/
+#define VLOCK_SUPPORT_1TO2 0x4
+
+#define VLOCK_SUP_MODE	(VLOCK_SUPPORT_HDMI | VLOCK_SUPPORT_CVBS | \
+			 VLOCK_SUPPORT_1TO2)
 
 /*10s for 60hz input,vlock pll stabel cnt limit*/
 #define VLOCK_PLL_STABLE_LIMIT	600
@@ -213,4 +225,9 @@ extern void vlock_set_phase_en(u32 en);
 extern void lcd_vlock_m_update(unsigned int vlock_m);
 extern void lcd_vlock_farc_update(unsigned int vlock_farc);
 extern int lcd_set_ss(unsigned int level, unsigned int freq, unsigned int mode);
+ssize_t vlock_debug_store(struct class *cla,
+				struct class_attribute *attr,
+				const char *buf, size_t count);
+ssize_t vlock_debug_show(struct class *cla,
+			struct class_attribute *attr, char *buf);
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * drivers/amlogic/media/di_multi/di_dbg.c
  *
@@ -21,7 +22,6 @@
 #include <linux/debugfs.h>
 
 #include "di_data.h"
-#include "di_dbg.h"
 
 #include "di_reg_tab.h"
 #include "deinterlace.h"
@@ -33,6 +33,7 @@
 #include "di_prc.h"
 #include "di_pre.h"
 #include "di_post.h"
+#include "di_dbg.h"
 
 /********************************
  *trace:
@@ -107,7 +108,7 @@ static void trace_post(unsigned int index, unsigned long ctime)
 	trace_dim_post("POST-IRQ-1", index, ctime);
 }
 
-#define DI_TRACE_LIMIT		8
+#define DI_TRACE_LIMIT		50
 static void trace_pre_get(unsigned int index)
 {
 	u64 ustime;
@@ -235,18 +236,53 @@ const struct dim_tr_ops_s dim_tr_ops = {
 	.post_peek = trace_post_peek,
 };
 
+void dbg_timer(unsigned int ch, enum EDBG_TIMER item)
+{
+	u64 ustime, udiff;
+	struct di_ch_s *pch;
+
+	pch = get_chdata(ch);
+	ustime = cur_to_usecs();
+
+	switch (item) {
+	case EDBG_TIMER_REG_B:
+		pch->dbg_data.us_reg_begin = ustime;
+		break;
+	case EDBG_TIMER_REG_E:
+		pch->dbg_data.us_reg_end = ustime;
+		udiff = pch->dbg_data.us_reg_end -
+			pch->dbg_data.us_reg_begin;
+		//dbg_ev("reg:use[%llu]us\n", udiff);
+		break;
+	case EDBG_TIMER_UNREG_B:
+		pch->dbg_data.us_unreg_begin = ustime;
+		break;
+	case EDBG_TIMER_UNREG_E:
+		pch->dbg_data.us_unreg_end = ustime;
+		udiff = pch->dbg_data.us_unreg_end -
+			pch->dbg_data.us_unreg_begin;
+		//dbg_ev("unreg:use[%llu]us\n", udiff);
+		break;
+	case EDBG_TIMER_FIRST_GET:
+		pch->dbg_data.us_first_get = ustime;
+		break;
+	case EDBG_TIMER_FIRST_READY:
+		pch->dbg_data.us_first_ready = ustime;
+		break;
+	}
+}
 static unsigned int seq_get_channel(struct seq_file *s)
 {
-	int *pCh;
+	int *pch;
 
-	pCh = (int *)s->private;
-	return *pCh;
+	pch = (int *)s->private;
+	return *pch;
 }
 
 /********************************
  *debug register:
  *******************************/
-/* also see enum eDI_DBG_MOD */
+/* also see enum EDI_DBG_MOD */
 const char * const dbg_mode_name[] = {
 	"REGB",
 	"REGE",
@@ -271,7 +307,7 @@ const char * const dbg_mode_name[] = {
 
 const char *ddbg_get_mod_name(unsigned int mod)
 {
-	if (mod >= eDI_DBG_MOD_END)
+	if (mod >= EDI_DBG_MOD_END)
 		return "nothing!";
 
 	return dbg_mode_name[mod];
@@ -295,6 +331,7 @@ void ddbg_reg_save(unsigned int addr, unsigned int val,
 	dbg_reg.val = val;
 	dbg_reg.st_bit = st;
 	dbg_reg.b_w = bw;
+	dbg_reg.res = 0;
 
 	plog->log[pos].reg = dbg_reg;
 	pos++;
@@ -316,14 +353,14 @@ void dim_ddbg_mod_save(unsigned int mod, unsigned int ch, unsigned int cnt)
 	struct di_dbg_mod dbg_mod;
 	struct di_dbg_reg_log *plog = get_dbg_reg_log();
 	unsigned int pos;
-#if 1
+
 /*--------------------------*/
 	if (ch)
 		h_dbg_reg_set(mod | 0x80000000);
 	else
 		h_dbg_reg_set(mod);
 /*--------------------------*/
-#endif
+
 	if (!plog->en_mod)
 		return;
 	if (plog->en_notoverwrite && plog->overflow)
@@ -334,6 +371,7 @@ void dim_ddbg_mod_save(unsigned int mod, unsigned int ch, unsigned int cnt)
 	dbg_mod.ch = ch;
 	dbg_mod.mod = mod;
 	dbg_mod.cnt = cnt;
+	dbg_mod.res = 0;
 
 	plog->log[pos].mod = dbg_mod;
 	pos++;
@@ -350,7 +388,7 @@ void dim_ddbg_mod_save(unsigned int mod, unsigned int ch, unsigned int cnt)
 	plog->pos = pos;
 }
 
-#if 0
+#ifdef MARK_HIS
 void ddbg_sw(bool on)
 {
 	struct di_dbg_reg_log *plog = get_dbg_reg_log();
@@ -359,18 +397,18 @@ void ddbg_sw(bool on)
 }
 #else
 
-void ddbg_sw(enum eDI_LOG_TYPE mode, bool on)
+void ddbg_sw(enum EDI_LOG_TYPE mode, bool on)
 {
 	struct di_dbg_reg_log *plog = get_dbg_reg_log();
 
 	switch (mode) {
-	case eDI_LOG_TYPE_ALL:
+	case EDI_LOG_TYPE_ALL:
 		plog->en_all = on;
 		break;
-	case eDI_LOG_TYPE_REG:
+	case EDI_LOG_TYPE_REG:
 		plog->en_reg = on;
 		break;
-	case eDI_LOG_TYPE_MOD:
+	case EDI_LOG_TYPE_MOD:
 		plog->en_mod = on;
 		break;
 	default:
@@ -477,46 +515,51 @@ static ssize_t ddbg_log_reg_store(struct file *file, const char __user *userbuf,
 }
 
 /**********************/
-static int seq_file_vframe(struct seq_file *seq, void *v, struct vframe_s *pVfm)
+static int seq_file_vframe(struct seq_file *seq, void *v, struct vframe_s *pvfm)
 {
-	if (!pVfm) {
+	int i;
+	struct canvas_config_s *pcvs;
+
+	if (!pvfm) {
 		seq_puts(seq, "war: dump vframe NULL\n");
 		return 0;
 	}
-	seq_printf(seq, "%-15s:0x%p\n", "addr", pVfm);
-	seq_printf(seq, "%-15s:%d\n", "index", pVfm->index);
-	seq_printf(seq, "%-15s:%d\n", "index_disp", pVfm->index_disp);
-	seq_printf(seq, "%-15s:%d\n", "omx_index", pVfm->omx_index);
-	seq_printf(seq, "%-15s:0x%x\n", "type", pVfm->type);
-	seq_printf(seq, "%-15s:0x%x\n", "type_backup", pVfm->type_backup);
-	seq_printf(seq, "%-15s:0x%x\n", "type_original", pVfm->type_original);
-	seq_printf(seq, "%-15s:%d\n", "blend_mode", pVfm->blend_mode);
-	seq_printf(seq, "%-15s:%d\n", "duration",  pVfm->duration);
-	seq_printf(seq, "%-15s:%d\n", "duration_pull", pVfm->duration_pulldown);
-	seq_printf(seq, "%-15s:%d\n", "pts", pVfm->pts);
+	seq_printf(seq, "%-15s:0x%p\n", "addr", pvfm);
+	seq_printf(seq, "%-15s:%d\n", "index", pvfm->index);
+	seq_printf(seq, "%-15s:%d\n", "index_disp", pvfm->index_disp);
+	seq_printf(seq, "%-15s:%d\n", "omx_index", pvfm->omx_index);
+	seq_printf(seq, "%-15s:0x%x\n", "type", pvfm->type);
+	seq_printf(seq, "%-15s:0x%x\n", "type_backup", pvfm->type_backup);
+	seq_printf(seq, "%-15s:0x%x\n", "type_original", pvfm->type_original);
+	seq_printf(seq, "%-15s:%d\n", "blend_mode", pvfm->blend_mode);
+	seq_printf(seq, "%-15s:%d\n", "duration",  pvfm->duration);
+	seq_printf(seq, "%-15s:%d\n", "duration_pull", pvfm->duration_pulldown);
+	seq_printf(seq, "%-15s:%d\n", "pts", pvfm->pts);
 
-	seq_printf(seq, "%-15s:%lld\n", "pts_us64", pVfm->pts_us64);
+	seq_printf(seq, "%-15s:%lld\n", "pts_us64", pvfm->pts_us64);
 	seq_printf(seq, "%-15s:%d\n", "next_vf_pts_valid",
-		   pVfm->next_vf_pts_valid);
-	seq_printf(seq, "%-15s:%d\n", "next_vf_pts", pVfm->next_vf_pts);
-	seq_printf(seq, "%-15s:%d\n", "disp_pts", pVfm->disp_pts);
-	seq_printf(seq, "%-15s:%lld\n", "disp_pts_us64", pVfm->disp_pts_us64);
-	seq_printf(seq, "%-15s:%lld\n", "timestamp", pVfm->timestamp);
-	seq_printf(seq, "%-15s:%d\n", "flag", pVfm->flag);
-	seq_printf(seq, "%-15s:0x%x\n", "canvas0Addr", pVfm->canvas0Addr);
-	seq_printf(seq, "%-15s:0x%x\n", "canvas1Addr", pVfm->canvas1Addr);
-	seq_printf(seq, "%-15s:0x%x\n", "compHeadAddr", pVfm->compHeadAddr);
-	seq_printf(seq, "%-15s:0x%x\n", "compBodyAddr", pVfm->compBodyAddr);
-	seq_printf(seq, "%-15s:%d\n", "plane_num", pVfm->plane_num);
+		   pvfm->next_vf_pts_valid);
+	seq_printf(seq, "%-15s:%d\n", "next_vf_pts", pvfm->next_vf_pts);
+	seq_printf(seq, "%-15s:%d\n", "disp_pts", pvfm->disp_pts);
+	seq_printf(seq, "%-15s:%lld\n", "disp_pts_us64", pvfm->disp_pts_us64);
+	seq_printf(seq, "%-15s:%lld\n", "timestamp", pvfm->timestamp);
+	seq_printf(seq, "%-15s:%d\n", "flag", pvfm->flag);
+	seq_printf(seq, "\t%-15s:%d\n", "flag:VFRAME_FLAG_DOUBLE_FRAM",
+		   pvfm->flag & VFRAME_FLAG_DOUBLE_FRAM);
+	seq_printf(seq, "%-15s:0x%x\n", "canvas0Addr", pvfm->canvas0Addr);
+	seq_printf(seq, "%-15s:0x%x\n", "canvas1Addr", pvfm->canvas1Addr);
+	seq_printf(seq, "%-15s:0x%x\n", "compHeadAddr", pvfm->compHeadAddr);
+	seq_printf(seq, "%-15s:0x%x\n", "compBodyAddr", pvfm->compBodyAddr);
+	seq_printf(seq, "%-15s:%d\n", "plane_num", pvfm->plane_num);
 
-	seq_printf(seq, "%-15s:%d\n", "bufWidth", pVfm->bufWidth);
-	seq_printf(seq, "%-15s:%d\n", "width", pVfm->width);
-	seq_printf(seq, "%-15s:%d\n", "height", pVfm->height);
-	seq_printf(seq, "%-15s:%d\n", "compWidth", pVfm->compWidth);
-	seq_printf(seq, "%-15s:%d\n", "compHeight", pVfm->compHeight);
-	seq_printf(seq, "%-15s:%d\n", "ratio_control", pVfm->ratio_control);
-	seq_printf(seq, "%-15s:%d\n", "bitdepth", pVfm->bitdepth);
-	seq_printf(seq, "%-15s:%d\n", "signal_type", pVfm->signal_type);
+	seq_printf(seq, "%-15s:%d\n", "bufWidth", pvfm->bufWidth);
+	seq_printf(seq, "%-15s:%d\n", "width", pvfm->width);
+	seq_printf(seq, "%-15s:%d\n", "height", pvfm->height);
+	seq_printf(seq, "%-15s:%d\n", "compWidth", pvfm->compWidth);
+	seq_printf(seq, "%-15s:%d\n", "compHeight", pvfm->compHeight);
+	seq_printf(seq, "%-15s:%d\n", "ratio_control", pvfm->ratio_control);
+	seq_printf(seq, "%-15s:%d\n", "bitdepth", pvfm->bitdepth);
+	seq_printf(seq, "%-15s:%d\n", "signal_type", pvfm->signal_type);
 
 	/*
 	 *	   bit 29: present_flag
@@ -540,46 +583,63 @@ static int seq_file_vframe(struct seq_file *seq, void *v, struct vframe_s *pVfm)
 	 *	   "fcc", "bt470bg", "smpte170m", "smpte240m",
 	 *	   "YCgCo", "bt2020nc", "bt2020c"
 	 */
-	seq_printf(seq, "%-15s:0x%x\n", "orientation", pVfm->orientation);
-	seq_printf(seq, "%-15s:0x%x\n", "video_angle", pVfm->video_angle);
-	seq_printf(seq, "%-15s:0x%x\n", "source_type", pVfm->source_type);
+	seq_printf(seq, "%-15s:0x%x\n", "orientation", pvfm->orientation);
+	seq_printf(seq, "%-15s:0x%x\n", "video_angle", pvfm->video_angle);
+	seq_printf(seq, "%-15s:0x%x\n", "source_type", pvfm->source_type);
 
-	seq_printf(seq, "%-15s:0x%x\n", "phase", pVfm->phase);
-	seq_printf(seq, "%-15s:0x%x\n", "source_mode", pVfm->source_mode);
-	seq_printf(seq, "%-15s:0x%x\n", "sig_fmt", pVfm->sig_fmt);
-	seq_printf(seq, "%-15s:0x%x\n", "trans_fmt", pVfm->trans_fmt);
+	seq_printf(seq, "%-15s:0x%x\n", "phase", pvfm->phase);
+	seq_printf(seq, "%-15s:0x%x\n", "source_mode", pvfm->source_mode);
+	seq_printf(seq, "%-15s:0x%x\n", "sig_fmt", pvfm->sig_fmt);
+	seq_printf(seq, "%-15s:0x%x\n", "trans_fmt", pvfm->trans_fmt);
 
 	seq_printf(seq, "%-15s:0x%x\n", "mode_3d_enable",
-		   pVfm->mode_3d_enable);
+		   pvfm->mode_3d_enable);
 
 	seq_printf(seq, "%-15s:0x%p\n", "early_process_fun",
-		   pVfm->early_process_fun);
+		   pvfm->early_process_fun);
 	seq_printf(seq, "%-15s:0x%p\n", "process_fun",
-		   pVfm->early_process_fun);
+		   pvfm->early_process_fun);
 	seq_printf(seq, "%-15s:0x%p\n", "private_data",
-		   pVfm->early_process_fun);
+		   pvfm->early_process_fun);
 
-#if 1
 	/* vframe properties */
 
-#endif
-
 	/* pixel aspect ratio */
-	seq_printf(seq, "%-15s:%d\n", "pixel_ratio", pVfm->pixel_ratio);
+	seq_printf(seq, "%-15s:%d\n", "pixel_ratio", pvfm->pixel_ratio);
 
 	/* ready from decode on  jiffies_64 */
-	seq_printf(seq, "%-15s:%d\n", "use_cnt", atomic_read(&pVfm->use_cnt));
-	seq_printf(seq, "%-15s:%d\n", "frame_dirty", pVfm->frame_dirty);
+	seq_printf(seq, "%-15s:%d\n", "use_cnt", atomic_read(&pvfm->use_cnt));
+	seq_printf(seq, "%-15s:%d\n", "frame_dirty", pvfm->frame_dirty);
 	/*
 	 *prog_proc_config:
 	 *1: process p from decoder as filed
 	 *0: process p from decoder as frame
 	 */
 	seq_printf(seq, "%-15s:0x%x\n", "prog_proc_config",
-		   pVfm->prog_proc_config);
+		   pvfm->prog_proc_config);
 		/* used for indicate current video is motion or static */
 	seq_printf(seq, "%-15s:%d\n", "combing_cur_lev",
-		   pVfm->combing_cur_lev);
+		   pvfm->combing_cur_lev);
+	for (i = 0; i < pvfm->plane_num; i++) {
+		pcvs = &pvfm->canvas0_config[i];
+		seq_printf(seq, "%-15s:%d\n", "canvas0_cfg", i);
+		seq_printf(seq, "\t%-15s:0x%x\n", "phy_addr",
+			   pcvs->phy_addr);
+		seq_printf(seq, "\t%-15s:%d\n", "width",
+			   pcvs->width);
+		seq_printf(seq, "\t%-15s:%d\n", "height",
+			   pcvs->height);
+		seq_printf(seq, "\t%-15s:%d\n", "block_mode",
+			   pcvs->block_mode);
+		seq_printf(seq, "\t%-15s:0x%x\n", "endian",
+			   pcvs->endian);
+	}
+
+	if (pvfm->vf_ext)
+		seq_printf(seq, "%-15s\n", "vf_ext");
+	else
+		seq_printf(seq, "%-15s\n", "vf_ext:none");
+
 	return 0;
 }
 
@@ -590,7 +650,7 @@ void didbg_vframe_in_copy(unsigned int ch, struct vframe_s *pvfm)
 {
 	struct vframe_s *pvfm_t;
 
-	if (!di_cfgx_get(ch, eDI_DBG_CFGX_IDX_VFM_IN))
+	if (!di_cfgx_get(ch, EDI_DBG_CFGX_IDX_VFM_IN))
 		return;
 
 	pvfm_t = di_get_dbg_vframe_in(ch);
@@ -605,8 +665,8 @@ static int seq_file_vframe_in_show(struct seq_file *seq, void *v)
 	ch = seq_get_channel(seq);
 	seq_printf(seq, "%s:ch[%d]\n", __func__, ch);
 
-	if (!di_cfgx_get(ch, eDI_DBG_CFGX_IDX_VFM_IN)) {
-		seq_puts(seq, "war: cfg[eDI_DBG_CFGX_IDX_VFM_IN] disable\n");
+	if (!di_cfgx_get(ch, EDI_DBG_CFGX_IDX_VFM_IN)) {
+		seq_puts(seq, "war: cfg[EDI_DBG_CFGX_IDX_VFM_IN] disable\n");
 		return 0;
 	}
 
@@ -618,13 +678,13 @@ static int seq_file_vframe_in_show(struct seq_file *seq, void *v)
 /***********************/
 /* debug output vframe */
 /***********************/
-void didbg_vframe_out_save(struct vframe_s *pvfm)
+void didbg_vframe_out_save(unsigned int ch, struct vframe_s *pvfm)
 {
-	unsigned int ch;
+	//unsigned int ch;
 	struct vframe_s **pvfm_t;
 
-	ch = DI_SUB_ID_S0;
-	if (!di_cfgx_get(ch, eDI_DBG_CFGX_IDX_VFM_OT))
+	//ch = DI_SUB_ID_S0;
+	if (!di_cfgx_get(ch, EDI_DBG_CFGX_IDX_VFM_OT))
 		return;
 
 	pvfm_t = di_get_dbg_vframe_out(ch);
@@ -638,8 +698,8 @@ static int seq_file_vframe_out_show(struct seq_file *seq, void *v)
 	ch = seq_get_channel(seq);
 	seq_printf(seq, "%s:ch[%d]\n", __func__, ch);
 
-	if (!di_cfgx_get(ch, eDI_DBG_CFGX_IDX_VFM_OT)) {
-		seq_puts(seq, "war: cfg[eDI_DBG_CFGX_IDX_VFM_OT] disable\n");
+	if (!di_cfgx_get(ch, EDI_DBG_CFGX_IDX_VFM_OT)) {
+		seq_puts(seq, "war: cfg[EDI_DBG_CFGX_IDX_VFM_OT] disable\n");
 		return 0;
 	}
 
@@ -735,16 +795,7 @@ ssize_t seq_file_vtype_store(struct file *file, const char __user *userbuf,
 
 	buf[count] = 0;
 	/*reg, bit, width, val*/
-	#if 1
-	ret = kstrtouint(buf, 0, &vtype);
-	if (ret) {
-		pr_info("war:please enter vtype\n");
-		return 0;
-	}
-	pr_info("save type:0x%x", vtype);
-	didbg_vtype_set(vtype);
-	#else
-
+	#ifdef MARK_HIS
 	ret = sscanfxxx(buf, "%x", &vtype);
 
 	/*--------------------------*/
@@ -758,6 +809,15 @@ ssize_t seq_file_vtype_store(struct file *file, const char __user *userbuf,
 		pr_info("war:please enter vtype\n");
 		break;
 	}
+
+	#else
+	ret = kstrtouint(buf, 0, &vtype);
+	if (ret) {
+		pr_info("war:please enter vtype\n");
+		return 0;
+	}
+	pr_info("save type:0x%x", vtype);
+	didbg_vtype_set(vtype);
 	#endif
 	return count;
 }
@@ -897,6 +957,93 @@ static int seq_file_mif_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
+static ssize_t dbg_crc_store(struct file *file, const char __user *userbuf,
+			     size_t count, loff_t *ppos)
+{
+	unsigned int val;
+	char buf[80];
+	int ret;
+	int *chp;
+	unsigned int ch;
+//	struct dim_dbg_cvs_s *dbg;
+	struct di_ch_s *pch;
+	unsigned int mode;
+	int i;
+
+	count = min_t(size_t, count, (sizeof(buf) - 1));
+	if (copy_from_user(buf, userbuf, count))
+		return -EFAULT;
+
+	buf[count] = 0;
+	chp = (int *)file->private_data;
+	//pr_info("%s:ch[%d]\n", __func__, *chp);
+	ch = *chp;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret) {
+		//pr_info("war:please enter val\n");
+		return 0;
+	}
+	pch = get_chdata(ch);
+	if (val < 0xf)
+		return count;
+
+	mode = ((val & 0xfff) >> 4);
+	pr_info("4k test:rotation:0x%x, 0x%x\n", mode, val);
+	if (val & DI_BIT16) {
+		//pr_info("5000\n");
+		for (i = 0; i < 5000; i++) {
+			dbg_cp_4k(pch, mode);
+			usleep_range(5000, 5001);
+		}
+	} else {
+		dbg_cp_4k(pch, mode);
+	}
+	return count;
+}
+
+static ssize_t dbg_pip_store(struct file *file, const char __user *userbuf,
+			     size_t count, loff_t *ppos)
+{
+	unsigned int val;
+	char buf[80];
+	int ret;
+	int *chp;
+	unsigned int ch;
+//	struct dim_dbg_cvs_s *dbg;
+	struct di_ch_s *pch;
+	unsigned int mode;
+	unsigned int i;
+
+	count = min_t(size_t, count, (sizeof(buf) - 1));
+	if (copy_from_user(buf, userbuf, count))
+		return -EFAULT;
+
+	buf[count] = 0;
+	chp = (int *)file->private_data;
+	//pr_info("%s:ch[%d]\n", __func__, *chp);
+	ch = *chp;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret) {
+		//pr_info("war:please enter val\n");
+		return 0;
+	}
+	pch = get_chdata(ch);
+	//dbg = &pch->dbg_data.dbg_cvs;
+
+	mode = val & 0xffff;
+	if (val & DI_BIT16) {
+		for (i = 0; i < 200; i++) {
+			dbg_pip_func(pch, mode);
+			usleep_range(10000, 10001);
+		}
+	} else {
+		dbg_pip_func(pch, mode);
+	}
+	return count;
+}
+
 /********************************/
 #define DEFINE_SEQ_SHOW_ONLY(__name) \
 static int __name ## _open(struct inode *inode, struct file *file)	\
@@ -913,7 +1060,6 @@ static const struct file_operations __name ## _fops = {			\
 }
 
 /*--------------------------*/
-#if 1
 /*note: this define can't used for x*/
 #define DEFINE_SEQ_SHOW_STORE(__name) \
 static int __name ## _open(struct inode *inode, struct file *file)	\
@@ -929,8 +1075,9 @@ static const struct file_operations __name ## _fops = {			\
 	.llseek = seq_lseek,		\
 	.release = single_release,	\
 }
-#endif
+
 /*--------------------------*/
+
 #define DEFINE_SHOW_STORE(__name) \
 static const struct file_operations __name ## _fops = {			\
 	.owner = THIS_MODULE,		\
@@ -953,16 +1100,16 @@ static const struct file_operations __name ## _fops = {			\
 static int rcfgx_show(struct seq_file *s, void *what)
 {
 	int i;
-	int *pCh;
+	int *pch;
 
-	pCh = (int *)s->private;
+	pch = (int *)s->private;
 
-	seq_printf(s, "%s:ch[%d]\n", __func__, *pCh);
+	seq_printf(s, "%s:ch[%d]\n", __func__, *pch);
 
-	for (i = eDI_CFGX_BEGIN; i < eDI_DBG_CFGX_END; i++) {
+	for (i = EDI_CFGX_BEGIN; i < EDI_DBG_CFGX_END; i++) {
 		seq_printf(s, "\tidx[%2d]:%-15s:%d\n", i,
 			   di_cfgx_get_name(i),
-			   di_cfgx_get(*pCh, i));
+			   di_cfgx_get(*pch, i));
 	}
 
 	return 0;
@@ -975,7 +1122,7 @@ static ssize_t wcfgx_store(struct file *file, const char __user *userbuf,
 	unsigned int item, val;
 	char buf[80];
 	int ret;
-	int *pCh;
+	int *pch;
 
 	count = min_t(size_t, count, (sizeof(buf) - 1));
 	if (copy_from_user(buf, userbuf, count))
@@ -985,16 +1132,16 @@ static ssize_t wcfgx_store(struct file *file, const char __user *userbuf,
 
 	ret = sscanf(buf, "%i %i", &item, &val);
 
-	pCh = (int *)file->private_data;
-	pr_info("%s:ch[%d]\n", __func__, *pCh);
+	pch = (int *)file->private_data;
+	pr_info("%s:ch[%d]\n", __func__, *pch);
 
 	switch (ret) {
 	case 2:
-		if ((item <= eDI_CFGX_BEGIN)	||
-		    (item >= eDI_DBG_CFGX_END)) {
+		if (item <= EDI_CFGX_BEGIN	||
+		    item >= EDI_DBG_CFGX_END) {
 			pr_info("war:cfg_item is overflow[%d,%d]:%d\n",
-				eDI_CFGX_BEGIN,
-				eDI_DBG_CFGX_END,
+				EDI_CFGX_BEGIN,
+				EDI_DBG_CFGX_END,
 				item);
 			break;
 		}
@@ -1002,8 +1149,8 @@ static ssize_t wcfgx_store(struct file *file, const char __user *userbuf,
 			pr_info("war:cfg value[%d] is not bool\n", val);
 
 		pr_info("change cfg:%s\n", di_cfgx_get_name(item));
-		pr_info("\t%d -> %d\n", di_cfgx_get(*pCh, item), val);
-		di_cfgx_set(*pCh, item, val);
+		pr_info("\t%d -> %d\n", di_cfgx_get(*pch, item), val);
+		di_cfgx_set(*pch, item, val);
 		break;
 	default:
 		pr_info("err:please enter: cfg_item, value(bool)\n");
@@ -1187,9 +1334,9 @@ static int mpr_di_show(struct seq_file *s, void *what)
 
 	seq_printf(s, "%s:\n", __func__);
 
-	for (i = eDI_MP_SUB_DI_B; i < eDI_MP_SUB_DI_E; i++) {
+	for (i = EDI_MP_SUB_DI_B; i < EDI_MP_SUB_DI_E; i++) {
 		seq_printf(s, "\tidx[%2d]:%-15s:%d\n",
-			   i - eDI_MP_SUB_DI_B,
+			   i - EDI_MP_SUB_DI_B,
 			   di_mp_uit_get_name(i),
 			   di_mp_uit_get(i));
 	}
@@ -1217,14 +1364,14 @@ static ssize_t mpw_di_store(struct file *file, const char __user *userbuf,
 	switch (ret) {
 	case 2:
 		/*check []*/
-		if (item >= (eDI_MP_SUB_DI_E - eDI_MP_SUB_DI_B)) {
+		if (item >= (EDI_MP_SUB_DI_E - EDI_MP_SUB_DI_B)) {
 			PR_WARN("index is overflow[%d,%d]:%d\n",
 				0,
-				eDI_MP_SUB_DI_E - eDI_MP_SUB_DI_B,
+				EDI_MP_SUB_DI_E - EDI_MP_SUB_DI_B,
 				item);
 			break;
 		}
-		rid = item + eDI_MP_SUB_DI_B;
+		rid = item + EDI_MP_SUB_DI_B;
 		pr_info("change mp :%s\n",
 			di_mp_uit_get_name(rid));
 		pr_info("\t%d -> %d\n", di_mp_uit_get(rid), val);
@@ -1247,9 +1394,9 @@ static int mpr_nr_show(struct seq_file *s, void *what)
 
 	seq_printf(s, "%s:\n", __func__);
 
-	for (i = eDI_MP_SUB_NR_B; i < eDI_MP_SUB_NR_E; i++) {
+	for (i = EDI_MP_SUB_NR_B; i < EDI_MP_SUB_NR_E; i++) {
 		seq_printf(s, "\tidx[%2d]:%-15s:%d\n",
-			   i - eDI_MP_SUB_NR_B,
+			   i - EDI_MP_SUB_NR_B,
 			   di_mp_uit_get_name(i),
 			   di_mp_uit_get(i));
 	}
@@ -1277,14 +1424,14 @@ static ssize_t mpw_nr_store(struct file *file, const char __user *userbuf,
 	switch (ret) {
 	case 2:
 		/*check []*/
-		if (item >= (eDI_MP_SUB_NR_E - eDI_MP_SUB_NR_B)) {
+		if (item >= (EDI_MP_SUB_NR_E - EDI_MP_SUB_NR_B)) {
 			PR_WARN("index is overflow[%d,%d]:%d\n",
 				0,
-				eDI_MP_SUB_NR_E - eDI_MP_SUB_NR_B,
+				EDI_MP_SUB_NR_E - EDI_MP_SUB_NR_B,
 				item);
 			break;
 		}
-		rid = item + eDI_MP_SUB_NR_B;
+		rid = item + EDI_MP_SUB_NR_B;
 		pr_info("change mp:%s\n",
 			di_mp_uit_get_name(rid));
 		pr_info("\t%d -> %d\n", di_mp_uit_get(rid), val);
@@ -1307,9 +1454,9 @@ static int mpr_pd_show(struct seq_file *s, void *what)
 
 	seq_printf(s, "%s:\n", __func__);
 
-	for (i = eDI_MP_SUB_PD_B; i < eDI_MP_SUB_PD_E; i++) {
+	for (i = EDI_MP_SUB_PD_B; i < EDI_MP_SUB_PD_E; i++) {
 		seq_printf(s, "\tidx[%2d]:%-15s:%d\n",
-			   i - eDI_MP_SUB_PD_B,
+			   i - EDI_MP_SUB_PD_B,
 			   di_mp_uit_get_name(i),
 			   di_mp_uit_get(i));
 	}
@@ -1337,14 +1484,14 @@ static ssize_t mpw_pd_store(struct file *file, const char __user *userbuf,
 	switch (ret) {
 	case 2:
 		/*check []*/
-		if (item >= (eDI_MP_SUB_PD_E - eDI_MP_SUB_PD_B)) {
+		if (item >= (EDI_MP_SUB_PD_E - EDI_MP_SUB_PD_B)) {
 			PR_WARN("index is overflow[%d,%d]:%d\n",
 				0,
-				eDI_MP_SUB_PD_E - eDI_MP_SUB_PD_B,
+				EDI_MP_SUB_PD_E - EDI_MP_SUB_PD_B,
 				item);
 			break;
 		}
-		rid = item + eDI_MP_SUB_PD_B;
+		rid = item + EDI_MP_SUB_PD_B;
 		pr_info("change mp:%s\n",
 			di_mp_uit_get_name(rid));
 		pr_info("\t%d -> %d\n", di_mp_uit_get(rid), val);
@@ -1367,9 +1514,9 @@ static int mpr_mtn_show(struct seq_file *s, void *what)
 
 	seq_printf(s, "%s:\n", __func__);
 
-	for (i = eDI_MP_SUB_MTN_B; i < eDI_MP_SUB_MTN_E; i++) {
+	for (i = EDI_MP_SUB_MTN_B; i < EDI_MP_SUB_MTN_E; i++) {
 		seq_printf(s, "\tidx[%2d]:%-15s:%d\n",
-			   i - eDI_MP_SUB_MTN_B,
+			   i - EDI_MP_SUB_MTN_B,
 			   di_mp_uit_get_name(i),
 			   di_mp_uit_get(i));
 	}
@@ -1397,14 +1544,14 @@ static ssize_t mpw_mtn_store(struct file *file, const char __user *userbuf,
 	switch (ret) {
 	case 2:
 		/*check []*/
-		if (item >= (eDI_MP_SUB_MTN_E - eDI_MP_SUB_MTN_B)) {
+		if (item >= (EDI_MP_SUB_MTN_E - EDI_MP_SUB_MTN_B)) {
 			PR_WARN("index is overflow[%d,%d]:%d\n",
 				0,
-				eDI_MP_SUB_MTN_E - eDI_MP_SUB_MTN_B,
+				EDI_MP_SUB_MTN_E - EDI_MP_SUB_MTN_B,
 				item);
 			break;
 		}
-		rid = item + eDI_MP_SUB_MTN_B;
+		rid = item + EDI_MP_SUB_MTN_B;
 		pr_info("change mp:%s\n",
 			di_mp_uit_get_name(rid));
 		pr_info("\t%d -> %d\n", di_mp_uit_get(rid), val);
@@ -1422,16 +1569,16 @@ static ssize_t mpw_mtn_store(struct file *file, const char __user *userbuf,
 static int mpxr_show(struct seq_file *s, void *what)
 {
 	int i;
-	int *pCh;
+	int *pch;
 
-	pCh = (int *)s->private;
+	pch = (int *)s->private;
 
-	seq_printf(s, "%s:ch[%d]\n", __func__, *pCh);
+	seq_printf(s, "%s:ch[%d]\n", __func__, *pch);
 
-	for (i = eDI_MP_UIX_BEGIN; i < eDI_MP_UIX_END; i++) {
+	for (i = EDI_MP_UIX_BEGIN; i < EDI_MP_UIX_END; i++) {
 		seq_printf(s, "\tidx[%2d]:%-15s:%d\n", i,
 			   di_mp_uix_get_name(i),
-			   di_mp_uix_get(*pCh, i));
+			   di_mp_uix_get(*pch, i));
 	}
 
 	return 0;
@@ -1444,7 +1591,7 @@ static ssize_t mpxw_store(struct file *file, const char __user *userbuf,
 	unsigned int item, val;
 	char buf[80];
 	int ret;
-	int *pCh;
+	int *pch;
 
 	count = min_t(size_t, count, (sizeof(buf) - 1));
 	if (copy_from_user(buf, userbuf, count))
@@ -1454,24 +1601,24 @@ static ssize_t mpxw_store(struct file *file, const char __user *userbuf,
 
 	ret = sscanf(buf, "%i %i", &item, &val);
 
-	pCh = (int *)file->private_data;
-	pr_info("%s:ch[%d]\n", __func__, *pCh);
+	pch = (int *)file->private_data;
+	pr_info("%s:ch[%d]\n", __func__, *pch);
 
 	switch (ret) {
 	case 2:
-		if ((item <= eDI_MP_UIX_BEGIN)	||
-		    (item >= eDI_MP_UIX_END)) {
+		if (item <= EDI_MP_UIX_BEGIN	||
+		    item >= EDI_MP_UIX_END) {
 			PR_WARN("mpxw is overflow[%d,%d]:%d\n",
-				eDI_MP_UIX_BEGIN,
-				eDI_MP_UIX_END,
+				EDI_MP_UIX_BEGIN,
+				EDI_MP_UIX_END,
 				item);
 			break;
 		}
 
-		pr_info("change mp ch[%d]:%s\n", *pCh,
+		pr_info("change mp ch[%d]:%s\n", *pch,
 			di_mp_uix_get_name(item));
-		pr_info("\t%d -> %d\n", di_mp_uix_get(*pCh, item), val);
-		di_mp_uix_set(*pCh, item, val);
+		pr_info("\t%d -> %d\n", di_mp_uix_get(*pch, item), val);
+		di_mp_uix_set(*pch, item, val);
 		break;
 	default:
 		PR_ERR("please enter: mpxw, value(unsigned int)\n");
@@ -1533,22 +1680,22 @@ void dbg_f_trig_task(unsigned int para)
 }
 
 const struct di_dbg_func_s di_func_tab[] = {
-	{eDI_DBG_F_00, dbg_f_post_disable,
+	{EDI_DBG_F_00, dbg_f_post_disable,
 		"dimh_disable_post_deinterlace_2", "no para"},
-	{eDI_DBG_F_01, dbg_f_trig_task,
+	{EDI_DBG_F_01, dbg_f_trig_task,
 		"trig task", "no para"},
-	{eDI_DBG_F_02, dpre_dbg_f_trig,
+	{EDI_DBG_F_02, dpre_dbg_f_trig,
 		"trig pre flow debug", "bit[4]:ddebug on/off;bi[3:0]:cnt"},
-	{eDI_DBG_F_03, dpst_dbg_f_trig,
+	{EDI_DBG_F_03, dpst_dbg_f_trig,
 		"trig post flow debug", "bit[4]:ddebug on/off;bi[3:0]:cnt"},
-	{eDI_DBG_F_04, hpst_dbg_power_ctr_trig,
+	{EDI_DBG_F_04, hpst_dbg_power_ctr_trig,
 		"trig post power", "1: on; 0: off"},
 
-	{eDI_DBG_F_05, hpst_dbg_mem_pd_trig,
+	{EDI_DBG_F_05, hpst_dbg_mem_pd_trig,
 		"trig post mem pd", "no para"},
-	{eDI_DBG_F_06, hpst_dbg_trig_gate,
+	{EDI_DBG_F_06, hpst_dbg_trig_gate,
 		"trig post gate off/on", "no para"},
-	{eDI_DBG_F_07, hpst_dbg_trig_mif,
+	{EDI_DBG_F_07, hpst_dbg_trig_mif,
 		"trig post mif off/free", "no para"},
 };
 
@@ -1615,10 +1762,10 @@ static ssize_t reg_show(struct file *file, char __user *userbuf,
 	char buf[80];
 
 	ssize_t len;
-	int *pInt;
+	int *pint;
 
-	pInt = (int *)file->private_data;
-	pr_info("pInt=0x%p,val=%d\n", pInt, *pInt);
+	pint = (int *)file->private_data;
+	pr_info("pint=0x%p,val=%d\n", pint, *pint);
 
 	len = snprintf(buf, sizeof(buf), "%s\n",
 		       __func__);
@@ -1632,7 +1779,7 @@ static ssize_t reg_store(struct file *file, const char __user *userbuf,
 	unsigned int reg, val;
 	char buf[80];
 	int ret;
-	int *pInt;
+	int *pint;
 
 	count = min_t(size_t, count, (sizeof(buf) - 1));
 	if (copy_from_user(buf, userbuf, count))
@@ -1646,8 +1793,8 @@ static ssize_t reg_store(struct file *file, const char __user *userbuf,
 	case 1:
 		pr_info("reg:0x%x\n", reg);
 
-		pInt = (int *)file->private_data;
-		pr_info("pInt=0x%p,val=%d\n", pInt, *pInt);
+		pint = (int *)file->private_data;
+		pr_info("pint=0x%p,val=%d\n", pint, *pint);
 		break;
 	case 2:
 		pr_info("reg:0x%x,val=%d\n", reg, val);
@@ -1659,8 +1806,200 @@ static ssize_t reg_store(struct file *file, const char __user *userbuf,
 	return count;
 }
 
+static int policy_show(struct seq_file *s, void *what)
+{
+	int ch;
+	struct dim_policy_s *pp = get_dpolicy();
+	struct di_ch_s *pch;
+	unsigned int ptt;
+
+	/*bypass*/
+	for (ch = 0; ch < DI_CHANNEL_NUB; ch++) {
+		pch = get_chdata(ch);
+		seq_printf(s, "ch[%d]:\n", ch);
+		seq_printf(s, "\tneed:%d,0x%x\n",
+			   pch->bypass.b.need_bypass,
+			   pch->bypass.b.reason_n);
+		seq_printf(s, "\tis:%d,0x%x\n",
+			   pch->bypass.b.is_bypass,
+			   pch->bypass.b.reason_i);
+	}
+	/*config*/
+	seq_puts(s, "cfg:\n");
+	seq_printf(s, "\tbypass_all_p:\t%d\n",
+		   pp->cfg_b.bypass_all_p);
+	seq_printf(s, "\ti_first:\t%d\n",
+		   pp->cfg_b.i_first);
+	/*policy*/
+	seq_puts(s, "policy:\n");
+	ptt = 0;
+	for (ch = 0; ch < DI_CHANNEL_NUB; ch++) {
+		seq_printf(s, "\tch[%d]\t:%d\n", ch, pp->ch[ch]);
+		ptt += pp->ch[ch];
+	}
+	seq_printf(s, "order=0x%x\n", pp->order_i);
+	seq_printf(s, "std=%d, total:%d\n", pp->std, ptt);
+
+	return 0;
+}
+
+/**********************/
+static int dbg_afd0_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC0);
+	return 0;
+}
+
+static int dbg_afd1_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC1);
+	return 0;
+}
+
+static int dbg_afd2_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC2_DI);
+	return 0;
+}
+
+static int dbg_afd3_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC3_MEM);
+	return 0;
+}
+
+static int dbg_afd4_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC_CHAN2);
+	return 0;
+}
+
+static int dbg_afd5_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC_IF0);
+	return 0;
+}
+
+static int dbg_afd6_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC_IF1);
+	return 0;
+}
+
+static int dbg_afd7_reg_show(struct seq_file *s, void *v)
+{
+	dbg_afd_reg_v3(s, EAFBC_DEC_IF2);
+	return 0;
+}
+
+static int dbg_afd_bits_afbc0_show(struct seq_file *s, void *v)
+{
+	//struct reg_afbs_s *pafbc = get_afbc(0);
+	dbg_afbcd_bits_show(s, EAFBC_DEC0);
+	return 0;
+}
+
+static int dbg_afd_bits_afbc1_show(struct seq_file *s, void *v)
+{
+	dbg_afbcd_bits_show(s, EAFBC_DEC1);
+
+	return 0;
+}
+
+static int dbg_afd_bits_afbc2_show(struct seq_file *s, void *v)
+{
+	dbg_afbcd_bits_show(s, EAFBC_DEC2_DI);
+
+	return 0;
+}
+
+static int dbg_afd_bits_afbc3_show(struct seq_file *s, void *v)
+{
+	dbg_afbcd_bits_show(s, EAFBC_DEC3_MEM);
+	return 0;
+}
+
+static int dbg_afd_bits_afbc4_show(struct seq_file *s, void *v)
+{
+	//struct reg_afbs_s *pafbc = get_afbc(0);
+	dbg_afbcd_bits_show(s, EAFBC_DEC_CHAN2);
+	return 0;
+}
+
+static int dbg_afd_bits_afbc5_show(struct seq_file *s, void *v)
+{
+	dbg_afbcd_bits_show(s, EAFBC_DEC_IF0);
+
+	return 0;
+}
+
+static int dbg_afd_bits_afbc6_show(struct seq_file *s, void *v)
+{
+	dbg_afbcd_bits_show(s, EAFBC_DEC_IF1);
+
+	return 0;
+}
+
+static int dbg_afd_bits_afbc7_show(struct seq_file *s, void *v)
+{
+	dbg_afbcd_bits_show(s, EAFBC_DEC_IF2);
+	return 0;
+}
+
+/* mif */
+static int mif_inp_reg_show(struct seq_file *s, void *v)
+{
+	//opl1()->dbg_mif_reg(s, DI_MIF0_ID_INP);
+	dbg_mif_reg(s, DI_MIF0_ID_INP);
+	return 0;
+}
+
+static int mif_mem_reg_show(struct seq_file *s, void *v)
+{
+	//opl1()->dbg_mif_reg(s, DI_MIF0_ID_MEM);
+	dbg_mif_reg(s, DI_MIF0_ID_MEM);
+	return 0;
+}
+
+static int mif_chan2_reg_show(struct seq_file *s, void *v)
+{
+	//opl1()->dbg_mif_reg(s, DI_MIF0_ID_CHAN2);
+	dbg_mif_reg(s, DI_MIF0_ID_CHAN2);
+	return 0;
+}
+
+static int mif_if0_reg_show(struct seq_file *s, void *v)
+{
+	//opl1()->dbg_mif_reg(s, DI_MIF0_ID_IF0);
+	dbg_mif_reg(s, DI_MIF0_ID_IF0);
+	return 0;
+}
+
+static int mif_if1_reg_show(struct seq_file *s, void *v)
+{
+	//opl1()->dbg_mif_reg(s, DI_MIF0_ID_IF1);
+	dbg_mif_reg(s, DI_MIF0_ID_IF1);
+	return 0;
+}
+
+static int mif_if2_reg_show(struct seq_file *s, void *v)
+{
+	//opl1()->dbg_mif_reg(s, DI_MIF0_ID_IF2);
+	dbg_mif_reg(s, DI_MIF0_ID_IF2);
+	return 0;
+}
+
+static int dbg_mif_print_show(struct seq_file *s, void *v)
+{
+	if (DIM_IS_IC_EF(SC2)) {
+		opl1()->dbg_reg_pre_mif_print2();
+		opl1()->dbg_reg_pst_mif_print2();
+	}
+	return 0;
+}
 /**********************/
 DEFINE_SEQ_SHOW_ONLY(dim_reg_cue_int);
+DEFINE_SEQ_SHOW_ONLY(policy);
 /**********************/
 DEFINE_SEQ_SHOW_ONLY(rcfgx);
 DEFINE_SEQ_SHOW_ONLY(seq_file_vframe_in);
@@ -1700,6 +2039,43 @@ DEFINE_SHOW_STORE(reg);
 DEFINE_SEQ_SHOW_STORE(seq_file_vtype);
 DEFINE_SEQ_SHOW_STORE(ddbg_log_reg);
 
+/*afbc*/
+DEFINE_SEQ_SHOW_ONLY(dbg_afbc_cfg_v3);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd0_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd1_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd2_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd3_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd4_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd5_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd6_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd7_reg);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc0);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc1);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc2);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc3);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc4);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc5);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc6);
+DEFINE_SEQ_SHOW_ONLY(dbg_afd_bits_afbc7);
+
+/* mif */
+DEFINE_SEQ_SHOW_ONLY(mif_inp_reg);
+DEFINE_SEQ_SHOW_ONLY(mif_mem_reg);
+DEFINE_SEQ_SHOW_ONLY(mif_chan2_reg);
+DEFINE_SEQ_SHOW_ONLY(mif_if0_reg);
+DEFINE_SEQ_SHOW_ONLY(mif_if1_reg);
+DEFINE_SEQ_SHOW_ONLY(mif_if2_reg);
+DEFINE_SEQ_SHOW_ONLY(reg_contr);
+
+DEFINE_SEQ_SHOW_ONLY(dbg_mif_print);
+DEFINE_STORE_ONLY(dbg_crc);
+DEFINE_STORE_ONLY(dbg_pip);
+
+/*decontour*/
+DEFINE_SEQ_SHOW_ONLY(dbg_dct_mif);
+DEFINE_SEQ_SHOW_ONLY(dbg_dct_contr);
+DEFINE_SEQ_SHOW_ONLY(dbg_dct_core);
+
 /**********************/
 
 struct di_dbgfs_files_t {
@@ -1712,6 +2088,7 @@ static const struct di_dbgfs_files_t di_debugfs_files_top[] = {
 	{"vtype", S_IFREG | 0644, &seq_file_vtype_fops},
 	{"reg_log", S_IFREG | 0644, &ddbg_log_reg_fops},
 	{"regctr", S_IFREG | 0644, &reg_con_fops},
+	{"regctr2", S_IFREG | 0644, &reg_contr_fops},
 	{"rfunc", S_IFREG | 0644, &rfunc_fops},
 	{"wfunc", S_IFREG | 0644, &wfunc_fops},
 	{"reg_cue", S_IFREG | 0644, &dim_reg_cue_int_fops},
@@ -1732,6 +2109,35 @@ static const struct di_dbgfs_files_t di_debugfs_files_top[] = {
 	{"cfgw_id", S_IFREG | 0644, &cfgtw_id_fops},
 	{"cfg_one", S_IFREG | 0644, &cfgt_one_fops},
 	{"cfg_sel", S_IFREG | 0644, &cfgt_sel_fops},
+	{"policy", S_IFREG | 0644, &policy_fops},
+	{"afbc_cfg", S_IFREG | 0644, &dbg_afbc_cfg_v3_fops},
+	{"reg_afd0", S_IFREG | 0644, &dbg_afd0_reg_fops},
+	{"reg_afd1", S_IFREG | 0644, &dbg_afd1_reg_fops},
+	{"reg_afd2", S_IFREG | 0644, &dbg_afd2_reg_fops},
+	{"reg_afd3", S_IFREG | 0644, &dbg_afd3_reg_fops},
+	{"reg_afd4", S_IFREG | 0644, &dbg_afd4_reg_fops},
+	{"reg_afd5", S_IFREG | 0644, &dbg_afd5_reg_fops},
+	{"reg_afd6", S_IFREG | 0644, &dbg_afd6_reg_fops},
+	{"reg_afd7", S_IFREG | 0644, &dbg_afd7_reg_fops},
+	{"bits_afd0", S_IFREG | 0644, &dbg_afd_bits_afbc0_fops},
+	{"bits_afd1", S_IFREG | 0644, &dbg_afd_bits_afbc1_fops},
+	{"bits_afd2", S_IFREG | 0644, &dbg_afd_bits_afbc2_fops},
+	{"bits_afd3", S_IFREG | 0644, &dbg_afd_bits_afbc3_fops},
+	{"bits_afd4", S_IFREG | 0644, &dbg_afd_bits_afbc4_fops},
+	{"bits_afd5", S_IFREG | 0644, &dbg_afd_bits_afbc5_fops},
+	{"bits_afd6", S_IFREG | 0644, &dbg_afd_bits_afbc6_fops},
+	{"bits_afd7", S_IFREG | 0644, &dbg_afd_bits_afbc7_fops},
+	{"reg_mif_inp", S_IFREG | 0644, &mif_inp_reg_fops},
+	{"reg_mif_mem", S_IFREG | 0644, &mif_mem_reg_fops},
+	{"reg_mif_ch2", S_IFREG | 0644, &mif_chan2_reg_fops},
+	{"reg_mif_if0", S_IFREG | 0644, &mif_if0_reg_fops},
+	{"reg_mif_if1", S_IFREG | 0644, &mif_if1_reg_fops},
+	{"reg_mif_if2", S_IFREG | 0644, &mif_if2_reg_fops},
+	{"regmif", S_IFREG | 0644, &dbg_mif_print_fops},
+	{"dct_mif", S_IFREG | 0644, &dbg_dct_mif_fops},
+	{"dct_ctr", S_IFREG | 0644, &dbg_dct_contr_fops},
+	{"dct_other", S_IFREG | 0644, &dbg_dct_core_fops},
+
 };
 
 static const struct di_dbgfs_files_t di_debugfs_files[] = {
@@ -1746,6 +2152,8 @@ static const struct di_dbgfs_files_t di_debugfs_files[] = {
 	{"mpxr", S_IFREG | 0644, &mpxr_fops},
 	{"mpxw", S_IFREG | 0644, &mpxw_fops},
 	{"vfmc", S_IFREG | 0644, &seq_file_curr_vframe_fops},
+	{"dbg_crc", S_IFREG | 0644, &dbg_crc_fops},
+	{"dbg_pip", S_IFREG | 0644, &dbg_pip_fops}
 };
 
 void didbg_fs_init(void)
@@ -1757,24 +2165,27 @@ void didbg_fs_init(void)
 	struct dentry **root_ent;
 
 	struct dentry *ent;
-	int *pPlane = di_get_plane();
+	int *pplane = di_get_plane();
 
 	for (i = 0; i < DI_CHANNEL_NUB; i++) {
-#if 0
+#ifdef MARK_HIS
 		strcpy(name, "di");
 		sprintf(buf, "%01d", i);
 		strncat(name, buf, sizeof(buf) - 1);
 #endif
 		snprintf(name, sizeof(name), "di%01d", i);
 		root_ent = dich_get_dbgroot(i);
+		if (IS_ERR_OR_NULL(root_ent))
+			continue;
 		*root_ent = debugfs_create_dir(name, NULL);
-
-		*(pPlane + i) = i;
+		if (IS_ERR_OR_NULL(*root_ent))
+			continue;
+		*(pplane + i) = i;
 		/*printk("plane 0x%p\n", &plane_ch[i]);*/
 		for (j = 0; j < ARRAY_SIZE(di_debugfs_files); j++) {
 			ent = debugfs_create_file(di_debugfs_files[j].name,
 						  di_debugfs_files[j].mode,
-						  *root_ent, (pPlane + i),
+						  *root_ent, (pplane + i),
 						  di_debugfs_files[j].fops);
 			if (!ent)
 				PR_ERR("debugfs create failed\n");
@@ -1782,7 +2193,11 @@ void didbg_fs_init(void)
 	}
 	/*top*/
 	root_ent = dich_get_dbgroot_top();
+	if (IS_ERR_OR_NULL(root_ent))
+		return;
 	*root_ent = debugfs_create_dir("di_top", NULL);
+	if (IS_ERR_OR_NULL(*root_ent))
+		return;
 	for (i = 0; i < ARRAY_SIZE(di_debugfs_files_top); i++) {
 		ent = debugfs_create_file(di_debugfs_files_top[i].name,
 					  di_debugfs_files_top[i].mode,

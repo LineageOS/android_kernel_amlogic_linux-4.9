@@ -642,8 +642,6 @@ static struct class smc_class = {
 	.class_attrs = smc_class_attrs,
 };
 
-
-
 long smc_get_reg_base(void)
 {
 	int newbase = 0;

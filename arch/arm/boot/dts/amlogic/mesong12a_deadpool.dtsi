@@ -222,10 +222,17 @@
 		reg = <0xff63c400 0x4c>,   /* MHU registers */
 		      <0xfffe7000 0x800>;   /* Payload area */
 		interrupts = <0 209 1>,   /* low priority interrupt */
-			     <0 210 1>;   /* high priority interrupt */
+			     <0 210 1>,   /* bl4 receive interrupt */
+			     <0 213 1>;   /* bl4 send interrupt */
+
 		#mbox-cells = <1>;
-		mbox-names = "cpu_to_scp_low", "cpu_to_scp_high";
-		mboxes = <&mailbox 0 &mailbox 1>;
+		mbox-names = "cpu_to_scp_low", "bl4_to_cpu", "cpu_to_bl4";
+		mboxes = <&mailbox 0 &mailbox 1 &mailbox 2>;
+		num-chans-to-scp = <1>;  /*number of chans to send m3*/
+		send-isr-bits = <5>;     /*BIT(idx) of isr listen when ap send*/
+		ack-isr-bits = <4>;      /*BIT(idx) of ack isr*/
+		m4-isr-bits = <6>;       /*BIT(idx) of m4 isr*/
+		mbox-chans = <3>;        /*chan number*/
 	};
 
 	cpu_iomap {
@@ -1024,6 +1031,27 @@
 	vdac {
 		compatible = "amlogic, vdac-g12a";
 		status = "okay";
+	};
+
+	dummy_venc: dummy_venc {
+		compatible = "amlogic, dummy_venc";
+		status = "disabled";
+		clocks = <&clkc CLKID_VCLK2_ENCP
+			&clkc CLKID_VCLK2_VENCP0
+			&clkc CLKID_VCLK2_VENCP1
+			&clkc CLKID_VCLK2_ENCI
+			&clkc CLKID_VCLK2_VENCI0
+			&clkc CLKID_VCLK2_VENCI1
+			&clkc CLKID_VCLK2_ENCL
+			&clkc CLKID_VCLK2_VENCL>;
+		clock-names = "encp_top_gate",
+			"encp_int_gate0",
+			"encp_int_gate1",
+			"venci_top_gate",
+			"enci_int_gate0",
+			"enci_int_gate1",
+			"encl_top_gate",
+			"encl_int_gate";
 	};
 
 	canvas: canvas{

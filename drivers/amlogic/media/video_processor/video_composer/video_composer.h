@@ -94,7 +94,8 @@ struct frame_info_t {
 	u32 zorder;
 	u32 transform;
 	u32 type;
-	u32 reserved[4];
+	u32 sideband_type;
+	u32 reserved[3];
 };
 
 struct frames_info_t {
@@ -116,6 +117,7 @@ struct video_composer_port_s {
 	u32 index;
 	u32 open_count;
 	struct device *class_dev;
+	struct device *pdev;
 };
 
 struct videocom_frame_s {
@@ -131,6 +133,7 @@ struct vidc_buf_status {
 struct dst_buf_t {
 	int index;
 	struct vframe_s frame;
+	struct componser_info_t componser_info;
 	bool dirty;
 	u32 phy_addr;
 	u32 buf_w;
@@ -200,6 +203,10 @@ struct composer_dev {
 	bool is_sideband;
 	bool need_empty_ready;
 	struct vframe_s fake_vf;
+	struct vframe_s fake_back_vf;
+	bool select_path_done;
+	bool composer_enabled;
+	bool thread_need_stop;
 };
 
 #define VIDEO_COMPOSER_IOC_MAGIC  'V'
@@ -209,5 +216,7 @@ struct composer_dev {
 	_IOW(VIDEO_COMPOSER_IOC_MAGIC, 0x01, int)
 #define VIDEO_COMPOSER_IOCTL_SET_DISABLE	\
 	_IOW(VIDEO_COMPOSER_IOC_MAGIC, 0x02, int)
+
+int video_composer_set_enable(struct composer_dev *dev, u32 val);
 
 #endif /* VIDEO_COMPOSER_H */

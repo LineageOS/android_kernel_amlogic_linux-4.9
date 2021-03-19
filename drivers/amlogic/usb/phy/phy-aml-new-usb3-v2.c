@@ -41,6 +41,8 @@
 struct usb_aml_regs_v2 usb_new_aml_regs_v2;
 struct amlogic_usb_v2	*g_phy_v2;
 
+static void power_switch_to_pcie(struct amlogic_usb_v2 *phy);
+
 static void set_mode(unsigned long reg_addr, int mode);
 BLOCKING_NOTIFIER_HEAD(aml_new_usb_v2_notifier_list);
 
@@ -100,8 +102,10 @@ static void amlogic_new_usb3phy_shutdown(struct usb_phy *x)
 {
 	struct amlogic_usb_v2 *phy = phy_to_amlusb(x);
 
-	if (phy->phy.flags == AML_USB3_PHY_ENABLE)
+	if (phy->phy.flags == AML_USB3_PHY_ENABLE) {
 		clk_disable_unprepare(phy->clk);
+		writel(0x1d, phy->phy3_cfg);
+	}
 
 	phy->suspend_flag = 1;
 }
@@ -269,10 +273,13 @@ static int amlogic_new_usb3_init(struct usb_phy *x)
 	u32 data = 0;
 
 	if (phy->suspend_flag) {
-		if (phy->phy.flags == AML_USB3_PHY_ENABLE)
+		if (phy->phy.flags == AML_USB3_PHY_ENABLE) {
+			if (phy->pwr_ctl)
+				power_switch_to_pcie(phy);
+			writel(0x7c, phy->phy3_cfg);
 			clk_prepare_enable(phy->clk);
+		}
 		phy->suspend_flag = 0;
-		return 0;
 	}
 
 	for (i = 0; i < 6; i++) {
@@ -728,8 +735,6 @@ static int amlogic_new_usb3_v2_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, phy);
 
-	pm_runtime_enable(phy->dev);
-
 	g_phy_v2 = phy;
 
 	return 0;
@@ -739,31 +744,6 @@ static int amlogic_new_usb3_remove(struct platform_device *pdev)
 {
 	return 0;
 }
-
-#ifdef CONFIG_PM_RUNTIME
-
-static int amlogic_new_usb3_runtime_suspend(struct device *dev)
-{
-	return 0;
-}
-
-static int amlogic_new_usb3_runtime_resume(struct device *dev)
-{
-	u32 ret = 0;
-
-	return ret;
-}
-
-static const struct dev_pm_ops amlogic_new_usb3_pm_ops = {
-	SET_RUNTIME_PM_OPS(amlogic_new_usb3_runtime_suspend,
-		amlogic_new_usb3_runtime_resume,
-		NULL)
-};
-
-#define DEV_PM_OPS     (&amlogic_new_usb3_pm_ops)
-#else
-#define DEV_PM_OPS     NULL
-#endif
 
 #ifdef CONFIG_OF
 static const struct of_device_id amlogic_new_usb3_v2_id_table[] = {
@@ -779,7 +759,6 @@ static struct platform_driver amlogic_new_usb3_v2_driver = {
 	.driver		= {
 		.name	= "amlogic-new-usb3-v2",
 		.owner	= THIS_MODULE,
-		.pm	= DEV_PM_OPS,
 		.of_match_table = of_match_ptr(amlogic_new_usb3_v2_id_table),
 	},
 };

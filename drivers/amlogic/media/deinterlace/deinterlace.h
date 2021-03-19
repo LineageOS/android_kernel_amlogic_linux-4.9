@@ -27,6 +27,11 @@
 #include "deinterlace_hw.h"
 #include "nr_drv.h"
 #include "../di_local/di_local.h"
+
+#define DI_KEEP_DEC_VF		(1)
+/* for android q s805 */
+#define DI_UNREG_RELEAS_ALL_BUF		(1)
+
 /*trigger_pre_di_process param*/
 #define TRIGGER_PRE_BY_PUT			'p'
 #define TRIGGER_PRE_BY_DE_IRQ		'i'
@@ -44,12 +49,16 @@
 #define DI_RUN_FLAG_STEP		2
 #define DI_RUN_FLAG_STEP_DONE	3
 
+#define DI_RUN_MIRROR_DIS	0
+#define DI_RUN_MIRROR_H		1
+#define DI_RUN_MIRROR_V		2
+
 #define USED_LOCAL_BUF_MAX		3
 #define BYPASS_GET_MAX_BUF_NUM	4
 
 /* buffer management related */
 #define MAX_IN_BUF_NUM				20
-#define MAX_LOCAL_BUF_NUM			10
+#define MAX_LOCAL_BUF_NUM			16 //10
 #define MAX_POST_BUF_NUM			16
 
 #define VFRAME_TYPE_IN				1
@@ -158,6 +167,10 @@ struct di_buf_s {
 	 * 1: after get
 	 * 0: after put
 	 */
+#ifdef DI_KEEP_DEC_VF
+	struct di_buf_s *in_buf; /*keep dec vf: link in buf*/
+	unsigned int dec_vf_state;	/*keep dec vf:*/
+#endif
 	atomic_t di_cnt;
 	struct page	*pages;
 	u32 width_bk;
@@ -196,11 +209,11 @@ struct di_buf_s {
 #define VFM_NAME		"deinterlace"
 
 #ifdef CONFIG_AMLOGIC_MEDIA_VSYNC_RDMA
-extern void enable_rdma(int enable_flag);
-extern int VSYNC_WR_MPEG_REG(u32 adr, u32 val);
-extern int VSYNC_WR_MPEG_REG_BITS(u32 adr, u32 val, u32 start, u32 len);
-extern u32 VSYNC_RD_MPEG_REG(u32 adr);
-extern bool is_vsync_rdma_enable(void);
+void enable_rdma(int enable_flag);
+int VSYNC_WR_MPEG_REG(u32 adr, u32 val);
+int VSYNC_WR_MPEG_REG_BITS(u32 adr, u32 val, u32 start, u32 len);
+u32 VSYNC_RD_MPEG_REG(u32 adr);
+bool is_vsync_rdma_enable(void);
 #else
 #ifndef VSYNC_WR_MPEG_REG
 #define VSYNC_WR_MPEG_REG(adr, val) aml_write_vcbus(adr, val)
@@ -277,7 +290,10 @@ struct di_dev_s {
 	struct page			*total_pages;
 	atomic_t			mem_flag;
 	struct dentry *dbg_root;	/*dbg_fs*/
+	struct vframe_s vfm_in_dup[MAX_IN_BUF_NUM];
+	struct vframe_s vfm_local[MAX_LOCAL_BUF_NUM * 2];
 	struct di_patch_mov_s mov;
+	u32 instance_id; /* di_instance_id; */
 };
 
 struct di_pre_stru_s {
@@ -423,6 +439,7 @@ struct di_post_stru_s {
 	bool		toggle_flag;
 	bool		vscale_skip_flag;
 	uint		start_pts;
+	u64		start_pts64;
 	int		buf_type;
 	int de_post_process_done;
 	int post_de_busy;
@@ -454,8 +471,9 @@ struct di_mm_s {
 	struct page	*ppage;
 	unsigned long	addr;
 };
-extern bool di_mm_alloc(int cma_mode, size_t count, struct di_mm_s *o);
-extern bool di_mm_release(int cma_mode,
+
+bool di_mm_alloc(int cma_mode, size_t count, struct di_mm_s *o);
+bool di_mm_release(int cma_mode,
 			struct page *pages,
 			int count,
 			unsigned long addr);
@@ -478,12 +496,14 @@ struct di_buf_s *get_di_recovery_log_di_buf(void);
 int get_di_video_peek_cnt(void);
 unsigned long get_di_reg_unreg_timeout_cnt(void);
 struct vframe_s **get_di_vframe_in(void);
+void di_unreg_notify(void); //from video.c
 
-extern s32 di_request_afbc_hw(u8 id, bool on);
+s32 di_request_afbc_hw(u8 id, bool on);
 u32 di_requeset_afbc(u32 onoff);
 /***********************/
-extern bool di_wr_cue_int(void);
-extern int reg_cue_int_show(struct seq_file *seq, void *v);
+bool di_wr_cue_int(void);
+int get_mirror_status(void);
+int reg_cue_int_show(struct seq_file *seq, void *v);
 
 bool dil_attach_ext_api(const struct di_ext_ops *di_api);
 /*--Different DI versions flag---*/
@@ -506,4 +526,5 @@ struct di_buf_s *get_di_buf(int queue_idx, int *start_pos);
 
 /******************************************/
 /*#define DI_KEEP_HIS	0*/
+
 #endif

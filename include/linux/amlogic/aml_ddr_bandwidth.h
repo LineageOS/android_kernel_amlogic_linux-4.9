@@ -141,6 +141,7 @@ struct ddr_avg_bandwidth {
 	unsigned long long avg_bandwidth;
 	unsigned long long avg_usage;
 	unsigned long long avg_port[MAX_CHANNEL];
+	unsigned long max_bandwidth[MAX_CHANNEL];
 	unsigned int sample_count;
 };
 
@@ -160,7 +161,6 @@ struct ddr_bandwidth {
 	spinlock_t lock;
 	struct ddr_bandwidth_sample cur_sample;
 	struct ddr_bandwidth_sample max_sample;
-	struct ddr_bandwidth_sample min_sample;
 	struct ddr_avg_bandwidth    avg;
 	u64	     port[MAX_CHANNEL];
 	void __iomem *ddr_reg;
@@ -174,7 +174,9 @@ struct ddr_bandwidth {
 #ifdef CONFIG_AMLOGIC_DDR_BANDWIDTH
 extern unsigned int aml_get_ddr_usage(void);
 extern struct ddr_bandwidth_ops g12_ddr_bw_ops;
+#ifdef CONFIG_AMLOGIC_DDR_BANDWIDTH_GX
 extern struct ddr_bandwidth_ops gx_ddr_bw_ops;
+#endif
 extern struct ddr_bandwidth_ops gxl_ddr_bw_ops;
 #else
 static inline unsigned int aml_get_ddr_usage(void)

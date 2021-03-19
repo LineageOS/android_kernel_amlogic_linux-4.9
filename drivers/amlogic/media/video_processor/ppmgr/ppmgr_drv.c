@@ -514,6 +514,155 @@ static ssize_t debug_10bit_frame_write(struct class *cla,
 	return count;
 }
 
+static ssize_t debug_ppmgr_flag_read(struct class *cla,
+				     struct class_attribute *attr, char *buf)
+{
+	return snprintf(buf,
+		80,
+		"debug_ppmgr_flag %d\n",
+		ppmgr_device.debug_ppmgr_flag);
+}
+
+static ssize_t debug_ppmgr_flag_write(struct class *cla,
+				      struct class_attribute *attr,
+				      const char *buf, size_t count)
+{
+	long tmp;
+
+	int ret = kstrtol(buf, 0, &tmp);
+
+	if (ret != 0) {
+		PPMGRDRV_ERR("ERROR %s debug_ppmgr_flag\n", buf);
+		return ret;
+	}
+	ppmgr_device.debug_ppmgr_flag = tmp;
+	return count;
+}
+
+static ssize_t get_count_read(struct class *cla,
+			      struct class_attribute *attr, char *buf)
+{
+	return snprintf(buf,
+		80,
+		"get_count %d\n",
+		ppmgr_device.get_count);
+}
+
+static ssize_t get_count_write(struct class *cla,
+			       struct class_attribute *attr,
+			       const char *buf, size_t count)
+{
+	long tmp;
+
+	int ret = kstrtol(buf, 0, &tmp);
+
+	if (ret != 0) {
+		PPMGRDRV_ERR("ERROR %s  get_count\n", buf);
+		return ret;
+	}
+	ppmgr_device.get_count = tmp;
+	return count;
+}
+
+static ssize_t put_count_read(struct class *cla,
+			      struct class_attribute *attr, char *buf)
+{
+	return snprintf(buf,
+		80,
+		"get_count %d\n",
+		ppmgr_device.put_count);
+}
+
+static ssize_t put_count_write(struct class *cla,
+			       struct class_attribute *attr,
+			       const char *buf, size_t count)
+{
+	long tmp;
+
+	int ret = kstrtol(buf, 0, &tmp);
+
+	if (ret != 0) {
+		PPMGRDRV_ERR("ERROR %s put_count\n", buf);
+		return ret;
+	}
+	ppmgr_device.put_count = tmp;
+	return count;
+}
+
+static ssize_t get_dec_count_read(struct class *cla,
+				  struct class_attribute *attr, char *buf)
+{
+	return snprintf(buf,
+		80,
+		"get_dec_count %d\n",
+		ppmgr_device.get_dec_count);
+}
+
+static ssize_t get_dec_count_write(struct class *cla,
+				   struct class_attribute *attr,
+				   const char *buf, size_t count)
+{
+	long tmp;
+
+	int ret = kstrtol(buf, 0, &tmp);
+
+	if (ret != 0) {
+		PPMGRDRV_ERR("ERROR %s get_dec_count\n", buf);
+		return ret;
+	}
+	return count;
+}
+
+static ssize_t put_dec_count_read(struct class *cla,
+				  struct class_attribute *attr, char *buf)
+{
+	return snprintf(buf,
+		80,
+		"put_dec_count %d\n",
+		ppmgr_device.put_dec_count);
+}
+
+static ssize_t put_dec_count_write(struct class *cla,
+				   struct class_attribute *attr,
+				   const char *buf, size_t count)
+{
+	long tmp;
+
+	int ret = kstrtol(buf, 0, &tmp);
+
+	if (ret != 0) {
+		PPMGRDRV_ERR("ERROR converting %s put_dec_count\n", buf);
+		return ret;
+	}
+	ppmgr_device.put_dec_count = tmp;
+	return count;
+}
+
+static ssize_t peek_dec_read(struct class *cla,
+			     struct class_attribute *attr, char *buf)
+{
+	return snprintf(buf,
+		80,
+		"peek_dec %d\n",
+		ppmgr_device.peek_dec);
+}
+
+static ssize_t peek_dec_write(struct class *cla,
+			      struct class_attribute *attr,
+			      const char *buf, size_t count)
+{
+	long tmp;
+
+	int ret = kstrtol(buf, 0, &tmp);
+
+	if (ret != 0) {
+		PPMGRDRV_ERR("ERROR %s peek_dec\n", buf);
+		return ret;
+	}
+	ppmgr_vf_peek_dec_debug();
+	return count;
+}
+
 static ssize_t rect_read(struct class *cla, struct class_attribute *attr,
 				char *buf)
 {
@@ -588,13 +737,17 @@ static ssize_t dump_path_write(struct class *cla, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
 	char *tmp;
+	int length = sizeof(ppmgr_device.dump_path);
 
 	tmp = kstrdup(buf, GFP_KERNEL);
 	if (!tmp) {
 		PPMGRDRV_INFO("buf kstrdup failed\n");
 		return 0;
 	}
-	strcpy(ppmgr_device.dump_path, tmp);
+	strncpy(ppmgr_device.dump_path, tmp,
+		length - 1);
+	ppmgr_device.dump_path[length - 1] = '\0';
+
 
 	return count;
 
@@ -1401,12 +1554,39 @@ __ATTR(debug_first_frame,
 	0644,
 	debug_first_frame_read,
 	debug_first_frame_write),
-
 __ATTR(debug_10bit_frame,
 	0644,
 	debug_10bit_frame_read,
 	debug_10bit_frame_write),
+__ATTR(debug_ppmgr_flag,
+	0644,
+	debug_ppmgr_flag_read,
+	debug_ppmgr_flag_write),
 
+__ATTR(get_count,
+	0644,
+	get_count_read,
+	get_count_write),
+
+__ATTR(put_count,
+	0644,
+	put_count_read,
+	put_count_write),
+
+__ATTR(get_dec_count,
+	0644,
+	get_dec_count_read,
+	get_dec_count_write),
+
+__ATTR(put_dec_count,
+	0644,
+	put_dec_count_read,
+	put_dec_count_write),
+
+__ATTR(peek_dec,
+	0644,
+	peek_dec_read,
+	peek_dec_write),
 __ATTR(dump_path,
 	0644,
 	dump_path_read,
@@ -1744,6 +1924,14 @@ int init_ppmgr_device(void)
 	ppmgr_device.ppmgr_debug = 0;
 	ppmgr_device.debug_first_frame = 0;
 	ppmgr_device.debug_10bit_frame = 0;
+	ppmgr_device.debug_ppmgr_flag = 0;
+	ppmgr_device.get_count = 0;
+	ppmgr_device.put_count = 0;
+	ppmgr_device.get_dec_count = 0;
+	ppmgr_device.put_dec_count = 0;
+	sema_init(&ppmgr_device.ppmgr_sem, 1);
+	sema_init(&ppmgr_device.tb_sem, 1);
+
 	PPMGRDRV_INFO("ppmgr_dev major:%d\n", ret);
 
 	ppmgr_device.cla = init_ppmgr_cls();
@@ -1808,7 +1996,6 @@ static int ppmgr_driver_probe(struct platform_device *pdev)
 {
 	s32 r;
 
-	PPMGRDRV_INFO("ppmgr_driver_probe called\n");
 	r = of_reserved_mem_device_init(&pdev->dev);
 	ppmgr_device.pdev = pdev;
 	init_ppmgr_device();
@@ -1891,7 +2078,6 @@ ppmgr_init_module(void)
 {
 	int err;
 
-	PPMGRDRV_WARN("ppmgr module init func called\n");
 	amlog_level(LOG_LEVEL_HIGH, "ppmgr_init\n");
 	err = platform_driver_register(&ppmgr_drv);
 	if (err)

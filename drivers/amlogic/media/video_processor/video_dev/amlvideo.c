@@ -275,7 +275,8 @@ static int video_receiver_event_fun(int type, void *data, void *private_data)
 		if (vf_get_receiver(dev->vf_provider_name)) {
 			struct vframe_receiver_s *aaa = vf_get_receiver(
 				dev->vf_provider_name);
-			AMLVIDEO_DBG("aaa->name=%s", aaa->name);
+			if (aaa)
+				AMLVIDEO_DBG("aaa->name=%s", aaa->name);
 			if (dev->inst == 0)
 				omx_secret_mode = true;
 			vfq_init(&dev->q_ready, AMLVIDEO_POOL_SIZE + 1,
@@ -569,11 +570,29 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 		mutex_unlock(&dev->vf_mutex);
 		return -EAGAIN;
 	}
-
 	dev->vf->omx_index = dev->frame_num;
+	if (dev->vf->type & VIDTYPE_V4L_EOS) {
+		ret = -EAGAIN;
+		goto dqbuf_done;
+	}
 	dev->am_parm.signal_type = dev->vf->signal_type;
 	dev->am_parm.master_display_colour
 		= dev->vf->prop.master_display_colour;
+	if (dev->vf->hdr10p_data_size > 0 && dev->vf->hdr10p_data_buf) {
+		if (dev->vf->hdr10p_data_size <= 128) {
+			dev->am_parm.hdr10p_data_size =
+					dev->vf->hdr10p_data_size;
+			memcpy(dev->am_parm.hdr10p_data_buf,
+					dev->vf->hdr10p_data_buf,
+					dev->vf->hdr10p_data_size);
+		} else {
+			pr_info("amlvideo: hdr10+ data size is %d, skip it!\n",
+					dev->vf->hdr10p_data_size);
+			dev->am_parm.hdr10p_data_size = 0;
+		}
+	} else {
+		dev->am_parm.hdr10p_data_size = 0;
+	}
 
 	if (dev->vf->pts_us64) {
 		dev->first_frame = 1;
@@ -597,10 +616,6 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	if (dev->vf->next_vf_pts_valid)
 		dev->vf->next_vf_pts = next_vf->pts;
 
-	vfq_push(&dev->q_ready, dev->vf);
-	ATRACE_COUNTER(dev->v4l2_dev.name, vfq_level(&dev->q_ready));
-	p->index = 0;
-
 	p->timestamp.tv_sec = pts_us64 >> 32;
 	p->timestamp.tv_usec = pts_us64 & 0xFFFFFFFF;
 	dev->last_pts_us64 = pts_us64;
@@ -612,13 +627,16 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 		p->timecode.type = dev->vf->width;
 		p->timecode.flags = dev->vf->height;
 	}
+dqbuf_done:
+	vfq_push(&dev->q_ready, dev->vf);
+	ATRACE_COUNTER(dev->v4l2_dev.name, vfq_level(&dev->q_ready));
+	p->index = 0;
 	p->sequence = dev->frame_num++;
 	mutex_unlock(&dev->vf_mutex);
 
-	vf_notify_receiver(
-			dev->vf_provider_name,
-			VFRAME_EVENT_PROVIDER_VFRAME_READY,
-			NULL);
+	vf_notify_receiver(dev->vf_provider_name,
+			   VFRAME_EVENT_PROVIDER_VFRAME_READY,
+			   NULL);
 
 	return ret;
 }
@@ -876,7 +894,6 @@ static int __init amlvideo_create_instance(int inst)
 	struct video_device *vfd;
 	int ret;
 
-	AMLVIDEO_INFO("amlvideo_create_instance called\n");
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
@@ -884,8 +901,8 @@ static int __init amlvideo_create_instance(int inst)
 	snprintf(dev->v4l2_dev.name,
 		sizeof(dev->v4l2_dev.name),
 		"%s-%03d", AVMLVIDEO_MODULE_NAME, inst);
-
-	AMLVIDEO_INFO("v4l2_dev.name=:%s\n", dev->v4l2_dev.name);
+	if (inst == n_devs - 1)
+		AMLVIDEO_INFO("v4l2_dev.name=:%s\n", dev->v4l2_dev.name);
 	ret = v4l2_device_register(NULL, &dev->v4l2_dev);
 
 	if (ret)
@@ -951,10 +968,10 @@ static int __init amlvideo_create_instance(int inst)
 	list_add_tail(&dev->vivi_devlist, &vivi_devlist);
 
 	dev->vfd = vfd;
-
-	v4l2_info(&dev->v4l2_dev,
-		"V4L2 device registered as %s\n",
-		video_device_node_name(vfd));
+	if (inst == n_devs - 1 || inst == 0)
+		v4l2_info(&dev->v4l2_dev,
+			  "V4L2 device registered as %s\n",
+			  video_device_node_name(vfd));
 	return 0;
 
 rel_vdev: video_device_release(vfd);
@@ -978,7 +995,6 @@ static int __init amlvideo_init(void)
 {
 	int ret = 0, i;
 
-	AMLVIDEO_INFO("amlvideo_init called");
 	if (n_devs <= 0)
 		n_devs = 1;
 

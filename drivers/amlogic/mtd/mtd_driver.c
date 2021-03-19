@@ -125,7 +125,6 @@ static int prase_get_dtb_nand_parameter(struct aml_nand_device *aml_nand_dev,
 	struct aml_nand_platform *plat_array = NULL;
 	int val = 0, ret;
 
-	pr_info("%s:%d,parse dts start\n", __func__, __LINE__);
 	if (pdev->dev.of_node) {
 		of_node_get(np);
 		ret = of_property_read_u32(np,
@@ -231,7 +230,6 @@ static int prase_get_dtb_nand_parameter(struct aml_nand_device *aml_nand_dev,
 				__func__, __LINE__, NAND_CLK_CNTL);
 		}
 	};
-	pr_info("%s:%d,parse dts end\n", __func__, __LINE__);
 	return 0;
 err:
 	return -1;
@@ -258,13 +256,10 @@ static int mtd_nand_probe(struct platform_device *pdev)
 
 	aml_nand_dev->nb.notifier_call = mtd_nand_reboot_notifier;
 	register_reboot_notifier(&aml_nand_dev->nb);
-	atomic_notifier_chain_register(&panic_notifier_list, &aml_nand_dev->nb);
 
-	/*prase dtb and get device(part) information*/
 	prase_get_dtb_nand_parameter(aml_nand_dev, pdev);
 
 	err = nand_init(pdev);
-	pr_info("%s %d , err = %d\n", __func__, __LINE__, err);
 
 exit_error:
 	return err;
@@ -307,7 +302,6 @@ static void mtd_nand_shutdown(struct platform_device *pdev)
 	/*NULL*/
 }
 
-/* driver device registration */
 static struct platform_driver mtd_nand_driver = {
 	.probe		= mtd_nand_probe,
 	.remove		= mtd_nand_remove,
@@ -321,17 +315,15 @@ static struct platform_driver mtd_nand_driver = {
 
 static int __init mtd_nand_init(void)
 {
-	pr_info("amlogic mtd driver init\n");
 	return platform_driver_register(&mtd_nand_driver);
 }
 
 static void __exit mtd_nand_exit(void)
 {
-	pr_info("amlogic mtd driver exit\n");
 	platform_driver_unregister(&mtd_nand_driver);
 }
 
-module_init(mtd_nand_init);
+rootfs_initcall(mtd_nand_init);
 module_exit(mtd_nand_exit);
 
 MODULE_LICENSE("GPL");

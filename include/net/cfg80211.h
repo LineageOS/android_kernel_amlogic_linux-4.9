@@ -24,6 +24,17 @@
 #include <linux/net.h>
 #include <net/regulatory.h>
 
+#ifdef CONFIG_AMLOGIC_MODIFY
+/* Indicate backport support for external authentication in AP mode */
+#define CFG80211_EXTERNAL_AUTH_AP_SUPPORT 1
+
+/* Indicate backport support for DH IE creation/update*/
+#define CFG80211_EXTERNAL_DH_UPDATE_SUPPORT 1
+#endif
+
+/* Indicate backport support for 6GHz band */
+#define CFG80211_6GHZ_BAND_SUPPORTED 1
+
 /**
  * DOC: Introduction
  *
@@ -61,11 +72,27 @@
  * structures here describe these capabilities in detail.
  */
 
+#ifdef CONFIG_AMLOGIC_MODIFY
+/* Indicate backport support for the new connect done api */
+#define CFG80211_CONNECT_DONE 1
+/* Indicate backport support for FILS SK offload in cfg80211 */
+#define CFG80211_FILS_SK_OFFLOAD_SUPPORT 1
+#define CFG80211_CONNECT_BSS 1
+#endif
+
 struct wiphy;
 
 /*
  * wireless hardware capability structures
  */
+
+#ifdef CONFIG_AMLOGIC_MODIFY
+/* Indicate backport support for external authentication*/
+#define CFG80211_EXTERNAL_AUTH_SUPPORT 1
+#endif
+
+/* Indicate backport support for HE */
+#define CFG80211_HE_SUPPORT_BACKPORT 1
 
 /**
  * enum ieee80211_channel_flags - channel flags
@@ -284,6 +311,41 @@ struct ieee80211_sta_vht_cap {
 	struct ieee80211_vht_mcs_info vht_mcs;
 };
 
+#define IEEE80211_HE_PPE_THRES_MAX_LEN		25
+
+/**
+ * struct ieee80211_sta_he_cap - STA's HE capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11ax HE capabilities for a STA.
+ *
+ * @has_he: true iff HE data is valid.
+ * @he_cap_elem: Fixed portion of the HE capabilities element.
+ * @he_mcs_nss_supp: The supported NSS/MCS combinations.
+ * @ppe_thres: Holds the PPE Thresholds data.
+ */
+struct ieee80211_sta_he_cap {
+	bool has_he;
+	struct ieee80211_he_cap_elem he_cap_elem;
+	struct ieee80211_he_mcs_nss_supp he_mcs_nss_supp;
+	u8 ppe_thres[IEEE80211_HE_PPE_THRES_MAX_LEN];
+};
+
+/**
+ * struct ieee80211_sband_iftype_data
+ *
+ * This structure encapsulates sband data that is relevant for the
+ * interface types defined in @types_mask.  Each type in the
+ * @types_mask must be unique across all instances of iftype_data.
+ *
+ * @types_mask: interface types mask
+ * @he_cap: holds the HE capabilities
+ */
+struct ieee80211_sband_iftype_data {
+	u16 types_mask;
+	struct ieee80211_sta_he_cap he_cap;
+};
+
 /**
  * struct ieee80211_supported_band - frequency band definition
  *
@@ -300,7 +362,12 @@ struct ieee80211_sta_vht_cap {
  * @n_bitrates: Number of bitrates in @bitrates
  * @ht_cap: HT capabilities in this band
  * @vht_cap: VHT capabilities in this band
- */
+ * @n_iftype_data: number of iftype data entries
+ * @iftype_data: interface type data entries.  Note that the bits in
+ *	@types_mask inside this structure cannot overlap (i.e. only
+ *	one occurrence of each type is allowed across all instances of
+ *	iftype_data).
+*/
 struct ieee80211_supported_band {
 	struct ieee80211_channel *channels;
 	struct ieee80211_rate *bitrates;
@@ -309,7 +376,68 @@ struct ieee80211_supported_band {
 	int n_bitrates;
 	struct ieee80211_sta_ht_cap ht_cap;
 	struct ieee80211_sta_vht_cap vht_cap;
+	u16 n_iftype_data;
+	const struct ieee80211_sband_iftype_data *iftype_data;
 };
+
+/**
+ * ieee80211_get_sband_iftype_data - return sband data for a given iftype
+ * @sband: the sband to search for the STA on
+ * @iftype: enum nl80211_iftype
+ *
+ * Return: pointer to struct ieee80211_sband_iftype_data, or NULL is none found
+ */
+static inline const struct ieee80211_sband_iftype_data *
+ieee80211_get_sband_iftype_data(const struct ieee80211_supported_band *sband,
+				u8 iftype)
+{
+	int i;
+
+	if (WARN_ON(iftype >= NL80211_IFTYPE_MAX))
+		return NULL;
+
+	for (i = 0; i < sband->n_iftype_data; i++)  {
+		const struct ieee80211_sband_iftype_data *data =
+			&sband->iftype_data[i];
+
+		if (data->types_mask & BIT(iftype))
+			return data;
+	}
+
+	return NULL;
+}
+
+/**
+ * ieee80211_get_he_iftype_cap - return HE capabilities for an sband's iftype
+ * @sband: the sband to search for the iftype on
+ * @iftype: enum nl80211_iftype
+ *
+ * Return: pointer to the struct ieee80211_sta_he_cap, or NULL is none found
+ */
+static inline const struct ieee80211_sta_he_cap *
+ieee80211_get_he_iftype_cap(const struct ieee80211_supported_band *sband,
+			    u8 iftype)
+{
+	const struct ieee80211_sband_iftype_data *data =
+		ieee80211_get_sband_iftype_data(sband, iftype);
+
+	if (data && data->he_cap.has_he)
+		return &data->he_cap;
+
+	return NULL;
+}
+
+/**
+ * ieee80211_get_he_sta_cap - return HE capabilities for an sband's STA
+ * @sband: the sband to search for the STA on
+ *
+ * Return: pointer to the struct ieee80211_sta_he_cap, or NULL is none found
+ */
+static inline const struct ieee80211_sta_he_cap *
+ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
+{
+	return ieee80211_get_he_iftype_cap(sband, NL80211_IFTYPE_STATION);
+}
 
 /*
  * Wireless hardware/device configuration structures and methods
@@ -695,6 +823,19 @@ struct cfg80211_bitrate_mask {
 	} control[NUM_NL80211_BANDS];
 };
 
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * enum cfg80211_ap_settings_flags - AP settings flags
+ *
+ * Used by cfg80211_ap_settings
+ *
+ * @AP_SETTINGS_EXTERNAL_AUTH_SUPPORT: AP supports external authentication
+ */
+enum cfg80211_ap_settings_flags {
+	AP_SETTINGS_EXTERNAL_AUTH_SUPPORT = BIT(0),
+};
+#endif
+
 /**
  * struct cfg80211_ap_settings - AP configuration
  *
@@ -721,6 +862,11 @@ struct cfg80211_bitrate_mask {
  *	networks.
  * @beacon_rate: bitrate to be used for beacons
  */
+ #ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * @flags: flags, as defined in enum cfg80211_ap_settings_flags
+ */
+ #endif
 struct cfg80211_ap_settings {
 	struct cfg80211_chan_def chandef;
 
@@ -740,6 +886,9 @@ struct cfg80211_ap_settings {
 	const struct cfg80211_acl_data *acl;
 	bool pbss;
 	struct cfg80211_bitrate_mask beacon_rate;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	u32 flags;
+#endif
 };
 
 /**
@@ -825,6 +974,8 @@ enum station_parameters_apply_mask {
  * @opmode_notif: operating mode field from Operating Mode Notification
  * @opmode_notif_used: information if operating mode field is used
  * @support_p2p_ps: information if station supports P2P PS mechanism
+ * @he_capa: HE capabilities of station
+ * @he_capa_len: the length of the HE capabilities
  */
 struct station_parameters {
 	const u8 *supported_rates;
@@ -852,6 +1003,8 @@ struct station_parameters {
 	u8 opmode_notif;
 	bool opmode_notif_used;
 	int support_p2p_ps;
+	const struct ieee80211_he_cap_elem *he_capa;
+	u8 he_capa_len;
 };
 
 /**
@@ -926,12 +1079,16 @@ int cfg80211_check_station_change(struct wiphy *wiphy,
  * @RATE_INFO_FLAGS_VHT_MCS: mcs field filled with VHT MCS
  * @RATE_INFO_FLAGS_SHORT_GI: 400ns guard interval
  * @RATE_INFO_FLAGS_60G: 60GHz MCS
+ * @RATE_INFO_FLAGS_HE_MCS: HE MCS information
+ * @RATE_INFO_FLAGS_EDMG: 60GHz MCS in EDMG mode
  */
 enum rate_info_flags {
 	RATE_INFO_FLAGS_MCS			= BIT(0),
 	RATE_INFO_FLAGS_VHT_MCS			= BIT(1),
 	RATE_INFO_FLAGS_SHORT_GI		= BIT(2),
 	RATE_INFO_FLAGS_60G			= BIT(3),
+	RATE_INFO_FLAGS_HE_MCS			= BIT(4),
+	RATE_INFO_FLAGS_EDMG			= BIT(5),
 };
 
 /**
@@ -945,6 +1102,7 @@ enum rate_info_flags {
  * @RATE_INFO_BW_40: 40 MHz bandwidth
  * @RATE_INFO_BW_80: 80 MHz bandwidth
  * @RATE_INFO_BW_160: 160 MHz bandwidth
+ * @RATE_INFO_BW_HE_RU: bandwidth determined by HE RU allocation
  */
 enum rate_info_bw {
 	RATE_INFO_BW_20 = 0,
@@ -953,6 +1111,7 @@ enum rate_info_bw {
 	RATE_INFO_BW_40,
 	RATE_INFO_BW_80,
 	RATE_INFO_BW_160,
+	RATE_INFO_BW_HE_RU,
 };
 
 /**
@@ -961,10 +1120,15 @@ enum rate_info_bw {
  * Information about a receiving or transmitting bitrate
  *
  * @flags: bitflag of flags from &enum rate_info_flags
- * @mcs: mcs index if struct describes a 802.11n bitrate
+ * @mcs: mcs index if struct describes an HT/VHT/HE rate
  * @legacy: bitrate in 100kbit/s for 802.11abg
- * @nss: number of streams (VHT only)
+ * @nss: number of streams (VHT & HE only)
  * @bw: bandwidth (from &enum rate_info_bw)
+ * @he_gi: HE guard interval (from &enum nl80211_he_gi)
+ * @he_dcm: HE DCM value
+ * @he_ru_alloc: HE RU allocation (from &enum nl80211_he_ru_alloc,
+ *	only valid if bw is %RATE_INFO_BW_HE_RU)
+ * @n_bonded_ch: In case of EDMG the number of bonded channels (1-4)
  */
 struct rate_info {
 	u8 flags;
@@ -972,6 +1136,10 @@ struct rate_info {
 	u16 legacy;
 	u8 nss;
 	u8 bw;
+	u8 he_gi;
+	u8 he_dcm;
+	u8 he_ru_alloc;
+	u8 n_bonded_ch;
 };
 
 /**
@@ -1772,8 +1940,13 @@ struct cfg80211_auth_request {
 	enum nl80211_auth_type auth_type;
 	const u8 *key;
 	u8 key_len, key_idx;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	const u8 *auth_data;
+	size_t auth_data_len;
+#else
 	const u8 *sae_data;
 	size_t sae_data_len;
+#endif
 };
 
 /**
@@ -1782,11 +1955,16 @@ struct cfg80211_auth_request {
  * @ASSOC_REQ_DISABLE_HT:  Disable HT (802.11n)
  * @ASSOC_REQ_DISABLE_VHT:  Disable VHT
  * @ASSOC_REQ_USE_RRM: Declare RRM capability in this association
+ * @CONNECT_REQ_EXTERNAL_AUTH_SUPPORT: User space indicates external
+ *	authentication capability. Drivers can offload authentication to
+ *	userspace if this flag is set. Only applicable for cfg80211_connect()
+ *	request (connect callback).
  */
 enum cfg80211_assoc_req_flags {
 	ASSOC_REQ_DISABLE_HT		= BIT(0),
 	ASSOC_REQ_DISABLE_VHT		= BIT(1),
 	ASSOC_REQ_USE_RRM		= BIT(2),
+	CONNECT_REQ_EXTERNAL_AUTH_SUPPORT	= BIT(3),
 };
 
 /**
@@ -1825,6 +2003,11 @@ struct cfg80211_assoc_request {
 	struct ieee80211_ht_cap ht_capa;
 	struct ieee80211_ht_cap ht_capa_mask;
 	struct ieee80211_vht_cap vht_capa, vht_capa_mask;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	const u8 *fils_kek;
+	size_t fils_kek_len;
+	const u8 *fils_nonces;
+#endif
 };
 
 /**
@@ -2013,6 +2196,15 @@ struct cfg80211_connect_params {
 	bool pbss;
 	struct cfg80211_bss_selection bss_select;
 	const u8 *prev_bssid;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	const u8 *fils_erp_username;
+	size_t fils_erp_username_len;
+	const u8 *fils_erp_realm;
+	size_t fils_erp_realm_len;
+	u16 fils_erp_next_seq_num;
+	const u8 *fils_erp_rrk;
+	size_t fils_erp_rrk_len;
+#endif
 };
 
 /**
@@ -2045,6 +2237,13 @@ enum wiphy_params_flags {
 struct cfg80211_pmksa {
 	const u8 *bssid;
 	const u8 *pmkid;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	const u8 *pmk;
+	size_t pmk_len;
+	const u8 *ssid;
+	size_t ssid_len;
+	const u8 *cache_id;
+#endif
 };
 
 /**
@@ -2406,6 +2605,69 @@ struct cfg80211_nan_func {
 };
 
 /**
+ * struct cfg80211_external_auth_params - Trigger External authentication.
+ *
+ * Commonly used across the external auth request and event interfaces.
+ *
+ * @action: action type / trigger for external authentication. Only significant
+ *	for the authentication request event interface (driver to user space).
+ * @bssid: BSSID of the peer with which the authentication has
+ *	to happen. Used by both the authentication request event and
+ *	authentication response command interface.
+ * @ssid: SSID of the AP.  Used by both the authentication request event and
+ *	authentication response command interface.
+ * @key_mgmt_suite: AKM suite of the respective authentication. Used by the
+ *	authentication request event interface.
+ * @status: status code, %WLAN_STATUS_SUCCESS for successful authentication,
+ *	use %WLAN_STATUS_UNSPECIFIED_FAILURE if user space cannot give you
+ *	the real status code for failures. Used only for the authentication
+ *	response command interface (user space to driver).
+ */
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * @pmkid: The identifier to refer a PMKSA.
+ */
+#endif
+struct cfg80211_external_auth_params {
+	enum nl80211_external_auth_action action;
+	u8 bssid[ETH_ALEN] __aligned(2);
+	struct cfg80211_ssid ssid;
+	unsigned int key_mgmt_suite;
+	u16 status;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	const u8 *pmkid;
+#endif
+};
+
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * struct cfg80211_update_owe_info - OWE Information
+ *
+ * This structure provides information needed for the drivers to offload OWE
+ * (Opportunistic Wireless Encryption) processing to the user space.
+ *
+ * Commonly used across update_owe_info request and event interfaces.
+ *
+ * @peer: MAC address of the peer device for which the OWE processing
+ *	has to be done.
+ * @status: status code, %WLAN_STATUS_SUCCESS for successful OWE info
+ *	processing, use %WLAN_STATUS_UNSPECIFIED_FAILURE if user space
+ *	cannot give you the real status code for failures. Used only for
+ *	OWE update request command interface (user space to driver).
+ * @ie: IEs obtained from the peer or constructed by the user space. These are
+ *	the IEs of the remote peer in the event from the host driver and
+ *	the constructed IEs by the user space in the request interface.
+ * @ie_len: Length of IEs in octets.
+ */
+struct cfg80211_update_owe_info {
+	u8 peer[ETH_ALEN] __aligned(2);
+	u16 status;
+	const u8 *ie;
+	size_t ie_len;
+};
+#endif
+
+/**
  * struct cfg80211_ops - backend description for wireless configuration
  *
  * This struct is registered by fullmac card drivers and/or wireless stacks
@@ -2706,7 +2968,18 @@ struct cfg80211_nan_func {
  * @nan_change_conf: changes NAN configuration. The changed parameters must
  *	be specified in @changes (using &enum cfg80211_nan_conf_changes);
  *	All other parameters must be ignored.
+ *
+ * @external_auth: indicates result of offloaded authentication processing from
+ *     user space
+ *
  */
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * @update_owe_info: Provide updated OWE info to driver. Driver implementing SME
+ *	but offloading OWE processing to the user space will get the updated
+ *	DH IE through this interface.
+ */
+#endif
 struct cfg80211_ops {
 	int	(*suspend)(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
 	int	(*resume)(struct wiphy *wiphy);
@@ -2982,6 +3255,12 @@ struct cfg80211_ops {
 				   struct wireless_dev *wdev,
 				   struct cfg80211_nan_conf *conf,
 				   u32 changes);
+	int     (*external_auth)(struct wiphy *wiphy, struct net_device *dev,
+				 struct cfg80211_external_auth_params *params);
+#ifdef CONFIG_AMLOGIC_MODIFY
+	int	(*update_owe_info)(struct wiphy *wiphy, struct net_device *dev,
+				   struct cfg80211_update_owe_info *owe_info);
+#endif
 };
 
 /*
@@ -3056,6 +3335,9 @@ enum wiphy_flags {
 	WIPHY_FLAG_SUPPORTS_5_10_MHZ		= BIT(22),
 	WIPHY_FLAG_HAS_CHANNEL_SWITCH		= BIT(23),
 	WIPHY_FLAG_HAS_STATIC_WEP		= BIT(24),
+#ifdef CONFIG_AMLOGIC_MODIFY
+	WIPHY_FLAG_DFS_OFFLOAD                  = BIT(25)
+#endif
 };
 
 /**
@@ -3145,6 +3427,9 @@ struct ieee80211_iface_combination {
 	bool beacon_int_infra_match;
 	u8 radar_detect_widths;
 	u8 radar_detect_regions;
+#ifdef CONFIG_AMLOGIC_MODIFY
+	u32 beacon_int_min_gcd;
+#endif
 };
 
 struct ieee80211_txrx_stypes {
@@ -3764,6 +4049,9 @@ struct cfg80211_cached_keys;
  * @conn: (private) cfg80211 software SME connection state machine data
  * @connect_keys: (private) keys to set after connection is established
  * @conn_bss_type: connecting/connected BSS type
+ * @conn_owner_nlportid: (private) connection owner socket port ID
+ * @disconnect_wk: (private) auto-disconnect work
+ * @disconnect_bssid: (private) the BSSID to use for auto-disconnect
  * @ibss_fixed: (private) IBSS is using fixed BSSID
  * @ibss_dfs_possible: (private) IBSS may change to a DFS channel
  * @event_list: (private) list for internal event processing
@@ -3795,6 +4083,10 @@ struct wireless_dev {
 	struct cfg80211_conn *conn;
 	struct cfg80211_cached_keys *connect_keys;
 	enum ieee80211_bss_type conn_bss_type;
+	u32 conn_owner_nlportid;
+
+	struct work_struct disconnect_wk;
+	u8 disconnect_bssid[ETH_ALEN];
 
 	struct list_head event_list;
 	spinlock_t event_lock;
@@ -4162,6 +4454,29 @@ static inline const u8 *cfg80211_find_ie(u8 eid, const u8 *ies, int len)
 	return cfg80211_find_ie_match(eid, ies, len, NULL, 0, 0);
 }
 
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * cfg80211_find_ext_ie - find information element with EID Extension in data
+ *
+ * @ext_eid: element ID Extension
+ * @ies: data consisting of IEs
+ * @len: length of data
+ *
+ * Return: %NULL if the extended element ID could not be found or if
+ * the element is invalid (claims to be longer than the given
+ * data), or a pointer to the first byte of the requested
+ * element, that is the byte containing the element ID.
+ *
+ * Note: There are no checks on the element length other than
+ * having to fit into the given data.
+ */
+static inline const u8 *cfg80211_find_ext_ie(u8 ext_eid, const u8 *ies, int len)
+{
+	return cfg80211_find_ie_match(WLAN_EID_EXTENSION, ies, len,
+				      &ext_eid, 1, 2);
+}
+#endif
+
 /**
  * cfg80211_find_vendor_ie - find vendor specific information element in data
  *
@@ -4213,6 +4528,10 @@ const u8 *cfg80211_find_vendor_ie(unsigned int oui, int oui_type,
  * Return: 0 on success. -ENOMEM.
  */
 int regulatory_hint(struct wiphy *wiphy, const char *alpha2);
+#ifdef CONFIG_AMLOGIC_MODIFY
+int regulatory_hint_user(const char *alpha2,
+	enum nl80211_user_reg_hint_type user_reg_hint_type);
+#endif
 
 /**
  * regulatory_set_wiphy_regd - set regdom info for self managed drivers
@@ -4935,6 +5254,80 @@ static inline void cfg80211_testmode_event(struct sk_buff *skb, gfp_t gfp)
 #define CFG80211_TESTMODE_DUMP(cmd)
 #endif
 
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * struct cfg80211_connect_resp_params - Connection response params
+ * @status: Status code, %WLAN_STATUS_SUCCESS for successful connection, use
+ *      %WLAN_STATUS_UNSPECIFIED_FAILURE if your device cannot give you
+ *      the real status code for failures. If this call is used to report a
+ *      failure due to a timeout (e.g., not receiving an Authentication frame
+ *      from the AP) instead of an explicit rejection by the AP, -1 is used to
+ *      indicate that this is a failure, but without a status code.
+ *      @timeout_reason is used to report the reason for the timeout in that
+ *      case.
+ * @bssid: The BSSID of the AP (may be %NULL)
+ * @bss: Entry of bss to which STA got connected to, can be obtained through
+ *      cfg80211_get_bss() (may be %NULL). Only one parameter among @bssid and
+ *      @bss needs to be specified.
+ * @req_ie: Association request IEs (may be %NULL)
+ * @req_ie_len: Association request IEs length
+ * @resp_ie: Association response IEs (may be %NULL)
+ * @resp_ie_len: Association response IEs length
+ * @fils_kek: KEK derived from a successful FILS connection (may be %NULL)
+ * @fils_kek_len: Length of @fils_kek in octets
+ * @update_erp_next_seq_num: Boolean value to specify whether the value in
+ *      @fils_erp_next_seq_num is valid.
+ * @fils_erp_next_seq_num: The next sequence number to use in ERP message in
+ *      FILS Authentication. This value should be specified irrespective of the
+ *      status for a FILS connection.
+ * @pmk: A new PMK if derived from a successful FILS connection (may be %NULL).
+ * @pmk_len: Length of @pmk in octets
+ * @pmkid: A new PMKID if derived from a successful FILS connection or the PMKID
+ *      used for this FILS connection (may be %NULL).
+ * @timeout_reason: Reason for connection timeout. This is used when the
+ *      connection fails due to a timeout instead of an explicit rejection from
+ *      the AP. %NL80211_TIMEOUT_UNSPECIFIED is used when the timeout reason is
+ *      not known. This value is used only if @status < 0 to indicate that the
+ *      failure is due to a timeout and not due to explicit rejection by the AP.
+ *      This value is ignored in other cases (@status >= 0).
+ */
+struct cfg80211_connect_resp_params {
+	int status;
+	const u8 *bssid;
+	struct cfg80211_bss *bss;
+	const u8 *req_ie;
+	size_t req_ie_len;
+	const u8 *resp_ie;
+	size_t resp_ie_len;
+	const u8 *fils_kek;
+	size_t fils_kek_len;
+	bool update_erp_next_seq_num;
+	u16 fils_erp_next_seq_num;
+	const u8 *pmk;
+	size_t pmk_len;
+	const u8 *pmkid;
+	enum nl80211_timeout_reason timeout_reason;
+};
+
+/**
+ * cfg80211_connect_done - notify cfg80211 of connection result
+ *
+ * @dev: network device
+ * @params: connection response parameters
+ * @gfp: allocation flags
+ *
+ * It should be called by the underlying driver once execution of the connection
+ * request from connect() has been completed. This is similar to
+ * cfg80211_connect_bss(), but takes a structure pointer for connection response
+ * parameters. Only one of the functions among cfg80211_connect_bss(),
+ * cfg80211_connect_result(), cfg80211_connect_timeout(),
+ * and cfg80211_connect_done() should be called.
+ */
+void cfg80211_connect_done(struct net_device *dev,
+			struct cfg80211_connect_resp_params *params,
+			gfp_t gfp);
+#endif
+
 /**
  * cfg80211_connect_bss - notify cfg80211 of connection result
  *
@@ -4956,10 +5349,32 @@ static inline void cfg80211_testmode_event(struct sk_buff *skb, gfp_t gfp)
  * option of identifying the exact bss entry for the connection. Only one of
  * these functions should be called.
  */
+#ifdef CONFIG_AMLOGIC_MODIFY
+static inline void
+cfg80211_connect_bss(struct net_device *dev, const u8 *bssid,
+		     struct cfg80211_bss *bss, const u8 *req_ie,
+		     size_t req_ie_len, const u8 *resp_ie,
+		     size_t resp_ie_len, int status, gfp_t gfp)
+{
+	struct cfg80211_connect_resp_params params;
+
+	memset(&params, 0, sizeof(params));
+	params.status = status;
+	params.bssid = bssid;
+	params.bss = bss;
+	params.req_ie = req_ie;
+	params.req_ie_len = req_ie_len;
+	params.resp_ie = resp_ie;
+	params.resp_ie_len = resp_ie_len;
+
+	cfg80211_connect_done(dev, &params, gfp);
+}
+#else
 void cfg80211_connect_bss(struct net_device *dev, const u8 *bssid,
-			  struct cfg80211_bss *bss, const u8 *req_ie,
-			  size_t req_ie_len, const u8 *resp_ie,
-			  size_t resp_ie_len, int status, gfp_t gfp);
+		     struct cfg80211_bss *bss, const u8 *req_ie,
+		     size_t req_ie_len, const u8 *resp_ie,
+		     size_t resp_ie_len, int status, gfp_t gfp);
+#endif
 
 /**
  * cfg80211_connect_result - notify cfg80211 of connection result
@@ -5784,6 +6199,30 @@ void cfg80211_nan_func_terminated(struct wireless_dev *wdev,
 /* ethtool helper */
 void cfg80211_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info);
 
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * cfg80211_is_gratuitous_arp_unsolicited_na - packet is grat. ARP/unsol. NA
+ * @skb: the input packet, must be an ethernet frame already
+ *
+ * Return: %true if the packet is a gratuitous ARP or unsolicited NA packet.
+ * This is used to drop packets that shouldn't occur because the AP implements
+ * a proxy service.
+ */
+bool cfg80211_is_gratuitous_arp_unsolicited_na(struct sk_buff *skb);
+#endif
+
+/**
+ * cfg80211_external_auth_request - userspace request for authentication
+ * @netdev: network device
+ * @params: External authentication parameters
+ * @gfp: allocation flags
+ * Returns: 0 on success, < 0 on error
+ */
+int cfg80211_external_auth_request(struct net_device *netdev,
+				   struct cfg80211_external_auth_params *params,
+				   gfp_t gfp);
+
+
 /* Logging, debugging and troubleshooting/diagnostic helpers. */
 
 /* wiphy_printk helpers, similar to dev_printk */
@@ -5829,5 +6268,17 @@ void cfg80211_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info);
  */
 #define wiphy_WARN(wiphy, format, args...)			\
 	WARN(1, "wiphy: %s\n" format, wiphy_name(wiphy), ##args);
+
+#ifdef CONFIG_AMLOGIC_MODIFY
+/**
+ * cfg80211_update_owe_info_event - Notify the peer's OWE info to user space
+ * @netdev: network device
+ * @owe_info: peer's owe info
+ * @gfp: allocation flags
+ */
+void cfg80211_update_owe_info_event(struct net_device *netdev,
+				    struct cfg80211_update_owe_info *owe_info,
+				    gfp_t gfp);
+#endif
 
 #endif /* __NET_CFG80211_H */

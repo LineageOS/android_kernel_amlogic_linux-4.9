@@ -56,9 +56,10 @@
 		ramoops@0x07400000 {
 			compatible = "ramoops";
 			reg = <0x07400000 0x00100000>;
-			record-size = <0x8000>;
-			console-size = <0x8000>;
-			ftrace-size = <0x40000>;
+			record-size = <0x20000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x80000>;
+			pmsg-size = <0x20000>;
 		};
 
 		secmon_reserved:linux,secmon {
@@ -100,6 +101,7 @@
 		/*di CMA pool */
 		di_cma_reserved:linux,di_cma {
 			compatible = "shared-dma-pool";
+			status = "disable";
 			reusable;
 			/* buffer_size = 3621952(yuv422 8bit)
 			 *  | 4736064(yuv422 10bit)
@@ -109,7 +111,8 @@
 			 * 10x4074560=40M(0x28) support 10bit
 			 */
 			//size = <0x02800000>;
-			size = <0x0B000000>;
+			//size = <0x0B000000>;
+			size = <0x0>;
 			alignment = <0x400000>;
 		};
 		/*  POST PROCESS MANAGER */
@@ -122,7 +125,8 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			/* ion_codec_mm max can alloc size 80M*/
-			size = <0x16400000>;
+			//size = <0x16400000>;
+			size = <0x1b000000>; //ary
 			alignment = <0x400000>;
 			linux,contiguous-region;
 		};
@@ -133,22 +137,23 @@
 			alignment = <0x100000>;
 			//no-map;
 		};
-		/*  vdin0 CMA pool */
-		vdin0_cma_reserved:linux,vdin0_cma {
-			compatible = "shared-dma-pool";
-			reusable;
-		/* 1920x1080x2x4  =16+4 M */
-			size = <0x04000000>;
-			alignment = <0x400000>;
-		};
 		/*  vdin1 CMA pool */
 		vdin1_cma_reserved:linux,vdin1_cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			/* 1920x1080x2x4  =16 M */
-			size = <0x04000000>;
+			/* up to 1920x1080 yuv422 8bit and 5 buffers
+			 * 1920x1080x2x5 = 20 M
+			 */
+			size = <0x01400000>;
 			alignment = <0x400000>;
 		};
+	};
+
+	cma_shrinker {
+		compatible = "amlogic, cma-shrinker";
+		status = "okay";
+		adj  = <0 100 200 250 900 950>;
+		free = <8192 12288 16384 24576 28672 32768>;
 	};
 
 	amlogic_battery:dummy-battery {
@@ -167,19 +172,19 @@
 
 		net_red {
 			label="net_red";
-			gpios=<&gpio GPIOA_14 GPIO_ACTIVE_LOW>;
+			/*gpios=<&gpio GPIOA_14 GPIO_ACTIVE_LOW>;*/
 			default-state ="on";
 		};
 
 		net_green {
 			label="net_green";
-			gpios=<&gpio GPIOA_15 GPIO_ACTIVE_HIGH>;
+			/*gpios=<&gpio GPIOA_15 GPIO_ACTIVE_HIGH>;*/
 			default-state ="on";
 		};
 
 		remote_led {
 			label = "remote_led";
-			gpios = <&gpio_ao GPIOAO_10 GPIO_ACTIVE_LOW>;
+			/*gpios = <&gpio_ao GPIOAO_10 GPIO_ACTIVE_LOW>;*/
 			default-state = "off";
 			linux,default-trigger = "rc_feedback";
 		};
@@ -207,11 +212,20 @@
 
 		/* performance: reg_address, reg_value */
 		/* g12a */
-		performance = <0x1bf0  0x9
+		performance_pal = <0x1bf0  0x9
 			0x1b56  0x333
 			0x1b12  0x8080
 			0x1b05  0xfd
 			0x1c59  0xf850
+			0xffff  0x0>; /* ending flag */
+		performance_ntsc = <0x1bf0  0x9
+			0x1b56  0x333
+			0x1b12  0x9c00
+			0x1b03  0x1
+			0x1b04  0x5
+			0x1b05  0xfc
+			0x1b06  0x8
+			0x1c59  0xfc48
 			0xffff  0x0>; /* ending flag */
 		performance_sarft = <0x1bf0  0x9
 			0x1b56  0x333
@@ -232,6 +246,7 @@
 		dev_name = "bt-dev";
 		status = "okay";
 		gpio_reset = <&gpio       GPIOX_17       GPIO_ACTIVE_HIGH>;
+		gpio_btwakeup = <&gpio       GPIOX_18       GPIO_ACTIVE_HIGH>;
 		gpio_hostwake = <&gpio       GPIOX_19       GPIO_ACTIVE_HIGH>;
 	};
 
@@ -293,7 +308,7 @@
 		compatible = "amlogic, dim-g12a";
 		status = "okay";
 		/* 0:use reserved; 1:use cma; 2:use cma as reserved */
-		flag_cma = <1>;
+		flag_cma = <4>;//<1>;
 		//memory-region = <&di_reserved>;
 		memory-region = <&di_cma_reserved>;
 		interrupts = <0 46 1
@@ -337,6 +352,53 @@
 		nrds-enable = <1>;
 		pps-enable = <1>;
 	};
+
+	dvb-extern {
+		compatible = "amlogic, dvb-extern";
+		dev_name = "dvb-extern";
+		status = "okay";
+
+		fe_num = <1>;
+		fe0_demod = "cxd2856";
+		fe0_i2c_adap_id = <&i2c3>;
+		fe0_demod_i2c_addr = <0xD8>;
+		fe0_reset_value = <0>;
+		fe0_reset_gpio = <&gpio_ao GPIOAO_10 GPIO_ACTIVE_HIGH>;
+		fe0_ant_poweron_value = <0>;
+		fe0_ant_power_gpio = <&gpio GPIOH_5 GPIO_ACTIVE_HIGH>;
+		fe0_ts  = <0>;
+	};
+
+	demux {
+		compatible = "amlogic, dvb-demux";
+		dev_name = "dvb-demux";
+		status = "okay";
+
+		ts0 = "serial";
+		ts0_control = <0x800>;
+		ts0_invert = <0>;
+		interrupts = <0 23 1
+		0 5 1
+		0 53 1
+		0 19 1
+		0 25 1
+		0 18 1
+		0 24 1>;
+		interrupt-names = "demux0_irq",
+		"demux1_irq",
+		"demux2_irq",
+		"dvr0_irq",
+		"dvr1_irq",
+		"dvrfill0_fill",
+		"dvrfill1_flush";
+		pinctrl-names = "s_ts0";
+		pinctrl-0 = <&dvb_s_ts0_pins>;
+		clocks = <&clkc CLKID_DEMUX
+		&clkc CLKID_AHB_ARB0
+		&clkc CLKID_DOS_PARSER>;
+		clock-names = "demux", "ahbarb0", "parser_top";
+	};
+
 	ionvideo {
 		compatible = "amlogic, ionvideo";
 		dev_name = "ionvideo";
@@ -359,109 +421,10 @@
 		cma_mode = <1>;
 	};
 
-	dvb {
-		compatible = "amlogic, dvb";
-		dev_name = "dvb";
-
-	//	fe0_mode = "external";
-	//	fe0_demod = "Atbm8881";
-	//	fe0_i2c_adap_id = <&i2c2>;
-	//	fe0_demod_i2c_addr = <0xc0>;
-	//	fe0_ts = <1>;
-	//	fe0_reset_value = <0>;
-	//	fe0_reset_gpio = <&gpio GPIOZ_1 GPIO_ACTIVE_HIGH>;
-
-	//	ts1 = "parallel";
-	//	ts1_control = <0>;
-	//	ts1_invert = <0>;
-		interrupts = <0 23 1
-		0 5 1
-		0 21 1
-		0 19 1
-		0 25 1
-		0 18 1
-		0 24 1>;
-		interrupt-names = "demux0_irq",
-		"demux1_irq",
-		"demux2_irq",
-		"dvr0_irq",
-		"dvr1_irq",
-		"dvrfill0_fill",
-		"dvrfill1_flush";
-	//	pinctrl-names = "p_ts1";
-	//	pinctrl-0 = <&dvb_p_ts1_pins>;
-		clocks = <&clkc CLKID_DEMUX
-		&clkc CLKID_AHB_ARB0
-		&clkc CLKID_DOS_PARSER>;
-		clock-names = "demux", "ahbarb0", "parser_top";
-	};
-
-	/*this just for U212-D814(dual demod)*/
-	/* dvb {
-	 *   compatible = "amlogic, dvb";
-	 *   dev_name = "dvb";
-
-	 *   fe0_mode = "external";
-	 *   fe0_demod = "Si2168";
-	 *   fe0_i2c_adap_id = <&i2c2>;
-	 *   fe0_demod_i2c_addr = <0x64>;
-	 *   fe0_ts = <1>;
-	 *   fe0_reset_value = <0>;
-	 *   fe0_reset_gpio = <&gpio GPIOZ_1 GPIO_ACTIVE_HIGH>;
-	 *   fe0_tuner0_i2c_addr = <0x61>;//dvb-t addr
-	 *   fe0_tuner1_i2c_addr = <0x62>;//dvb-s addr
-	 *   fe0_tuner0_code = <0x2151>;
-	 *   fe0_tuner1_code = <0xA2018>;
-
-	 *   ts1 = "parallel";
-	 *   ts1_control = <0>;
-	 *   ts1_invert = <0>;
-
-	 *   fe1_mode = "external";
-	 *   fe1_demod = "Si2168-1";
-	 *   fe1_i2c_adap_id = <&i2c2>;
-	 *   fe1_demod_i2c_addr = <0x67>;
-	 *   fe1_ts = <0>;
-	 *   fe1_reset_value = <0>;
-	 *   fe1_reset_gpio = <&gpio GPIOZ_0 GPIO_ACTIVE_HIGH>;
-	 *   fe1_tuner0_i2c_addr = <0x62>;//dvb-t addr
-	 *   fe1_tuner1_i2c_addr = <0x63>;//dvb-s addr
-	 *   fe1_tuner_code0 = <0x2151>;
-	 *   fe1_tuner_code1 = <0xA2018>;
-
-	 *   ts0 = "serial";
-	 *   ts0_control = <0x800>;
-	 *   ts0_invert = <0>;
-
-	 *   interrupts = <0 23 1
-	 *   0 5 1
-	 *   0 21 1
-	 *   0 19 1
-	 *   0 25 1
-	 *   0 18 1
-	 *   0 24 1>;
-	 *   interrupt-names = "demux0_irq",
-	 *   "demux1_irq",
-	 *   "demux2_irq",
-	 *   "dvr0_irq",
-	 *   "dvr1_irq",
-	 *   "dvrfill0_fill",
-	 *   "dvrfill1_flush";
-	 *   pinctrl-names = "s_ts0","p_ts1";
-	 *   pinctrl-0 = <&dvb_s_ts0_pins>;
-	 *   pinctrl-1 = <&dvb_p_ts1_pins>;
-
-	 *   clocks = <&clkc CLKID_DEMUX
-	 *   &clkc CLKID_AHB_ARB0
-	 *   &clkc CLKID_DOS_PARSER>;
-	 *   clock-names = "demux", "ahbarb0", "parser_top";
-	 * };
-	 */
-
 	unifykey{
 		compatible = "amlogic, unifykey";
 		status = "ok";
-		unifykey-num = <18>;
+		unifykey-num = <19>;
 		unifykey-index-0 = <&keysn_0>;
 		unifykey-index-1 = <&keysn_1>;
 		unifykey-index-2 = <&keysn_2>;
@@ -480,6 +443,7 @@
 		unifykey-index-15= <&keysn_15>;
 		unifykey-index-16= <&keysn_16>;
 		unifykey-index-17= <&keysn_17>;
+		unifykey-index-18= <&keysn_18>;
 
 		keysn_0: key_0{
 			key-name = "usid";
@@ -572,6 +536,11 @@
 		keysn_17:key_17{
 			key-name = "oemkey";
 			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_18:key_18{
+			key-name = "KEY_PROVISION_XXX";
+			key-device = "provision";
 			key-permit = "read","write","del";
 		};
 	};//End unifykey
@@ -740,7 +709,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			//suffix-name = "alsaPORT-tdm";
+			suffix-name = "alsaPORT-i2s2hdmi";
 			cpu {
 				sound-dai = <&aml_tdmc>;
 				dai-tdm-slot-tx-mask = <1 1>;
@@ -759,7 +728,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-pdm";
+			suffix-name = "alsaPORT-pdm-builtinmic";
 			cpu {
 				sound-dai = <&aml_pdm>;
 			};
@@ -774,7 +743,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-spdifb2hdmi";
+			suffix-name = "alsaPORT-spdif";
 			cpu {
 				sound-dai = <&aml_spdif>;
 				system-clock-frequency = <6144000>;
@@ -790,7 +759,7 @@
 			/* suffix-name, sync with android audio hal
 			 * what's the dai link used for
 			 */
-			suffix-name = "alsaPORT-spdif";
+			suffix-name = "alsaPORT-spdifb";
 			cpu {
 				sound-dai = <&aml_spdif_b>;
 				system-clock-frequency = <6144000>;
@@ -974,10 +943,10 @@
  */
 
 &i2c3 {
-	status = "disabled";
+	status = "okay";
 	pinctrl-names="default";
 	pinctrl-0=<&i2c3_master_pins2>;
-	clock-frequency = <100000>; /* default 100k */
+	clock-frequency = <300000>; /* default 100k */
 
 	/* for ref board */
 	ad82584f_62: ad82584f_62@62 {
@@ -1051,19 +1020,14 @@
 	aml_tdmc: tdmc {
 		compatible = "amlogic, g12a-snd-tdmc";
 		#sound-dai-cells = <0>;
-		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
-		#dai-tdm-lane-slot-mask-out = <1 0 1 1>;
-		#dai-tdm-lane-oe-slot-mask-in = <0 0 0 0>;
-		dai-tdm-lane-oe-slot-mask-out = <1 0 0 0>;
+		dai-tdm-lane-slot-mask-out = <1 1 1 1>;
 		dai-tdm-clk-sel = <2>;
 		clocks = <&clkaudio CLKID_AUDIO_MCLK_C
 				&clkc CLKID_MPLL2>;
 		clock-names = "mclk", "clk_srcpll";
-		pinctrl-names = "tdm_pins";
-		pinctrl-0 = <&tdmc_mclk &tdmout_c &tdmin_c>;
-		mclk_pad = <1>;  /* 0: mclk_0; 1: mclk_1 */
+		/* indicate this tdm is only for HDMI multi-channel */
+		i2s2hdmi = <1>;
 	};
-
 
 	tdmlb: tdm@3 {
 		compatible = "amlogic, g12a-snd-tdmlb";
@@ -1128,7 +1092,7 @@
 	aml_spdif_b: spdif_b {
 		compatible = "amlogic, g12a-snd-spdif-b";
 		#sound-dai-cells = <0>;
-		clocks = <&clkc CLKID_MPLL0 /*CLKID_HIFI_PLL*/
+		clocks = <&clkc CLKID_MPLL2 /*CLKID_HIFI_PLL*/
 				&clkaudio CLKID_AUDIO_SPDIFOUTB
 				&clkaudio CLKID_AUDIO_SPDIFOUTB_CTRL>;
 		clock-names = "sysclk",
@@ -1355,6 +1319,7 @@
 		};
 	};
 }; /* end of pinctrl_periphs */
+
 &pinctrl_aobus {
 	/*gpiao_10*/
 	/*spdifout: spdifout {			  */
@@ -1364,15 +1329,15 @@
 	/*	};							  */
 	/*};							  */
 
-	/*dvb_s_ts0_pins: dvb_s_ts0_pins {*/
-	/*	tsin_a{                       */
-	/*		groups = "tsin_a_din0_ao",*/
-	/*		"tsin_a_clk_ao",          */
-	/*		"tsin_a_sop_ao",          */
-	/*		"tsin_a_valid_ao";        */
-	/*		function = "tsin_a_ao";   */
-	/*	};                            */
-	/*};                              */
+	dvb_s_ts0_pins: dvb_s_ts0_pins {
+		tsin_a {
+			groups = "tsin_a_sop_ao",
+			"tsin_a_valid_ao",
+			"tsin_a_clk_ao",
+			"tsin_a_din0_ao";
+			function = "tsin_a_ao";
+		};
+	};
 
 };  /* end of pinctrl_aobus */
 
@@ -1423,8 +1388,12 @@
 
 /*if you want to use vdin just modify status to "ok"*/
 &vdin0 {
-	memory-region = <&vdin0_cma_reserved>;
-	status = "okay";
+	/*memory-region = <&vdin0_cma_reserved>;*/
+	status = "disable";
+	/* up to 1920x1080 yuv422 8bit and 5 buffers
+	 * 1920x1080x2x5 = 20 M
+	 */
+	cma_size = <20>;
 	/*vdin write mem color depth support:
 	 *bit0:support 8bit
 	 *bit1:support 9bit
@@ -1432,8 +1401,9 @@
 	 *bit3:support 12bit
 	 *bit4:support yuv422 10bit full pack mode (from txl new add)
 	 */
-	tv_bit_mode = <0x15>;
+	tv_bit_mode = <0x1>;
 };
+
 &vdin1 {
 	memory-region = <&vdin1_cma_reserved>;
 	status = "okay";

@@ -17,11 +17,13 @@
 
 #ifndef __VPU_REG_H__
 #define __VPU_REG_H__
+#include <linux/platform_device.h>
 #include <linux/amlogic/iomap.h>
 #include "vpu.h"
 
 /*extern void __iomem *reg_base_aobus;*/
 /*extern void __iomem *reg_base_cbus;*/
+#define VPU_REG_OFFSET(reg)          ((reg) << 2)
 
 /* ********************************
  * register define
@@ -50,6 +52,9 @@
 #define HHI_VPU_CLK_CNTL             0x6f
 #define HHI_VPU_CLKB_CNTL            0x83
 #define HHI_VAPBCLK_CNTL             0x7d
+
+#define CLKCTRL_VPU_CLK_CTRL         0x003a
+#define CLKCTRL_VAPBCLK_CTRL         0x003f
 
 /* cbus */
 #define RESET0_REGISTER              0x1101
@@ -102,6 +107,20 @@
 #define RESET6_LEVEL_TXLX            0x0426
 #define RESET7_LEVEL_TXLX            0x0427
 
+/* pwrctrl reg */
+#define PWRCTRL_MEM_PD0              0x0010
+#define PWRCTRL_MEM_PD1              0x0011
+#define PWRCTRL_MEM_PD2              0x0012
+#define PWRCTRL_MEM_PD3              0x0013
+#define PWRCTRL_MEM_PD4              0x0014
+#define PWRCTRL_MEM_PD5              0x0015
+#define PWRCTRL_MEM_PD6              0x0016
+#define PWRCTRL_MEM_PD7              0x0017
+#define PWRCTRL_MEM_PD8              0x0018
+#define PWRCTRL_MEM_PD9              0x0019
+#define PWRCTRL_MEM_PD10             0x001a
+#define PWRCTRL_MEM_PD11             0x001b
+
 /* vpu clk gate */
 /* hiu_bus */
 #define HHI_GCLK_OTHER               0x54
@@ -136,6 +155,7 @@
 #define VPU_RDARB_MODE_L2C1          0x279d
 #define VPU_WRARB_MODE_L2C1          0x27a2
 
+int vpu_ioremap(struct platform_device *pdev);
 
 extern unsigned int vpu_hiu_read(unsigned int _reg);
 extern void vpu_hiu_write(unsigned int _reg, unsigned int _value);
@@ -145,6 +165,10 @@ extern unsigned int vpu_hiu_getb(unsigned int _reg,
 		unsigned int _start, unsigned int _len);
 extern void vpu_hiu_set_mask(unsigned int _reg, unsigned int _mask);
 extern void vpu_hiu_clr_mask(unsigned int _reg, unsigned int _mask);
+
+unsigned int vpu_pwrctrl_read(unsigned int _reg);
+unsigned int vpu_pwrctrl_getb(unsigned int _reg,
+			      unsigned int _start, unsigned int _len);
 
 extern unsigned int vpu_vcbus_read(unsigned int _reg);
 extern void vpu_vcbus_write(unsigned int _reg, unsigned int _value);

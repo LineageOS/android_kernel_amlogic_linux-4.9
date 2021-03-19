@@ -47,11 +47,14 @@ struct vout_cdev_s {
 
 #ifdef CONFIG_AMLOGIC_HDMITX
 extern int get_hpd_state(void);
+bool is_tv_changed(void);
 #endif
 extern int vout_get_hpd_state(void);
+bool vout_get_tv_changed(void);
+
 extern void vout_trim_string(char *str);
 
-extern struct vinfo_s *get_invalid_vinfo(int index);
+struct vinfo_s *get_invalid_vinfo(int index, unsigned int flag);
 extern struct vout_module_s *vout_func_get_vout_module(void);
 #ifdef CONFIG_AMLOGIC_VOUT2_SERVE
 extern struct vout_module_s *vout_func_get_vout2_module(void);
@@ -61,11 +64,11 @@ extern void vout_func_set_state(int index, enum vmode_e mode);
 extern void vout_func_update_viu(int index);
 extern int vout_func_set_vmode(int index, enum vmode_e mode);
 extern int vout_func_set_current_vmode(int index, enum vmode_e mode);
-extern enum vmode_e vout_func_validate_vmode(int index, char *name);
-extern int vout_func_set_vframe_rate_hint(int index, int duration);
-extern int vout_func_set_vframe_rate_end_hint(int index);
-extern int vout_func_set_vframe_rate_policy(int index, int policy);
-extern int vout_func_get_vframe_rate_policy(int index);
+int vout_func_check_same_vmodeattr(int index, char *name);
+enum vmode_e vout_func_validate_vmode(int index, char *name, unsigned int frac);
+int vout_func_get_disp_cap(int index, char *buf);
+int vout_func_set_vframe_rate_hint(int index, int duration);
+int vout_func_get_vframe_rate_hint(int index);
 extern void vout_func_set_test_bist(int index, unsigned int bist);
 extern int vout_func_vout_suspend(int index);
 extern int vout_func_vout_resume(int index);
@@ -74,10 +77,11 @@ extern int vout_func_vout_register_server(int index,
 		struct vout_server_s *mem_server);
 extern int vout_func_vout_unregister_server(int index,
 		struct vout_server_s *mem_server);
-
+unsigned int vout_parse_vout_name(char *name);
 
 extern int set_current_vmode(enum vmode_e);
-extern enum vmode_e validate_vmode(char *p);
+int vout_check_same_vmodeattr(char *name);
+enum vmode_e validate_vmode(char *name, unsigned int frac);
 
 extern int vout_suspend(void);
 extern int vout_resume(void);
@@ -85,7 +89,8 @@ extern int vout_shutdown(void);
 
 #ifdef CONFIG_AMLOGIC_VOUT2_SERVE
 extern int set_current_vmode2(enum vmode_e);
-extern enum vmode_e validate_vmode2(char *p);
+int vout2_check_same_vmodeattr(char *name);
+enum vmode_e validate_vmode2(char *name, unsigned int frac);
 
 extern int vout2_suspend(void);
 extern int vout2_resume(void);

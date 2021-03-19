@@ -22,6 +22,7 @@
 #include "linux/amlogic/media/amvecm/cm.h"
 #include <linux/amlogic/media/vfm/vframe.h>
 #include <linux/amlogic/media/utils/amstream.h>
+#include <linux/amlogic/media/video_sink/vpp.h>
 #include <linux/amlogic/cpu_version.h>
 #include <drm/drmP.h>
 
@@ -49,7 +50,7 @@
 #define FLAG_GAMMA_TABLE_G      (1 << 12)
 #define FLAG_GAMMA_TABLE_B      (1 << 11)
 #define FLAG_RGB_OGO            (1 << 10)
-#define FLAG_RSV9               (1 <<  9)
+#define FLAG_VADJ_EN            BIT(9)
 #define FLAG_MATRIX_UPDATE      (1 <<  8)
 #define FLAG_BRI_CON            (1 <<  7)
 #define FLAG_LVDS_FREQ_SW       (1 <<  6)
@@ -113,6 +114,12 @@ enum cm_hist_e {
 	CM_HUE_HIST = 0,
 	CM_SAT_HIST,
 	CM_MAX_HIST
+};
+
+enum dv_pq_ctl_e {
+	DV_PQ_BYPASS = 0,
+	DV_PQ_CERT,
+	DV_PQ_REC,
 };
 
 enum pq_table_name_e {
@@ -227,14 +234,46 @@ enum pc_mode_e {
 /*Local contrast command list*/
 #define AMVECM_IOC_S_LC_CURVE _IOW(_VE_CM, 0x62, struct ve_lc_curve_parm_s)
 
+enum lut_type_e {
+	HLG_LUT = 1,
+	HDR_LUT = 2,
+	LUT_MAX
+};
+
 /*tone mapping struct*/
 struct hdr_tone_mapping_s {
+	enum lut_type_e lut_type;
 	unsigned int lutlength;
 	unsigned int *tm_lut;
 };
 
 #define AMVECM_IOC_S_HDR_TM  _IOW(_VE_CM, 0x63, struct hdr_tone_mapping_s)
 #define AMVECM_IOC_G_HDR_TM  _IOR(_VE_CM, 0x64, struct hdr_tone_mapping_s)
+
+/* CMS ioctl data structure */
+struct cms_data_s {
+	int color;
+	int value;
+};
+
+#define AMVECM_IOC_S_CMS_LUMA   _IOW(_VE_CM, 0x65, struct cms_data_s)
+#define AMVECM_IOC_S_CMS_SAT    _IOW(_VE_CM, 0x66, struct cms_data_s)
+#define AMVECM_IOC_S_CMS_HUE    _IOW(_VE_CM, 0x67, struct cms_data_s)
+#define AMVECM_IOC_S_CMS_HUE_HS _IOW(_VE_CM, 0x68, struct cms_data_s)
+
+#define AMVECM_IOC_S_PQ_CTRL  _IOW(_VE_CM, 0x69, struct vpp_pq_ctrl_s)
+#define AMVECM_IOC_G_PQ_CTRL  _IOR(_VE_CM, 0x6a, struct vpp_pq_ctrl_s)
+
+enum meson_cpu_ver_e {
+	VER_NULL = 0,
+	VER_A,
+	VER_B,
+	VER_C,
+	VER_MAX
+};
+
+/*cpu ver ioc*/
+#define AMVECM_IOC_S_MESON_CPU_VER _IOW(_VE_CM, 0x6b, enum meson_cpu_ver_e)
 
 struct am_vdj_mode_s {
 	int flag;
@@ -244,6 +283,8 @@ struct am_vdj_mode_s {
 	int saturation_hue_post;
 	int contrast;
 	int contrast2;
+	int vadj1_en;  /*vadj1 enable: 1 enable  0 disable*/
+	int vadj2_en;
 };
 
 enum color_primary_e {
@@ -353,7 +394,7 @@ enum ve_pq_timing_e {
 
 enum vlock_hw_ver_e {
 	/*gxtvbb*/
-	vlock_hw_org,
+	vlock_hw_org = 0,
 	/*
 	 *txl
 	 *txlx
@@ -366,6 +407,10 @@ enum vlock_hw_ver_e {
 	 * tm2: have separate pll:tcon pll and hdmitx pll
 	 */
 	vlock_hw_ver2,
+	/* tm2 verion B
+	 * fix some bug
+	 */
+	vlock_hw_tm2verb,
 };
 
 struct vecm_match_data_s {
@@ -480,12 +525,20 @@ extern signed int vd1_brightness, vd1_contrast;
 extern bool gamma_en;
 extern unsigned int atv_source_flg;
 extern unsigned int sr_demo_flag;
-
+extern unsigned int sr_offset[2];
 extern enum hdr_type_e hdr_source_type;
-extern bool pd_detect_en;
+extern unsigned int pd_detect_en;
+extern bool wb_en;
+extern struct pq_ctrl_s pq_cfg;
+extern struct pq_ctrl_s dv_cfg_bypass;
+
+extern bool wb_en;
+extern struct pq_ctrl_s pq_cfg;
+extern unsigned int lc_offset;
 
 #define CSC_FLAG_TOGGLE_FRAME	1
 #define CSC_FLAG_CHECK_OUTPUT	2
+#define CSC_FLAG_FORCE_SIGNAL	4
 
 extern int amvecm_on_vs(
 	struct vframe_s *display_vf,
@@ -501,7 +554,9 @@ extern int amvecm_on_vs(
 extern void refresh_on_vs(struct vframe_s *vf);
 extern void pc_mode_process(void);
 extern void pq_user_latch_process(void);
-extern void vlock_process(struct vframe_s *vf);
+extern void vlock_process(struct vframe_s *vf,
+		struct vpp_frame_par_s *cur_video_sts);
+void get_hdr_process_name(int id, char *name, char *output_fmt);
 
 /* master_display_info for display device */
 struct hdr_metadata_info_s {
@@ -540,5 +595,8 @@ extern int am_meson_ctm_set(u32 index, struct drm_color_ctm *ctm);
 extern int am_meson_ctm_disable(void);
 
 extern void enable_osd1_mtx(unsigned int en);
+void set_cur_hdr_policy(uint policy);
+u32 hdr_set(u32 module_sel, u32 hdr_process_select);
+int dv_pq_ctl(enum dv_pq_ctl_e ctl);
 #endif /* AMVECM_H */
 

@@ -32,7 +32,7 @@ static struct remote_reg_map regs_default_nec[] = {
 	{ REG_LDR_IDLE,     300 << 16 | 200 << 0},
 	{ REG_LDR_REPEAT,   150 << 16 | 80 << 0},
 	{ REG_BIT_0,        72 << 16 | 40 << 0},
-	{ REG_REG0,         7 << 28 | (0xFA0 << 12) | 0x13},
+	{ REG_REG0,         7 << 28 | (0xDAC << 12) | 0x13},
 	{ REG_STATUS,       (134 << 20) | (90 << 10)},
 	{ REG_REG1,         0x9f00},
 	{ REG_REG2,         0x00},
@@ -164,6 +164,24 @@ static struct remote_reg_map regs_default_rca[] = {
 	{ REG_DURATN3,      0x00}
 };
 
+static struct remote_reg_map regs_default_rcmm[] = {
+	{REG_LDR_ACTIVE,    (35 << 16) | (17 << 0)},
+	{REG_LDR_IDLE,      (17 << 16) | (8 << 0)},
+	{REG_LDR_REPEAT,    (31 << 16) | (11 << 0)},
+	/* for 00 duration */
+	{REG_BIT_0,         (25 << 16) | (21 << 0)},
+	{REG_REG0,          (7 << 28)  | (0x590 << 12) | 0x13},
+	/* for 01 duration */
+	{REG_STATUS,        (36 << 20) | (29 << 10)},
+	{REG_REG1,          0x9f00},
+	{REG_REG2,          0x3D0A},
+	/* for 10 duration */
+	{REG_DURATN2,       ((43 << 16) | (37 << 0))},
+	/* for 11 duration */
+	{REG_DURATN3,       ((50 << 16) | (44 << 0))},
+	{REG_REG3,          1200 << 0},
+};
+
 static int ir_toshiba_get_scancode(struct remote_chip *chip)
 {
 	int  code = 0;
@@ -268,9 +286,11 @@ static int ir_xmp_get_scancode(struct remote_chip *chip)
 	remote_reg_read(chip, MULTI_IR_ID, REG_FRAME, &code);
 	remote_dbg(chip->dev, "framecode=0x%x\n", code);
 	if (!xmp_decode_second) {
-		chip->r_dev->cur_hardcode = 0;
-		chip->r_dev->cur_customcode = code;
-		xmp_decode_second = 1;
+		if (seek_map_tab(chip, code & 0xffff)) {
+			chip->r_dev->cur_hardcode = 0;
+			chip->r_dev->cur_customcode = code;
+			xmp_decode_second = 1;
+		}
 		return -1;
 	}
 	xmp_decode_second = 2;
@@ -514,10 +534,47 @@ static u32 ir_rca_get_custom_code(struct remote_chip *chip)
 	return custom_code;
 }
 
+static int ir_rcmm_get_scancode(struct remote_chip *chip)
+{
+	int code = 0;
+	int status = 0;
+	int decode_status = 0;
+
+	/*get status*/
+	remote_reg_read(chip, MULTI_IR_ID, REG_STATUS, &decode_status);
+	decode_status &= 0xf;
+	if (decode_status & 0x01)
+		status |= REMOTE_REPEAT;
+	chip->decode_status = status;
+
+	/*get frame*/
+	remote_reg_read(chip, MULTI_IR_ID, REG_FRAME, &code);
+	remote_dbg(chip->dev, "framecode=0x%x\n", code);
+	chip->r_dev->cur_hardcode = code;
+	code = code & 0xff;
+	return code;
+}
+
+static int ir_rcmm_get_decode_status(struct remote_chip *chip)
+{
+	int status = chip->decode_status;
+
+	return status;
+}
+
+static u32 ir_rcmm_get_custom_code(struct remote_chip *chip)
+{
+	u32 custom_code;
+
+	custom_code = (chip->r_dev->cur_hardcode >> 16) & GENMASK(15, 0);
+	return custom_code;
+}
+
 /*legacy IR controller support protocols*/
 static struct aml_remote_reg_proto reg_legacy_nec = {
 	.protocol = REMOTE_TYPE_LEGACY_NEC,
 	.name     = "LEGACY_NEC",
+	.protocol_delay = 50,
 	.reg_map      = regs_legacy_nec,
 	.reg_map_size = ARRAY_SIZE(regs_legacy_nec),
 	.get_scancode      = ir_legacy_nec_get_scancode,
@@ -528,6 +585,7 @@ static struct aml_remote_reg_proto reg_legacy_nec = {
 static struct aml_remote_reg_proto reg_nec = {
 	.protocol = REMOTE_TYPE_NEC,
 	.name     = "NEC",
+	.protocol_delay = 50,
 	.reg_map      = regs_default_nec,
 	.reg_map_size = ARRAY_SIZE(regs_default_nec),
 	.get_scancode      = ir_nec_get_scancode,
@@ -616,6 +674,16 @@ static struct aml_remote_reg_proto reg_rca = {
 	.get_custom_code   = ir_rca_get_custom_code,
 };
 
+static struct aml_remote_reg_proto reg_rcmm = {
+	.protocol = REMOTE_TYPE_RCMM,
+	.name     = "RCMM",
+	.reg_map      = regs_default_rcmm,
+	.reg_map_size = ARRAY_SIZE(regs_default_rcmm),
+	.get_scancode      = ir_rcmm_get_scancode,
+	.get_decode_status = ir_rcmm_get_decode_status,
+	.get_custom_code   = ir_rcmm_get_custom_code,
+};
+
 const struct aml_remote_reg_proto *remote_reg_proto[] = {
 	&reg_nec,
 	&reg_duokan,
@@ -627,6 +695,7 @@ const struct aml_remote_reg_proto *remote_reg_proto[] = {
 	&reg_legacy_nec,
 	&reg_toshiba,
 	&reg_rca,
+	&reg_rcmm,
 	NULL
 };
 
@@ -661,15 +730,15 @@ static int ir_contr_init(struct remote_chip *chip, int type, unsigned char id)
 	 * [0] = 0x01,set to 1 to reset the IR decoder
 	 */
 	remote_reg_write(chip, id, REG_REG1, 0x01);
-	dev_info(chip->dev, "default protocol = 0x%x and id = %d\n",
-				(*reg_proto)->protocol, id);
+	remote_dbg(chip->dev, "default protocol = 0x%x and id = %d\n",
+		   (*reg_proto)->protocol, id);
 	reg_map = (*reg_proto)->reg_map;
 	size    = (*reg_proto)->reg_map_size;
 
 	for (  ; size > 0;  ) {
 		remote_reg_write(chip, id, reg_map->reg, reg_map->val);
-		dev_info(chip->dev, "reg=0x%x, val=0x%x\n",
-				reg_map->reg, reg_map->val);
+		remote_dbg(chip->dev, "reg=0x%x, val=0x%x\n",
+			   reg_map->reg, reg_map->val);
 		reg_map++;
 		size--;
 	}
@@ -688,6 +757,7 @@ static int ir_contr_init(struct remote_chip *chip, int type, unsigned char id)
 	chip->ir_contr[id].proto_name        = (*reg_proto)->name;
 	chip->ir_contr[id].get_custom_code   = (*reg_proto)->get_custom_code;
 	chip->ir_contr[id].set_custom_code   = (*reg_proto)->set_custom_code;
+	chip->ir_contr[id].protocol_delay     = (*reg_proto)->protocol_delay;
 
 	if (chip->r_dev->ir_learning_on && chip->r_dev->use_fifo)
 		remote_reg_write(chip, id, REG_FIFO, FIFO_REG_VAL);

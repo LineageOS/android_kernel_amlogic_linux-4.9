@@ -35,6 +35,8 @@ extern int pts_checkin(u8 type, u32 val);
 
 extern int pts_checkin_wrptr(u8 type, u32 ptr, u32 val);
 
+int pts_checkin_wrptr_pts33(u8 type, u32 ptr, u64 val);
+
 extern int pts_checkin_offset(u8 type, u32 offset, u32 val);
 
 extern int pts_checkin_offset_us64(u8 type, u32 offset, u64 us);
@@ -49,11 +51,11 @@ extern int pts_lookup_offset(u8 type, u32 offset, u32 *val,
 					u32 *frame_size, u32 pts_margin);
 
 extern int pts_lookup_offset_us64(u8 type, u32 offset, u32 *val,
-				  u32 *frame_size, u32 pts_margin, u64 *uS64);
+				  u32 *frame_size, u32 pts_margin, u64 *us64);
 
 extern int pts_pickout_offset_us64(u8 type, u32 offset,
 				u32 *val, u32 pts_margin,
-				u64 *uS64);
+				u64 *us64);
 
 extern int pts_set_resolution(u8 type, u32 level);
 

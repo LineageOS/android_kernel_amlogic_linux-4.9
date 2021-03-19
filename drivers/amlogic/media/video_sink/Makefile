@@ -1,2 +1,3 @@
 obj-y	+=	amvideo.o
-amvideo-objs	+=	video.o video_keeper.o vpp.o video_hw.o video_receiver.o
+CFLAGS_video.o := -I$(src)
+amvideo-objs	+=	video.o video_keeper.o vpp.o video_hw.o video_receiver.o video_reg.o video_signal_notify.o

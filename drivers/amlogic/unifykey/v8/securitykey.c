@@ -27,6 +27,7 @@
 #include <linux/spinlock.h>
 #include <linux/amlogic/unifykey/security_key.h>
 #include <linux/arm-smccc.h>
+#include "../amlkey_if.h"
 
 #undef pr_fmt
 #define pr_fmt(fmt) "unifykey: " fmt
@@ -358,8 +359,8 @@ static int storage_probe(struct platform_device *pdev)
 
 	if (!phy_storage_in_base || !phy_storage_out_base
 			|| !phy_storage_block_base || !storage_block_size) {
-		pr_info("probe fail!\n");
-		return -1;
+		pr_info("security key probe fail!\n");
+		goto normal_init;
 	}
 
 	if (phy_storage_in_base == SMC_UNK
@@ -369,6 +370,7 @@ static int storage_probe(struct platform_device *pdev)
 		storage_in_base = NULL;
 		storage_out_base = NULL;
 		storage_block_base = NULL;
+		goto normal_init;
 	}	else {
 		if (pfn_valid(__phys_to_pfn(phy_storage_in_base)))
 			storage_in_base = (void __iomem *)
@@ -392,10 +394,6 @@ static int storage_probe(struct platform_device *pdev)
 				phy_storage_block_base, storage_block_size);
 	}
 
-	pr_info("storage in base: 0x%lx\n", (long)storage_in_base);
-	pr_info("storage out base: 0x%lx\n", (long)storage_out_base);
-	pr_info("storage block base: 0x%lx\n", (long)storage_block_base);
-
 	ret = 0;
 	if (!storage_in_base || !storage_out_base || !storage_block_base)
 		ret = -1;
@@ -404,7 +402,9 @@ static int storage_probe(struct platform_device *pdev)
 	else
 		storage_init_status = -1;
 
-	pr_info("probe done!\n");
+	return ret;
+normal_init:
+	ret = amlkey_if_init(pdev, 0);
 	return ret;
 }
 
@@ -427,4 +427,4 @@ static int __init meson_securitykey_init(void)
 {
 	return  platform_driver_register(&securitykey_platform_driver);
 }
-module_init(meson_securitykey_init);
+rootfs_initcall(meson_securitykey_init);

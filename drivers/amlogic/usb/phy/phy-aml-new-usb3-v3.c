@@ -39,6 +39,7 @@
 #define DEVICE_MODE	1
 
 struct usb_aml_regs_v2 usb_new_aml_regs_v3;
+static void power_switch_to_pcie(struct amlogic_usb_v2 *phy);
 
 static int amlogic_new_usb3_suspend(struct usb_phy *x, int suspend)
 {
@@ -51,8 +52,14 @@ static void amlogic_new_usb3phy_shutdown(struct usb_phy *x)
 
 	if (phy->phy.flags == AML_USB3_PHY_ENABLE) {
 		clk_disable_unprepare(phy->clk);
-		clk_disable_unprepare(phy->gate1_clk);
-		clk_disable_unprepare(phy->gate0_clk);
+		if (phy->portconfig_31) {
+			clk_disable_unprepare(phy->gate1_clk);
+			writel(0x1d, phy->phy31_cfg);
+		}
+		if (phy->portconfig_30) {
+			clk_disable_unprepare(phy->gate0_clk);
+			writel(0x1d, phy->phy3_cfg);
+		}
 	}
 
 	phy->suspend_flag = 1;
@@ -418,6 +425,7 @@ static int amlogic_new_usb3_init_v3(struct usb_phy *x)
 	union usb_r1_v2 r1 = {.d32 = 0};
 	union usb_r2_v2 r2 = {.d32 = 0};
 	union usb_r3_v2 r3 = {.d32 = 0};
+	union usb_r5_v2 r5 = {.d32 = 0};
 	union usb_r7_v2 r7 = {.d32 = 0};
 	union phy3_r2 p3_r2 = {.d32 = 0};
 	union phy3_r1 p3_r1 = {.d32 = 0};
@@ -425,12 +433,20 @@ static int amlogic_new_usb3_init_v3(struct usb_phy *x)
 
 	if (phy->suspend_flag) {
 		if (phy->phy.flags == AML_USB3_PHY_ENABLE) {
-			clk_prepare_enable(phy->gate0_clk);
-			clk_prepare_enable(phy->gate1_clk);
+			power_switch_to_pcie(phy);
+			if (phy->portconfig_30) {
+				writel((readl(phy->phy3_cfg) | (3<<5)),
+					phy->phy3_cfg);
+				clk_prepare_enable(phy->gate0_clk);
+			}
+			if (phy->portconfig_31) {
+				writel((readl(phy->phy31_cfg) | (3<<5)),
+					phy->phy31_cfg);
+				clk_prepare_enable(phy->gate1_clk);
+			}
 			clk_prepare_enable(phy->clk);
 		}
 		phy->suspend_flag = 0;
-		return 0;
 	}
 
 	if (phy->phy.flags != AML_USB3_PHY_ENABLE)
@@ -440,6 +456,12 @@ static int amlogic_new_usb3_init_v3(struct usb_phy *x)
 		usb_new_aml_regs_v3.usb_r_v2[i] = (void __iomem *)
 			((unsigned long)phy->regs + 4*i);
 	}
+
+	r5.d32 = readl(usb_new_aml_regs_v3.usb_r_v2[5]);
+	r5.b.iddig_en0 = 1;
+	r5.b.iddig_en1 = 1;
+	r5.b.iddig_th = 255;
+	writel(r5.d32, usb_new_aml_regs_v3.usb_r_v2[5]);
 
 	if (phy->portconfig_30) {
 		/* config usb30 phy */
@@ -923,7 +945,6 @@ static int amlogic_new_usb3_v3_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM_RUNTIME
-
 static int amlogic_new_usb3_v3_runtime_suspend(struct device *dev)
 {
 	return 0;

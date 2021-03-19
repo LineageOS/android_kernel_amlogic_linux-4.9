@@ -15,6 +15,10 @@
  *
  */
 
+#include <linux/amlogic/media/vfm/vframe.h>
+#include <linux/amlogic/media/vout/vout_notify.h>
+#include <linux/amlogic/media/amvecm/amvecm.h>
+
 #ifndef AM_CSC_H
 #define AM_CSC_H
 
@@ -89,7 +93,9 @@ enum output_format_e {
 	BT2020_PQ,
 	BT2020_PQ_DYNAMIC,
 	BT2020_HLG,
-	BT2100_IPT
+	BT2100_IPT,
+	/* force bypass all process */
+	BT_BYPASS
 };
 
 #define POST_MTX_EN_MASK (1 << POST_MTX_EN)
@@ -98,8 +104,13 @@ enum output_format_e {
 #define XVY_MTX_EN_MASK  (1 << XVY_MTX_EN)
 #define OSD1_MTX_EN_MASK (1 << OSD1_MTX_EN)
 
+#define SDR_SUPPORT		(1 << 1)
 #define HDR_SUPPORT		(1 << 2)
 #define HLG_SUPPORT		(1 << 3)
+#define HDRP_SUPPORT	(1 << 4)
+#define BT2020_SUPPORT	(1 << 5)
+#define DV_SUPPORT_SHF	(6)
+#define DV_SUPPORT		(3 << DV_SUPPORT_SHF)
 
 bool is_vinfo_available(const struct vinfo_s *vinfo);
 int is_sink_cap_changed(const struct vinfo_s *vinfo,
@@ -122,6 +133,7 @@ int is_video_turn_on(bool *vd_on, enum vd_path_e vd_path);
 #define SIG_COLORIMETRY_SUPPORT 0x1000
 #define SIG_OUTPUT_MODE_CHG	0x2000
 #define SIG_HDR_OOTF_CHG 0x4000
+#define SIG_FORCE_CHG 0x8000
 
 #define LUT_289_SIZE	289
 extern unsigned int lut_289_mapping[LUT_289_SIZE];
@@ -139,7 +151,9 @@ extern int tx_op_color_primary;
 extern uint cur_csc_type[VD_PATH_MAX];
 
 int get_hdr_policy(void);
+void set_cur_hdr_policy(uint policy);
 enum output_format_e get_force_output(void);
+void set_force_output(enum output_format_e output);
 
 /* 0: hdr->hdr, 1:hdr->sdr, 2:hdr->hlg */
 extern uint hdr_process_mode[VD_PATH_MAX];
@@ -160,6 +174,8 @@ extern uint cur_sdr_process_mode[VD_PATH_MAX];
 /* 0: tx don't support hdr10+, 1: tx support hdr10+*/
 extern uint tx_hdr10_plus_support;
 
+extern struct master_display_info_s dbg_hdr_send;
+
 extern int amvecm_matrix_process(
 	struct vframe_s *vf, struct vframe_s *vf_rpt, int flags,
 	enum vd_path_e vd_path);
@@ -171,7 +187,6 @@ extern u32 get_videopip_enabled(void);
 void set_video_mute(bool on);
 int get_video_mute(void);
 
-extern void get_hdr_source_type(void);
 extern void get_cur_vd_signal_type(enum vd_path_e vd_path);
 extern enum color_primary_e get_color_primary(void);
 /*hdr*/
@@ -195,6 +210,7 @@ extern void hdr_set_cfg_osd_100(int val);
 extern void hdr_osd_off(void);
 extern void hdr_vd1_off(void);
 void hdr_vd2_off(void);
+void hdr_vd1_iptmap(void);
 extern bool is_video_layer_on(enum vd_path_e vd_path);
 
 #define HDR_MODULE_OFF		0
@@ -232,8 +248,13 @@ extern void send_hdr10_plus_pkt(enum vd_path_e vd_path);
 #define HDRPLUS_PKT_REPEAT	1
 #define HDRPLUS_PKT_IDLE	0
 
-void hdr10_plus_process_update(int force_source_lumin);
+void hdr10_plus_process_update(
+	int force_source_lumin, enum vd_path_e vd_path);
 extern int customer_hdr_clipping;
+
+/* api to get sink capability */
+uint32_t sink_dv_support(const struct vinfo_s *vinfo);
+uint32_t sink_hdr_support(const struct vinfo_s *vinfo);
 
 #endif /* AM_CSC_H */
 

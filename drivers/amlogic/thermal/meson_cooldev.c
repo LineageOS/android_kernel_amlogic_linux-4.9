@@ -152,6 +152,8 @@ static int meson_set_min_status(struct thermal_cooling_device *cdev,
 				for (i = 0; i < tzd->trips; i++)
 					thermal_set_upper(tzd,
 							cdev, i, min_state);
+			thermal_zone_device_update(tzd,
+						   THERMAL_EVENT_UNSPECIFIED);
 				err = 1;
 			}
 		}
@@ -270,6 +272,7 @@ static int register_cool_dev(struct platform_device *pdev, int index)
 	struct cool_dev *cool = &mcooldev->cool_devs[index];
 	struct cpumask *mask;
 	int id = cool->cluster_id;
+	struct cpufreq_policy *policy;
 
 	pr_info("meson_cdev index: %d\n", index);
 	switch (get_cool_dev_type(cool->device_type)) {
@@ -279,6 +282,12 @@ static int register_cool_dev(struct platform_device *pdev, int index)
 		break;
 
 	case COOL_DEV_TYPE_CPU_FREQ:
+		policy = cpufreq_cpu_get(0);
+		if (!policy || !policy->freq_table) {
+			dev_info(&pdev->dev,
+				 "Register cpufreq cooldev fail\n");
+			return -EINVAL;
+		}
 		mask = &mcooldev->mask[id];
 		cool->cooling_dev = of_cpufreq_power_cooling_register(cool->np,
 							mask,
@@ -381,7 +390,6 @@ static int meson_cooldev_probe(struct platform_device *pdev)
 	int cpu, i, c_id;
 	struct cool_dev *cool;
 	struct meson_cooldev *mcooldev;
-	struct cpufreq_policy *policy;
 
 	pr_info("meson_cdev probe\n");
 	mcooldev = devm_kzalloc(&pdev->dev, sizeof(struct meson_cooldev),
@@ -390,13 +398,6 @@ static int meson_cooldev_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, mcooldev);
 	mutex_init(&mcooldev->lock);
-
-	policy = cpufreq_cpu_get(0);
-	if (!policy || !policy->freq_table) {
-		dev_info(&pdev->dev,
-			"Frequency policy not init. Deferring probe...\n");
-		return -EPROBE_DEFER;
-	}
 
 	for_each_possible_cpu(cpu) {
 		if (topology_physical_package_id(0) != -1)

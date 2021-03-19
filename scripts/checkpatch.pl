@@ -2585,15 +2585,15 @@ sub process {
 		}
 
 # Check for added, moved or deleted files
-		if (!$reported_maintainer_file && !$in_commit_log &&
-		    ($line =~ /^(?:new|deleted) file mode\s*\d+\s*$/ ||
-		     $line =~ /^rename (?:from|to) [\w\/\.\-]+\s*$/ ||
-		     ($line =~ /\{\s*([\w\/\.\-]*)\s*\=\>\s*([\w\/\.\-]*)\s*\}/ &&
-		      (defined($1) || defined($2))))) {
-			$reported_maintainer_file = 1;
-			WARN("FILE_PATH_CHANGES",
-			     "added, moved or deleted file(s), does MAINTAINERS need updating?\n" . $herecurr);
-		}
+#		if (!$reported_maintainer_file && !$in_commit_log &&
+#		    ($line =~ /^(?:new|deleted) file mode\s*\d+\s*$/ ||
+#		     $line =~ /^rename (?:from|to) [\w\/\.\-]+\s*$/ ||
+#		     ($line =~ /\{\s*([\w\/\.\-]*)\s*\=\>\s*([\w\/\.\-]*)\s*\}/ &&
+#		      (defined($1) || defined($2))))) {
+#			$reported_maintainer_file = 1;
+#			WARN("FILE_PATH_CHANGES",
+#			     "added, moved or deleted file(s), does MAINTAINERS need updating?\n" . $herecurr);
+#		}
 
 # Check for wrappage within a valid hunk of the file
 		if ($realcnt != 0 && $line !~ m{^(?:\+|-| |\\ No newline|$)}) {
@@ -2933,35 +2933,35 @@ sub process {
 		}
 
 # check multi-line statement indentation matches previous line
-		if ($^V && $^V ge 5.10.0 &&
-		    $prevline =~ /^\+([ \t]*)((?:$c90_Keywords(?:\s+if)\s*)|(?:$Declare\s*)?(?:$Ident|\(\s*\*\s*$Ident\s*\))\s*|$Ident\s*=\s*$Ident\s*)\(.*(\&\&|\|\||,)\s*$/) {
-			$prevline =~ /^\+(\t*)(.*)$/;
-			my $oldindent = $1;
-			my $rest = $2;
-
-			my $pos = pos_last_openparen($rest);
-			if ($pos >= 0) {
-				$line =~ /^(\+| )([ \t]*)/;
-				my $newindent = $2;
-
-				my $goodtabindent = $oldindent .
-					"\t" x ($pos / 8) .
-					" "  x ($pos % 8);
-				my $goodspaceindent = $oldindent . " "  x $pos;
-
-				if ($newindent ne $goodtabindent &&
-				    $newindent ne $goodspaceindent) {
-
-					if (CHK("PARENTHESIS_ALIGNMENT",
-						"Alignment should match open parenthesis\n" . $hereprev) &&
-					    $fix && $line =~ /^\+/) {
-						$fixed[$fixlinenr] =~
-						    s/^\+[ \t]*/\+$goodtabindent/;
-					}
-				}
-			}
-		}
-
+#		if ($^V && $^V ge 5.10.0 &&
+#		    $prevline =~ /^\+([ \t]*)((?:$c90_Keywords(?:\s+if)\s*)|(?:$Declare\s*)?(?:$Ident|\(\s*\*\s*$Ident\s*\))\s*|$Ident\s*=\s*$Ident\s*)\(.*(\&\&|\|\||,)\s*$/) {
+#			$prevline =~ /^\+(\t*)(.*)$/;
+#			my $oldindent = $1;
+#			my $rest = $2;
+#
+#			my $pos = pos_last_openparen($rest);
+#			if ($pos >= 0) {
+#				$line =~ /^(\+| )([ \t]*)/;
+#				my $newindent = $2;
+#
+#				my $goodtabindent = $oldindent .
+#					"\t" x ($pos / 8) .
+#					" "  x ($pos % 8);
+#				my $goodspaceindent = $oldindent . " "  x $pos;
+#
+#				if ($newindent ne $goodtabindent &&
+#				    $newindent ne $goodspaceindent) {
+#
+#					if (CHK("PARENTHESIS_ALIGNMENT",
+#						"Alignment should match open parenthesis\n" . $hereprev) &&
+#					    $fix && $line =~ /^\+/) {
+#						$fixed[$fixlinenr] =~
+#						    s/^\+[ \t]*/\+$goodtabindent/;
+#					}
+#				}
+#			}
+#		}
+#
 # check for space after cast like "(int) foo" or "(struct foo) bar"
 # avoid checking a few false positives:
 #   "sizeof(<type>)" or "__alignof__(<type>)"

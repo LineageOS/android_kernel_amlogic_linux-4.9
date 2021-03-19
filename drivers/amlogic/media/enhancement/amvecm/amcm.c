@@ -31,6 +31,7 @@
 #include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
 #include "amcsc.h"
 #include "local_contrast.h"
+#include "amve.h"
 
 #define pr_amcm_dbg(fmt, args...)\
 	do {\
@@ -90,8 +91,16 @@ void am_set_regmap(struct am_regs_s *p)
 	unsigned short i;
 	unsigned int temp = 0;
 	unsigned short sr1_temp = 0;
+	unsigned int skip = 0;
+	struct am_reg_s *dejaggy_reg;
+
+	dejaggy_reg = sr0_dej_setting[DEJAGGY_LEVEL - 1].am_reg;
 
 	for (i = 0; i < p->length; i++) {
+		skip = skip_pq_ctrl_load(&p->am_reg[i]);
+		if (skip != 0)
+			p->am_reg[i].mask &= ~skip;
+
 		switch (p->am_reg[i].type) {
 		case REG_TYPE_PHY:
 			break;
@@ -217,11 +226,20 @@ void am_set_regmap(struct am_regs_s *p)
 						p->am_reg[i].val);
 			break;
 		case REG_TYPE_VCBUS:
-			if (p->am_reg[i].addr == SHARP0_DEJ_ALPHA) {
-				sr0_dej_setting[DEJAGGY_LEVEL - 1].val =
+			if (p->am_reg[i].addr ==
+			    SRSHARP0_DEJ_ALPHA + sr_offset[0]) {
+				dejaggy_reg[1].val =
 					p->am_reg[i].val & 0xff;
 				if (pd_detect_en)
 					p->am_reg[i].mask &= ~(0xff);
+			}
+
+			if (p->am_reg[i].addr ==
+			    SRSHARP0_DEJ_CTRL + sr_offset[0]) {
+				dejaggy_reg[0].val =
+					p->am_reg[i].val & 0x1;
+				if (pd_detect_en)
+					p->am_reg[i].mask &= ~(0x1);
 			}
 
 			if (p->am_reg[i].mask == 0xffffffff) {
@@ -264,26 +282,16 @@ void am_set_regmap(struct am_regs_s *p)
 						SHARP1_DEMO_CRTL))
 						break;
 				}
-			/*if the bit 4 of SRSHARP1_LC_TOP_CTRL is 1,
-			 *it means that lc is enable in db,
-			 *so need to change lc_en to 1;
-			 *else if the bit 4 of SRSHARP1_LC_TOP_CTRL is 0,
-			 *it means that lc is disable in db,
-			 *so need to change lc_en to 0
-			 */
-				if (p->am_reg[i].addr == SRSHARP1_LC_TOP_CTRL) {
-					temp =
-					(p->am_reg[i].val & p->am_reg[i].mask)
-						>> 4;
-					temp &= 0x1;
-					if (!temp && lc_en)
-						lc_en = 0;
-					else if (!lc_en && temp)
-						lc_en = 1;
+
+				if (p->am_reg[i].addr ==
+				    SRSHARP1_LC_TOP_CTRL + lc_offset) {
+					if (!lc_en)
+						p->am_reg[i].val =
+						p->am_reg[i].val & 0xffffffef;
 				}
 				if (pq_reg_wr_rdma)
 					VSYNC_WR_MPEG_REG(p->am_reg[i].addr,
-					(aml_read_vcbus(p->am_reg[i].addr) &
+					(VSYNC_RD_MPEG_REG(p->am_reg[i].addr) &
 					(~(p->am_reg[i].mask))) |
 					(p->am_reg[i].val & p->am_reg[i].mask));
 				else
@@ -381,11 +389,27 @@ void amcm_enable(void)
 
 void pd_combing_fix_patch(enum pd_comb_fix_lvl_e level)
 {
+	int i, dejaggy_reg_count;
+	struct am_reg_s *dejaggy_reg;
+
+	/* p212 g12a and so on no related register lead to crash*/
+	/* so skip the function */
+	if (!(is_meson_tl1_cpu() || is_meson_txlx_cpu() ||
+	      is_meson_tm2_cpu() || is_meson_txl_cpu() ||
+	      is_meson_txhd_cpu()))
+		return;
+
 	pr_amcm_dbg("\n[amcm..] pd fix lvl = %d\n", level);
-	WRITE_VPP_REG(sr0_dej_setting[level].addr,
-		(aml_read_vcbus(sr0_dej_setting[level].addr) &
-		(~(sr0_dej_setting[level].mask))) |
-		(sr0_dej_setting[level].val & sr0_dej_setting[level].mask));
+
+	dejaggy_reg_count = sr0_dej_setting[level].length;
+	dejaggy_reg = sr0_dej_setting[level].am_reg;
+	for (i = 0; i < dejaggy_reg_count; i++) {
+		VSYNC_WR_MPEG_REG(
+		dejaggy_reg[i].addr + sr_offset[0],
+		(aml_read_vcbus(dejaggy_reg[i].addr + sr_offset[0]) &
+		(~(dejaggy_reg[i].mask))) |
+		(dejaggy_reg[i].val & dejaggy_reg[i].mask));
+	}
 }
 
 void cm_regmap_latch(struct am_regs_s *am_regs, unsigned int reg_map)

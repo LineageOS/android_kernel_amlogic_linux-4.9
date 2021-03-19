@@ -325,6 +325,11 @@
 		status = "okay";
 	};
 
+	meson_videotunnel{
+		compatible = "amlogic, meson_videotunnel";
+		status = "okay";
+	};
+
 	ethmac: ethernet@ff3f0000 {
 		compatible = "amlogic, g12a-eth-dwmac","snps,dwmac";
 		reg = <0xff3f0000 0x10000
@@ -802,6 +807,8 @@
 				#clock-cells = <1>;
 				reg = <0x0 0x3dc>;
 				own-dsu-clk;
+				clocks = <&clkc CLKID_FCLK_DIV2>;
+				clock-names = "clkin0";
 			};
 		};/* end of hiubus*/
 
@@ -1142,7 +1149,7 @@
 		device_type = "pci";
 		ranges = <0x81000000 0 0 0xfc600000 0x0 0x100000
 			/* downstream I/O */
-			0x82000000 0xfc700000 0x0 0xfc700000 0 0x1900000>;
+			0x82000000 0x0 0xfc700000 0xfc700000 0 0x1900000>;
 			/* non-prefetchable memory */
 		num-lanes = <1>;
 		pcie-num = <1>;
@@ -1293,6 +1300,13 @@
 		compatible = "amlogic, vout";
 		dev_name = "vout";
 		status = "okay";
+
+		/* fr_policy:
+		 *    0: disable
+		 *    1: nearby (only for 60->59.94 and 30->29.97)
+		 *    2: force (60/50/30/24/59.94/23.97)
+		 */
+		fr_policy = <2>;
 	};
 
 	vout2 {
@@ -1303,6 +1317,34 @@
 			<&clkc CLKID_VPU_CLKC_MUX>;
 		clock-names = "vpu_clkc0",
 			"vpu_clkc";
+
+		/* fr_policy:
+		 *    0: disable
+		 *    1: nearby (only for 60->59.94 and 30->29.97)
+		 *    2: force (60/50/30/24/59.94/23.97)
+		 */
+		fr_policy = <2>;
+	};
+
+	dummy_venc: dummy_venc {
+		compatible = "amlogic, dummy_venc";
+		status = "okay";
+		clocks = <&clkc CLKID_VCLK2_ENCP
+			&clkc CLKID_VCLK2_VENCP0
+			&clkc CLKID_VCLK2_VENCP1
+			&clkc CLKID_VCLK2_ENCI
+			&clkc CLKID_VCLK2_VENCI0
+			&clkc CLKID_VCLK2_VENCI1
+			&clkc CLKID_VCLK2_ENCL
+			&clkc CLKID_VCLK2_VENCL>;
+		clock-names = "encp_top_gate",
+			"encp_int_gate0",
+			"encp_int_gate1",
+			"venci_top_gate",
+			"enci_int_gate0",
+			"enci_int_gate1",
+			"encl_top_gate",
+			"encl_int_gate";
 	};
 
 	vdac {
@@ -1503,7 +1545,7 @@
 			pinname = "emmc";
 			ocr_avail = <0x200080>; /**VDD voltage 3.3 ~ 3.4 */
 			/*caps defined in dts*/
-			tx_delay = <0>;
+			tx_delay = <0x13>;
 			co_phase = <3>;
 			max_req_size = <0x20000>; /**128KB*/
 			gpio_dat3 = <&gpio BOOT_3 GPIO_ACTIVE_HIGH>;
@@ -1619,23 +1661,14 @@
 		pinctrl-0 = <&all_nand_pins>;
 		pinctrl-1 = <&all_nand_pins>;
 		pinctrl-2 = <&nand_cs_pins>;
-		clocks = <&clkc CLKID_SD_EMMC_C>,
-				<&clkc CLKID_SD_EMMC_C_P0_COMP>;
-		clock-names = "core", "clkin";
-
 		device_id = <0>;
-		/*fip/tpl configurations, must be same
-		 * with uboot if bl_mode was set as 1
-		 * bl_mode: 0 compact mode; 1 descrete mode
-		 * if bl_mode was set as 1, fip configuration will work
-		 */
+		clocks = <&clkc CLKID_SD_EMMC_C>,
+			<&clkc CLKID_FCLK_DIV2>;
+		clock-names = "gate", "fdiv2pll";
 		bl_mode = <1>;
-		/*copy count of fip*/
 		fip_copies = <4>;
-		/*size of each fip copy */
 		fip_size = <0x200000>;
 		nand_clk_ctrl = <0xFFE07000>;
-		/*partions defined in dts */
 	};
 
 	vddcpu0: pwmao_d-regulator {
@@ -1692,6 +1725,7 @@
 		status = "okay";
 		reg = <0xff638000 0x100
 		       0xff638c00 0x100>;
+		sec_base = <0xff639000>;
 		interrupts = <0 52 1>;
 		interrupt-names = "ddr_bandwidth";
 	};
@@ -1750,6 +1784,177 @@
 	cpu_ver_name {
 		compatible = "amlogic, cpu-major-id-sm1";
 	};
+
+	p_tsensor: p_tsensor@ff634800 {
+		compatible = "amlogic, r1p1-tsensor";
+		device_name = "meson-pthermal";
+		status = "okay";
+		reg = <0xff634800 0x50>,
+			<0xff800268 0x4>;
+		cal_type = <0x1>;
+		cal_a = <324>;
+		cal_b = <424>;
+		cal_c = <3159>;
+		cal_d = <9411>;
+		rtemp = <115000>;
+		interrupts = <0 35 0>;
+		clocks = <&clkc CLKID_TS_COMP>; /* CLKID_TS_COMP>;*/
+		clock-names = "ts_comp";
+		#thermal-sensor-cells = <1>;
+	};
+
+	d_tsensor: d_tsensor@ff634c00 {
+		compatible = "amlogic, r1p1-tsensor";
+		device_name = "meson-dthermal";
+		status = "okay";
+		reg = <0xff634c00 0x50>,
+			<0xff800230 0x4>;
+		cal_type = <0x1>;
+		cal_a = <324>;
+		cal_b = <424>;
+		cal_c = <3159>;
+		cal_d = <9411>;
+		rtemp = <115000>;
+		interrupts = <0 36 0>;
+		clocks = <&clkc CLKID_TS_COMP>; /* CLKID_TS_COMP>;*/
+		clock-names = "ts_comp";
+		#thermal-sensor-cells = <1>;
+	};
+
+	meson_cooldev: meson-cooldev@0 {
+			status = "okay";
+			compatible = "amlogic, meson-cooldev";
+			device_name = "mcooldev";
+			cooling_devices {
+				cpufreq_cool_cluster0 {
+					min_state = <1000000>;
+					dyn_coeff = <125>;
+					gpu_pp = <2>;
+					cluster_id = <0>;
+					node_name = "cpufreq_cool0";
+					device_type = "cpufreq";
+				};
+				cpucore_cool_cluster0 {
+					min_state = <1>;
+					dyn_coeff = <0>;
+					gpu_pp = <2>;
+					cluster_id = <0>;
+					node_name = "cpucore_cool0";
+					device_type = "cpucore";
+				};
+				gpufreq_cool {
+					min_state = <500>;
+					dyn_coeff = <215>;
+					gpu_pp = <2>;
+					cluster_id = <0>;
+					node_name = "gpufreq_cool0";
+					device_type = "gpufreq";
+				};
+				gpucore_cool {
+					min_state = <1>;
+					dyn_coeff = <0>;
+					gpu_pp = <2>;
+					cluster_id = <0>;
+					node_name = "gpucore_cool0";
+					device_type = "gpucore";
+				};
+			};
+			cpufreq_cool0:cpufreq_cool0 {
+				#cooling-cells = <2>; /* min followed by max */
+			};
+			cpucore_cool0:cpucore_cool0 {
+				#cooling-cells = <2>; /* min followed by max */
+			};
+			gpufreq_cool0:gpufreq_cool0 {
+				#cooling-cells = <2>; /* min followed by max */
+			};
+			gpucore_cool0:gpucore_cool0 {
+				#cooling-cells = <2>; /* min followed by max */
+			};
+		};
+		/*meson cooling devices end*/
+
+	thermal-zones {
+		soc_thermal: soc_thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <100>;
+			sustainable-power = <1410>;
+			thermal-sensors = <&p_tsensor 0>;
+			trips {
+				pswitch_on: trip-point@0 {
+					temperature = <60000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				pcontrol: trip-point@1 {
+					temperature = <75000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				phot: trip-point@2 {
+					temperature = <85000>;
+					hysteresis = <5000>;
+					type = "hot";
+				};
+				pcritical: trip-point@3 {
+					temperature = <110000>;
+					hysteresis = <1000>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				cpufreq_cooling_map {
+					trip = <&pcontrol>;
+					cooling-device = <&cpufreq_cool0 0 4>;
+					contribution = <1024>;
+				};
+				cpucore_cooling_map {
+					trip = <&pcontrol>;
+					cooling-device = <&cpucore_cool0 0 3>;
+					contribution = <1024>;
+				};
+				gpufreq_cooling_map {
+					trip = <&pcontrol>;
+					cooling-device = <&gpufreq_cool0 0 3>;
+					contribution = <1024>;
+				};
+				gpucore_cooling_map {
+					trip = <&pcontrol>;
+					cooling-device = <&gpucore_cool0 0 2>;
+					contribution = <1024>;
+				};
+			};
+		};
+		ddr_thermal: ddr_thermal {
+			polling-delay = <2000>;
+			polling-delay-passive = <1000>;
+			sustainable-power = <1410>;
+			thermal-sensors = <&d_tsensor 1>;
+			trips {
+				dswitch_on: trip-point@0 {
+					temperature = <60000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				dcontrol: trip-point@1 {
+					temperature = <75000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				dhot: trip-point@2 {
+					temperature = <85000>;
+					hysteresis = <5000>;
+					type = "hot";
+				};
+				dcritical: trip-point@3 {
+					temperature = <110000>;
+					hysteresis = <1000>;
+					type = "critical";
+				};
+			};
+		};
+	};/*thermal zone end*/
 };/* end of / */
 
 &pinctrl_aobus {
@@ -2345,6 +2550,7 @@
 		mux {
 			groups = "pwm_e";
 			function = "pwm_e";
+			drive-strength = <0>;
 		};
 	};
 

@@ -29,9 +29,26 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 #include "sdio_cis.h"
+#ifdef CONFIG_AMLOGIC_MMC
+#include <linux/amlogic/sd.h>
+#endif
 
 #ifdef CONFIG_MMC_EMBEDDED_SDIO
 #include <linux/mmc/sdio_ids.h>
+#endif
+
+#ifdef CONFIG_AMLOGIC_MMC
+struct wifi_clk_table aWifi_clk[WIFI_CLOCK_TABLE_MAX] = {
+	{"8822BS", 0, 0xb822, 167000000},
+	{"8822CS", 0, 0xc822, 167000000},
+	{"qca6174", 0, 0x50a, 167000000}
+};
+
+#define CCCR_SDIO_DRIVER_STRENGTH_ENABLE_ADDR   0xf2
+#define CCCR_SDIO_DRIVER_STRENGTH_ENABLE_MASK   0x0e
+#define CCCR_SDIO_DRIVER_STRENGTH_ENABLE_A      0x02
+#define CCCR_SDIO_DRIVER_STRENGTH_ENABLE_C      0x04
+#define CCCR_SDIO_DRIVER_STRENGTH_ENABLE_D      0x08
 #endif
 
 static int sdio_read_fbr(struct sdio_func *func)
@@ -409,6 +426,11 @@ static void sdio_select_driver_type(struct mmc_card *card)
 	int card_drv_type, drive_strength, drv_type;
 	unsigned char card_strength;
 	int err;
+#ifdef CONFIG_AMLOGIC_MMC
+	unsigned char val;
+	struct amlsd_platform *pdata = mmc_priv(card->host);
+	struct amlsd_host *host = pdata->host;
+#endif
 
 	card->drive_strength = 0;
 
@@ -418,6 +440,12 @@ static void sdio_select_driver_type(struct mmc_card *card)
 						   card->sw_caps.uhs_max_dtr,
 						   card_drv_type, &drv_type);
 
+#ifdef CONFIG_AMLOGIC_MMC
+	/* qca6174 drv strength need to set D */
+	if ((card->cis.vendor == 0x0271) &&
+	    (host->data->chip_type == MMC_CHIP_G12A))
+		drive_strength = MMC_SET_DRIVER_TYPE_D;
+#endif
 	if (drive_strength) {
 		/* if error just use default for drive strength B */
 		err = mmc_io_rw_direct(card, 0, 0, SDIO_CCCR_DRIVE_STRENGTH, 0,
@@ -438,6 +466,29 @@ static void sdio_select_driver_type(struct mmc_card *card)
 
 	if (drv_type)
 		mmc_set_driver_type(card->host, drv_type);
+
+#ifdef CONFIG_AMLOGIC_MMC
+	/* qca6174 drv strength need to enable */
+	if ((card->cis.vendor == 0x0271) &&
+	    (host->data->chip_type == MMC_CHIP_G12A)) {
+		err = mmc_io_rw_direct(card, 0, 0,
+				       CCCR_SDIO_DRIVER_STRENGTH_ENABLE_ADDR,
+				       0, &val);
+		if (err)
+			return;
+
+		val &= ~(CCCR_SDIO_DRIVER_STRENGTH_ENABLE_MASK);
+		val |= CCCR_SDIO_DRIVER_STRENGTH_ENABLE_A;
+		val |= CCCR_SDIO_DRIVER_STRENGTH_ENABLE_C;
+		val |= CCCR_SDIO_DRIVER_STRENGTH_ENABLE_D;
+
+		err = mmc_io_rw_direct(card, 1, 0,
+				       CCCR_SDIO_DRIVER_STRENGTH_ENABLE_ADDR,
+				       val, NULL);
+		if (err)
+			return;
+	}
+#endif
 }
 
 
@@ -446,6 +497,11 @@ static int sdio_set_bus_speed_mode(struct mmc_card *card)
 	unsigned int bus_speed, timing;
 	int err;
 	unsigned char speed;
+#ifdef CONFIG_AMLOGIC_MMC
+	int i;
+	struct amlsd_platform *pdata = mmc_priv(card->host);
+	struct amlsd_host *host = pdata->host;
+#endif
 
 	/*
 	 * If the host doesn't support any of the UHS-I modes, fallback on
@@ -460,7 +516,25 @@ static int sdio_set_bus_speed_mode(struct mmc_card *card)
 	    (card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR104)) {
 			bus_speed = SDIO_SPEED_SDR104;
 			timing = MMC_TIMING_UHS_SDR104;
+#ifdef CONFIG_AMLOGIC_MMC
+			for (i = 0; i < ARRAY_SIZE(aWifi_clk); i++) {
+				if (aWifi_clk[i].m_use_flag) {
+					card->sw_caps.uhs_max_dtr
+						= aWifi_clk[i].m_uhs_max_dtr;
+					break;
+				}
+			}
+			if ((card->cis.vendor == 0x0271) &&
+			    ((host->data->chip_type != MMC_CHIP_G12A) &&
+			     (host->data->chip_type != MMC_CHIP_SM1) &&
+			     (host->data->chip_type != MMC_CHIP_SC2)))
+				card->sw_caps.uhs_max_dtr = UHS_SDR104_MAX_DTR;
+
+			if (i >= ARRAY_SIZE(aWifi_clk))
+				card->sw_caps.uhs_max_dtr = UHS_SDR104_MAX_DTR;
+#else
 			card->sw_caps.uhs_max_dtr = UHS_SDR104_MAX_DTR;
+#endif
 			card->sd_bus_speed = UHS_SDR104_BUS_SPEED;
 	} else if ((card->host->caps & MMC_CAP_UHS_DDR50) &&
 		   (card->sw_caps.sd3_bus_mode & SD_MODE_UHS_DDR50)) {
@@ -560,6 +634,9 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 	int retries = 10;
 	u32 rocr = 0;
 	u32 ocr_card = ocr;
+#ifdef CONFIG_AMLOGIC_MMC
+	struct amlsd_platform *pdata = NULL;
+#endif
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
@@ -793,6 +870,10 @@ try_again:
 		if (err)
 			goto remove;
 	}
+#ifdef CONFIG_AMLOGIC_MMC
+	pdata = mmc_priv(host);
+	pdata->sdio_vendor = card->cis.vendor;
+#endif
 finish:
 	if (!oldcard)
 		host->card = card;
@@ -1235,8 +1316,11 @@ int sdio_reset_comm(struct mmc_card *card)
 	/* for realtek sdio wifi && mtk7668
 	 * need send IO reset command firstly
 	 */
-	if ((card->cis.vendor == 588) || (card->cis.vendor == 890))
+	if ((card->cis.vendor == 588) || (card->cis.vendor == 890)
+		|| (card->cis.vendor == 0x0271)) {
+		pr_warn("%s(): sdio_reset...\n", __func__);
 		sdio_reset(host);
+	}
 
 	host->ios.power_mode = MMC_POWER_OFF;
 

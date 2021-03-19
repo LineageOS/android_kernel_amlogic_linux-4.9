@@ -38,12 +38,15 @@ enum vpu_chip_e {
 	VPU_CHIP_TL1,
 	VPU_CHIP_SM1,
 	VPU_CHIP_TM2,
+	VPU_CHIP_SC2,
 	VPU_CHIP_MAX,
 };
 
 #define VPU_REG_END            0xffff
 #define VPU_HDMI_ISO_CNT_MAX   5
 #define VPU_RESET_CNT_MAX      10
+
+#define VPU_PWR_ID_INVALID     0xffff
 
 struct fclk_div_s {
 	unsigned int fclk_id;
@@ -73,15 +76,22 @@ struct vpu_reset_s {
 struct vpu_data_s {
 	enum vpu_chip_e chip_type;
 	const char *chip_name;
+	unsigned char iomap_flag;
 	unsigned char clk_level_dft;
 	unsigned char clk_level_max;
 	struct fclk_div_s *fclk_div_table;
 
+	unsigned int vpu_clk_reg;
+	unsigned int vapb_clk_reg;
+
 	unsigned char gp_pll_valid;
-	unsigned char mem_pd_reg1_valid;
-	unsigned char mem_pd_reg2_valid;
-	unsigned char mem_pd_reg3_valid;
-	unsigned char mem_pd_reg4_valid;
+	unsigned int mem_pd_reg0;
+	unsigned int mem_pd_reg1;
+	unsigned int mem_pd_reg2;
+	unsigned int mem_pd_reg3;
+	unsigned int mem_pd_reg4;
+
+	unsigned int pwrctrl_id;
 
 	unsigned int mem_pd_table_cnt;
 	unsigned int clk_gate_table_cnt;
@@ -90,9 +100,14 @@ struct vpu_data_s {
 
 	unsigned int module_init_table_cnt;
 	struct vpu_ctrl_s *module_init_table;
-	struct vpu_ctrl_s *hdmi_iso_pre_table;
-	struct vpu_ctrl_s *hdmi_iso_table;
+	struct vpu_ctrl_s *power_table;
+	struct vpu_ctrl_s *iso_table;
 	struct vpu_reset_s *reset_table;
+
+	void (*power_on)(void);
+	void (*power_off)(void);
+	int (*mempd_switch)(unsigned int vmod, int flag);
+	int (*mempd_get)(unsigned int vmod);
 };
 
 struct vpu_conf_s {
@@ -123,5 +138,7 @@ extern void vpu_mem_pd_init_off(void);
 extern void vpu_module_init_config(void);
 extern void vpu_power_on(void);
 extern void vpu_power_off(void);
+void vpu_power_on_new(void);
+void vpu_power_off_new(void);
 
 #endif

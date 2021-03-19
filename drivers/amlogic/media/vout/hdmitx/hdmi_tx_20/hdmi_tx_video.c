@@ -293,6 +293,17 @@ static struct hdmitx_vidpara hdmi_tx_video_params[] = {
 		.sc		= SC_SCALE_HORIZ_VERT,
 	},
 	{
+		.VIC		= HDMI_1080p120,
+		.color_prefer   = COLORSPACE_RGB444,
+		.color_depth	= COLORDEPTH_24B,
+		.bar_info	= B_BAR_VERT_HORIZ,
+		.repeat_time	= NO_REPEAT,
+		.aspect_ratio   = TV_ASPECT_RATIO_16_9,
+		.cc		= CC_ITU709,
+		.ss		= SS_SCAN_UNDER,
+		.sc		= SC_SCALE_HORIZ_VERT,
+	},
+	{
 		.VIC		= HDMI_4k2k_30,
 		.color_prefer   = COLORSPACE_RGB444,
 		.color_depth	= COLORDEPTH_24B,
@@ -648,12 +659,12 @@ static struct hdmitx_vidpara hdmi_tx_video_params[] = {
 		.VIC		= HDMIV_1280x1024p60hz,
 		.color_prefer	= COLORSPACE_RGB444,
 		.color_depth	= COLORDEPTH_24B,
-		.bar_info	= B_BAR_VERT_HORIZ,
+		.bar_info	= B_UNVALID,
 		.repeat_time	= NO_REPEAT,
-		.aspect_ratio	= TV_ASPECT_RATIO_4_3,
-		.cc			= CC_ITU709,
-		.ss			= SS_SCAN_UNDER,
-		.sc			= SC_SCALE_HORIZ_VERT,
+		.aspect_ratio	= ASPECT_RATIO_SAME_AS_SOURCE,
+		.cc			= CC_NO_DATA,
+		.ss			= SS_NO_DATA,
+		.sc			= SC_NO_UINFORM,
 	},
 	{
 		.VIC		= HDMIV_1360x768p60hz,
@@ -736,12 +747,12 @@ static struct hdmitx_vidpara hdmi_tx_video_params[] = {
 		.VIC		= HDMIV_1680x1050p60hz,
 		.color_prefer	= COLORSPACE_RGB444,
 		.color_depth	= COLORDEPTH_24B,
-		.bar_info	= B_BAR_VERT_HORIZ,
+		.bar_info	= B_UNVALID,
 		.repeat_time	= NO_REPEAT,
-		.aspect_ratio	= TV_ASPECT_RATIO_16_9,
-		.cc			= CC_ITU709,
-		.ss			= SS_SCAN_UNDER,
-		.sc			= SC_SCALE_HORIZ_VERT,
+		.aspect_ratio	= ASPECT_RATIO_SAME_AS_SOURCE,
+		.cc			= CC_NO_DATA,
+		.ss			= SS_NO_DATA,
+		.sc			= SC_NO_UINFORM,
 	},
 	{
 		.VIC		= HDMIV_1920x1200p60hz,
@@ -808,6 +819,28 @@ static struct hdmitx_vidpara hdmi_tx_video_params[] = {
 		.cc			= CC_ITU709,
 		.ss			= SS_SCAN_UNDER,
 		.sc			= SC_SCALE_HORIZ_VERT,
+	},
+	{
+		.VIC		= HDMIV_3440x1440p60hz,
+		.color_prefer	= COLORSPACE_RGB444,
+		.color_depth	= COLORDEPTH_24B,
+		.bar_info	= B_UNVALID,
+		.repeat_time	= NO_REPEAT,
+		.aspect_ratio	= ASPECT_RATIO_SAME_AS_SOURCE,
+		.cc = CC_NO_DATA,
+		.ss = SS_NO_DATA,
+		.sc = SC_NO_UINFORM,
+	},
+	{
+		.VIC		= HDMIV_2400x1200p90hz,
+		.color_prefer	= COLORSPACE_RGB444,
+		.color_depth	= COLORDEPTH_24B,
+		.bar_info	= B_UNVALID,
+		.repeat_time	= NO_REPEAT,
+		.aspect_ratio	= ASPECT_RATIO_SAME_AS_SOURCE,
+		.cc = CC_NO_DATA,
+		.ss = SS_NO_DATA,
+		.sc = SC_NO_UINFORM,
 	},
 };
 
@@ -895,8 +928,9 @@ int hdmitx_set_display(struct hdmitx_dev *hdev, enum hdmi_vic VideoCode)
 	AVI_HB[2] = AVI_INFOFRAMES_LENGTH;
 	for (i = 0; i < 32; i++)
 		AVI_DB[i] = 0;
-
 	vic = hdev->hwop.getstate(hdev, STAT_VIDEO_VIC, 0);
+	if (hdev->vend_id_hit)
+		pr_info(VID "special tv detected\n");
 	pr_info(VID "already init VIC = %d  Now VIC = %d\n",
 		vic, VideoCode);
 	if ((vic != HDMI_Unknown) && (vic == VideoCode))

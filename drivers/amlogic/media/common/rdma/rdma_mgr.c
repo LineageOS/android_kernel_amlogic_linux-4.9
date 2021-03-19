@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/fs.h>
 #include <linux/dma-mapping.h>
+#include <linux/of_address.h>
 
 #include <linux/string.h>
 #include <linux/io.h>
@@ -38,7 +39,9 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
+#include <linux/reset.h>
 
+#include <linux/amlogic/cpu_version.h>
 #include <linux/amlogic/media/utils/vdec_reg.h>
 #include <linux/amlogic/media/rdma/rdma_mgr.h>
 #include <linux/amlogic/media/vpu/vpu.h>
@@ -60,6 +63,7 @@
 int rdma_mgr_irq_request;
 int rdma_reset_tigger_flag;
 
+struct reset_control *rdma_rst;
 static int debug_flag;
 /* burst size 0=16; 1=24; 2=32; 3=48.*/
 static int ctrl_ahb_rd_burst_size = 3;
@@ -70,7 +74,7 @@ static int rdma_watchdog_count;
 static int rdma_force_reset = -1;
 
 #define RDMA_NUM 8
-#define RDMA_TABLE_SIZE (8 * (PAGE_SIZE))
+#define RDMA_TABLE_SIZE (16 * (PAGE_SIZE))
 #define MAX_TRACE_NUM  16
 #define RDMA_MGR_CLASS_NAME  "rdma_mgr"
 static int rdma_trace_num;
@@ -346,6 +350,9 @@ static void rdma_reset(unsigned char external_reset)
 			__func__, external_reset);
 
 	if (external_reset) {
+		if (rdma_meson_dev.cpu_type >= CPU_SC2)
+			reset_control_reset(rdma_rst);
+		else
 		WRITE_MPEG_REG(
 			RESET4_REGISTER,
 			(1 << 5));
@@ -823,8 +830,7 @@ int rdma_write_reg(int handle, u32 adr, u32 val)
 		ins->rdma_item_count++;
 	} else {
 		int i;
-		if (debug_flag & 4)
-			pr_info("%s(%d, %x, %x ,%d) buf overflow\n",
+		pr_info("%s(%d, %x, %x ,%d) buf overflow\n",
 		__func__, rdma_watchdog_count, handle, adr, val);
 		for (i = 0; i < ins->rdma_item_count; i++)
 			WRITE_VCBUS_REG(ins->reg_buf[i << 1],
@@ -972,7 +978,13 @@ static struct rdma_device_data_s rdma_g12b = {
 };
 
 static struct rdma_device_data_s rdma_tl1 = {
-	.cpu_type = CPU_NORMAL,
+	.cpu_type = CPU_TL1,
+	.rdma_ver = RDMA_VER_2,
+	.trigger_mask_len = 16,
+};
+
+static struct rdma_device_data_s rdma_sc2 = {
+	.cpu_type = CPU_SC2,
 	.rdma_ver = RDMA_VER_2,
 	.trigger_mask_len = 16,
 };
@@ -989,6 +1001,10 @@ static const struct of_device_id rdma_dt_match[] = {
 	{
 		.compatible = "amlogic, meson-tl1, rdma",
 		.data = &rdma_tl1,
+	},
+	{
+		.compatible = "amlogic, meson-sc2, rdma",
+		.data = &rdma_sc2,
 	},
 	{},
 };
@@ -1115,6 +1131,8 @@ static int rdma_probe(struct platform_device *pdev)
 	u32 data32;
 	int int_rdma;
 	int handle;
+	const void *prop;
+	int rdma_table_size;
 	struct rdma_device_info *info = &rdma_info;
 
 	int_rdma = platform_get_irq_byname(pdev, "rdma");
@@ -1142,9 +1160,18 @@ static int rdma_probe(struct platform_device *pdev)
 		pr_err("dev %s NOT found\n", __func__);
 		return -ENODEV;
 	}
-	pr_info("%s,cpu_type:%d, ver:%d, len:%d\n", __func__,
-		rdma_meson_dev.cpu_type,
-		rdma_meson_dev.rdma_ver, rdma_meson_dev.trigger_mask_len);
+	/* get rdma_table_num resource  */
+	rdma_table_size = RDMA_TABLE_SIZE;
+	if (cpu_after_eq(MESON_CPU_MAJOR_ID_G12A)) {
+		rdma_table_size = RDMA_TABLE_SIZE * 2;
+		prop = of_get_property(pdev->dev.of_node,
+		"rdma_table_page_count", NULL);
+		if (prop)
+			rdma_table_size = of_read_ulong(prop, 1) * PAGE_SIZE;
+	}
+	pr_info("%s,cpu_type:%d, ver:%d, len:%d,rdma_table_size:%d\n",
+	__func__, rdma_meson_dev.cpu_type, rdma_meson_dev.rdma_ver,
+	rdma_meson_dev.trigger_mask_len, rdma_table_size);
 
 	switch_vpu_mem_pd_vmod(VPU_RDMA, VPU_MEM_POWER_ON);
 
@@ -1168,8 +1195,16 @@ static int rdma_probe(struct platform_device *pdev)
 		info->rdma_ins[i].prev_trigger_type = 0;
 		info->rdma_ins[i].rdma_write_count = 0;
 	}
-
-	WRITE_MPEG_REG(RESET4_REGISTER, (1 << 5));
+	if (rdma_meson_dev.cpu_type >= CPU_SC2) {
+		rdma_rst = devm_reset_control_get(&pdev->dev, "rdma");
+		if (IS_ERR(rdma_rst)) {
+			pr_err("failed to get reset: %ld\n", PTR_ERR(rdma_rst));
+			return PTR_ERR(rdma_rst);
+		}
+		reset_control_reset(rdma_rst);
+	} else {
+		WRITE_MPEG_REG(RESET4_REGISTER, (1 << 5));
+	}
 
 #ifdef SKIP_OSD_CHANNEL
 	info->rdma_ins[3].used = 1; /* OSD driver uses this channel */
@@ -1197,14 +1232,14 @@ static int rdma_probe(struct platform_device *pdev)
 	info->rdma_dev = pdev;
 
 	handle = rdma_register(get_rdma_ops(VSYNC_RDMA),
-		NULL, RDMA_TABLE_SIZE);
+		NULL, rdma_table_size);
 	set_rdma_handle(VSYNC_RDMA, handle);
 
 #if 0 /*def LINE_INT_WORK_AROUND */
 	if (is_meson_g12b_revb()) {
 		pr_info("g12b revb!!!!\n");
 		handle = rdma_register(get_rdma_ops(LINE_N_INT_RDMA),
-			NULL, RDMA_TABLE_SIZE);
+			NULL, rdma_table_size);
 		set_rdma_handle(LINE_N_INT_RDMA, handle);
 	}
 #endif

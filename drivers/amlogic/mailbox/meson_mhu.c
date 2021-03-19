@@ -1,18 +1,6 @@
-/*
- * drivers/amlogic/mailbox/meson_mhu.c
+/* SPDX-License-Identifier: (GPL-2.0+ OR MIT)
  *
- * Copyright (C) 2017 Amlogic, Inc. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -36,7 +24,6 @@
 #include "meson_mhu.h"
 #include "../firmware/bl40_module.h"
 
-struct device *the_scpi_device;
 u32 num_scp_chans;
 u32 send_listen_chans;
 u32 isr_send;
@@ -91,13 +78,6 @@ u32 isr_m4;
 #define RX_PAYLOAD(chan)	((chan) * PAYLOAD_OFFSET)
 #define TX_PAYLOAD(chan)	((chan) * PAYLOAD_OFFSET + PAYLOAD_MAX_SIZE)
 
-struct mhu_chan {
-	int index;
-	int rx_irq;
-	struct mhu_ctlr *ctlr;
-	struct mhu_data_buf *data;
-};
-
 struct mhu_ctlr {
 	struct device *dev;
 	void __iomem *mbox_base;
@@ -148,17 +128,23 @@ static irqreturn_t mbox_handler(int irq, void *p)
 		}
 		if (data->rx_buf) {
 			if (is_send_isr) {
-				memcpy(data->rx_buf, payload + TX_PAYLOAD(idx),
-				       data->rx_size);
+				memcpy_fromio(data->rx_buf,
+					      payload + TX_PAYLOAD(idx),
+					      data->rx_size);
 			} else {
-				/*idx=0 means there is an old machenism:
-				 *  AP SET0 send/ MCU SET1 ack
-				 */
-				if (idx)
+			/*
+			 * idx = 1 & to scp chans = 1 mailbox to m4
+			 * need to get size, to m3 only low no need to get size
+			 * idx = 1 & to scp chans = 2 mailbox no to m4
+			 * mailbox chan low high all to m3, no need get size
+			 */
+				if (idx && num_scp_chans != CHANNEL_MAX)
 					data->rx_size =
-						readl(mbox_base + RX_STATUS(idx));
-				memcpy(data->rx_buf, payload + RX_PAYLOAD(idx),
-				       data->rx_size);
+					readl(mbox_base + RX_STATUS(idx));
+
+				memcpy_fromio(data->rx_buf,
+					      payload + RX_PAYLOAD(idx),
+					      data->rx_size);
 			}
 		}
 		mbox_chan_received_data(link, data);
@@ -179,7 +165,6 @@ static int mhu_send_data(struct mbox_chan *link, void *msg)
 	void __iomem *payload = ctlr->payload_base;
 	struct mhu_data_buf *data = (struct mhu_data_buf *)msg;
 	int idx = chan->index;
-	u8 datatmp[512] = {0};
 
 	if (!data)
 		return -EINVAL;
@@ -191,9 +176,13 @@ static int mhu_send_data(struct mbox_chan *link, void *msg)
 		else
 			idx = 0;
 	}
-	memcpy(datatmp, data->tx_buf, data->tx_size);
-	if (data->tx_buf)
-		memcpy(payload + TX_PAYLOAD(idx), datatmp, data->tx_size);
+
+	if (data->tx_buf) {
+		memset_io(payload + TX_PAYLOAD(idx),
+			  0, data->tx_size);
+		memcpy_toio(payload + TX_PAYLOAD(idx),
+			    data->tx_buf, data->tx_size);
+	}
 
 	writel(data->cmd, mbox_base + TX_SET(idx));
 
@@ -205,8 +194,9 @@ static int mhu_startup(struct mbox_chan *link)
 	struct mhu_chan *chan = link->con_priv;
 	int err, mbox_irq = chan->rx_irq;
 
-	err = request_threaded_irq(mbox_irq, mbox_handler, NULL, IRQF_ONESHOT,
-			DRIVER_NAME, link);
+	err = request_threaded_irq(mbox_irq, mbox_handler,
+				   NULL, IRQF_ONESHOT,
+				   DRIVER_NAME, link);
 	return err;
 }
 
@@ -251,6 +241,7 @@ static int mhu_probe(struct platform_device *pdev)
 		CHANNEL_HIGH_PRIORITY
 	};
 
+	pr_debug("mhu to scp init\n");
 	ctlr = devm_kzalloc(dev, sizeof(*ctlr), GFP_KERNEL);
 	if (!ctlr)
 		return -ENOMEM;
@@ -325,8 +316,6 @@ static int mhu_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	the_scpi_device = dev;
-
 	if (!send_listen_chans)
 		goto probe_done;
 
@@ -357,6 +346,10 @@ static int mhu_probe(struct platform_device *pdev)
 		}
 	}
 probe_done:
+	mhu_device = dev;
+	/*set mhu type*/
+	mhu_f |= MASK_MHU;
+	pr_info("mhu %pK to scp done 0x%x\n", mhu_device, mhu_f);
 	return 0;
 }
 
