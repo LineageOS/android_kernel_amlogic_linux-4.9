@@ -38,6 +38,7 @@
 #include <linux/dvb/dmx.h>
 #include <linux/amlogic/tee.h>
 #include <linux/amlogic/aml_key.h>
+#include <linux/amlogic/tee_demux.h>
 
 #include "aml_dvb.h"
 #include "am_key.h"
@@ -69,6 +70,8 @@ static int tsn_out;
 #define MAX_DMX_DEV_NUM      32
 static int sid_info[MAX_DMX_DEV_NUM];
 #define DEFAULT_DMX_DEV_NUM  3
+
+int is_security_dmx;
 
 ssize_t get_pcr_show(struct class *class,
 		     struct class_attribute *attr, char *buf)
@@ -176,7 +179,6 @@ ssize_t tsn_source_store(struct class *class,
 {
 	struct aml_dvb *advb = aml_get_dvb_device();
 	int tsn_in_reg = 0;
-	int i = 0;
 
 	if (!strncmp(buf, "demod", 5))
 		tsn_in = INPUT_DEMOD;
@@ -196,13 +198,10 @@ ssize_t tsn_source_store(struct class *class,
 //	pr_dbg("tsn_in:%d, tsn_out:%d\n", tsn_in_reg, tsn_out);
 	advb->dsc_pipeline = tsn_in_reg;
 	//set demod/local
+#ifdef CONFIG_AMLOGIC_TEE
 	tee_demux_config_pipeline(tsn_in_reg, tsn_out);
 
-	for (i = 0; i < dmx_dev_num; i++) {
-		advb->dmx[i].source = tsn_in;
-		advb->dsc[i].source = tsn_in;
-	}
-
+#endif
 	mutex_unlock(&advb->mutex);
 	return count;
 }
@@ -443,7 +442,13 @@ static int aml_dvb_probe(struct platform_device *pdev)
 	class_register(&aml_dvb_class);
 	dmx_regist_dmx_class();
 
-	dprint("probe dvb done\n");
+#ifdef CONFIG_AMLOGIC_TEE
+	ret = tee_demux_get(TEE_DMX_GET_SECURITY_ENABLE,
+			NULL, 0, &is_security_dmx, sizeof(is_security_dmx));
+
+#endif
+	dprint("probe dvb done, ret:%d, is_security_dmx:%d\n",
+			ret, is_security_dmx);
 
 	return 0;
 

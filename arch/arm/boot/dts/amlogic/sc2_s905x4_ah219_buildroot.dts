@@ -79,6 +79,13 @@
 			alignment = <0x400000>;
 			alloc-ranges = <0x7f800000 0x800000>;
 		};
+		dsp_fw_reserved:linux,dsp_fw {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0x800000>;
+			alignment = <0x400000>;
+			alloc-ranges = <0x30000000 0x800000>;
+		};
 		ion_cma_reserved:linux,ion-dev {
 			compatible = "shared-dma-pool";
 			reusable;
@@ -162,13 +169,6 @@
 			reusable;
 			size = <0x2000000>;
 			alignment = <0x400000>;
-		};
-		dsp_fw_reserved:linux,dsp_fw {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0x800000>;
-			alignment = <0x400000>;
-			alloc-ranges = <0x3400000 0x800000>;
 		};
 	};
 
@@ -293,7 +293,7 @@
 	};
 
 	partitions: partitions{
-		parts = <14>;
+		parts = <15>;
 		part-0 = <&logo>;
 		part-1 = <&recovery>;
 		part-2 = <&misc>;
@@ -303,11 +303,12 @@
 		part-6 = <&boot>;
 		part-7 = <&rsv>;
 		part-8 = <&tee>;
-		part-9 = <&vendor>;
-		part-10 = <&odm>;
-		part-11 = <&system>;
-		part-12 = <&cache>;
-		part-13 = <&data>;
+		part-9 = <&factory>;
+		part-10 = <&vendor>;
+		part-11 = <&odm>;
+		part-12 = <&system>;
+		part-13 = <&cache>;
+		part-14 = <&data>;
 
 		logo:logo{
 			pname = "logo";
@@ -353,6 +354,11 @@
 			pname = "tee";
 			size = <0x0 0x2000000>;
 			mask = <1>;
+		};
+		factory:factory{
+			pname = "factory";
+			size = <0x0 0x800000>;
+			mask = <0x11>;
 		};
 		vendor:vendor{
 			pname = "vendor";
@@ -969,6 +975,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
+#if 0
 		aml-audio-card,dai-link@6 {
 			mclk-fs = <256>;
 			suffix-name = "alsaPORT-earc";
@@ -980,7 +987,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
-
+#endif
 		aml-audio-card,dai-link@7 {
 			mclk-fs = <256>;
 			continuous-clock;
@@ -1035,11 +1042,11 @@
 		};
 		opp04 {
 			opp-hz = /bits/ 64 <1000000000>;
-			opp-microvolt = <819000>;
+			opp-microvolt = <799000>;
 		};
 		opp05 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <829000>;
+			opp-microvolt = <809000>;
 		};
 		opp06 {
 			opp-hz = /bits/ 64 <1404000000>;
@@ -1059,15 +1066,15 @@
 		};
 		opp10 {
 			opp-hz = /bits/ 64 <1800000000>;
-			opp-microvolt = <969000>;
+			opp-microvolt = <959000>;
 		};
 		opp11 {
 			opp-hz = /bits/ 64 <1908000000>;
-			opp-microvolt = <1019000>;
+			opp-microvolt = <989000>;
 		};
 		opp12 {
 			opp-hz = /bits/ 64 <2000000000>;
-			opp-microvolt = <1049000>;
+			opp-microvolt = <1019000>;
 		};
 	};
 
@@ -1199,7 +1206,7 @@
 		compatible = "amlogic, tm2-revb-snd-tdmb";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
-		dai-tdm-lane-slot-mask-out = <1 0 0 0>;
+		dai-tdm-lane-slot-mask-out = <1 1 1 1>;
 		dai-tdm-clk-sel = <1>;
 		clocks = <&clkaudio CLKID_AUDIO_MCLK_B
 				&clkaudio CLKID_AUDIO_MCLK_PAD0
@@ -1495,7 +1502,7 @@
 }; /* end of audiobus */
 
 &earc {
-	status = "okay";
+	status = "disabled";
 };
 
 &pinctrl_audio {

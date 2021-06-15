@@ -59,7 +59,7 @@
 
 #define MAX_SEC_FEED_NUM 32
 #define MAX_TS_FEED_NUM 32
-#define MAX_FILTER_PER_SEC_FEED 8
+#define MAX_FILTER_PER_SEC_FEED 32
 
 #define DMX_STATE_FREE      0
 #define DMX_STATE_ALLOCATED 1
@@ -310,6 +310,7 @@ static int _dmx_ts_feed_set(struct dmx_ts_feed *ts_feed, u16 pid, int ts_type,
 	int media_type = 0;
 	int cb_id = 0;
 	int pts_level = 0;
+	int ret = 0;
 
 	pr_dbg("%s pid:0x%0x\n", __func__, pid);
 
@@ -439,7 +440,7 @@ static int _dmx_ts_feed_set(struct dmx_ts_feed *ts_feed, u16 pid, int ts_type,
 						0, demux->id, &cb_id);
 			ts_output_add_cb(feed->ts_out_elem,
 					 out_ts_elem_cb, feed, cb_id,
-					 format, 0);
+					 format, 0, demux->id);
 			feed->cb_id = cb_id;
 			mutex_unlock(demux->pmutex);
 			return 0;
@@ -459,14 +460,20 @@ static int _dmx_ts_feed_set(struct dmx_ts_feed *ts_feed, u16 pid, int ts_type,
 			sec_level = DMX_MEM_SEC_LEVEL1;
 		}
 		if (sec_level != 0)
-			ts_output_set_mem(feed->ts_out_elem,
+			ret = ts_output_set_mem(feed->ts_out_elem,
 					mem_size, sec_level,
 					TS_OUTPUT_CHAN_PTS_SEC_BUF_SIZE,
 					pts_level);
 		else
-			ts_output_set_mem(feed->ts_out_elem,
+			ret = ts_output_set_mem(feed->ts_out_elem,
 					mem_size, sec_level,
 					TS_OUTPUT_CHAN_PTS_BUF_SIZE, pts_level);
+		if (ret != 0) {
+			ts_output_close(feed->ts_out_elem);
+			feed->ts_out_elem = NULL;
+			mutex_unlock(demux->pmutex);
+			return -1;
+		}
 		if (feed->pid == 0x2000)
 			ts_output_add_pid(feed->ts_out_elem, feed->pid, 0x1fff,
 					  demux->id, &cb_id);
@@ -474,7 +481,7 @@ static int _dmx_ts_feed_set(struct dmx_ts_feed *ts_feed, u16 pid, int ts_type,
 			ts_output_add_pid(feed->ts_out_elem, feed->pid, 0,
 					  demux->id, &cb_id);
 		ts_output_add_cb(feed->ts_out_elem, out_ts_elem_cb, feed,
-			cb_id, format, 0);
+			cb_id, format, 0, demux->id);
 		feed->cb_id = cb_id;
 	} else {
 		dprint("%s error\n", __func__);
@@ -680,8 +687,9 @@ static int _dmx_section_feed_start_filtering(struct dmx_section_feed *feed)
 	int sid = 0;
 	int mem_size = 0;
 	int cb_id = 0;
+	int ret = 0;
 
-	pr_dbg("%s\n", __func__);
+	pr_dbg("%s dmx id:%d\n", __func__, demux->id);
 	if (mutex_lock_interruptible(demux->pmutex))
 		return -ERESTARTSYS;
 
@@ -737,7 +745,7 @@ static int _dmx_section_feed_start_filtering(struct dmx_section_feed *feed)
 		       (unsigned long)(sec_feed->sec_out_elem));
 		ts_output_add_cb(sec_feed->sec_out_elem,
 				 _ts_out_sec_cb, sec_feed, demux->id,
-				 SECTION_FORMAT, 1);
+				 SECTION_FORMAT, 1, demux->id);
 		mutex_unlock(demux->pmutex);
 		return 0;
 	}
@@ -766,13 +774,19 @@ static int _dmx_section_feed_start_filtering(struct dmx_section_feed *feed)
 		sid, demux->id, SECTION_FORMAT, SEC_TYPE, MEDIA_TS_SYS, 0);
 	if (sec_feed->sec_out_elem) {
 		mem_size = sec_buf_size;
-		ts_output_set_mem(
-			sec_feed->sec_out_elem, mem_size, sec_level, 0, 0);
+		ret = ts_output_set_mem(sec_feed->sec_out_elem,
+				mem_size, sec_level, 0, 0);
+		if (ret != 0) {
+			ts_output_close(sec_feed->sec_out_elem);
+			sec_feed->sec_out_elem = NULL;
+			mutex_unlock(demux->pmutex);
+			return -1;
+		}
 		ts_output_add_pid(sec_feed->sec_out_elem, sec_feed->pid, 0,
 				  demux->id, &cb_id);
 		ts_output_add_cb(sec_feed->sec_out_elem,
 				 _ts_out_sec_cb, sec_feed, cb_id,
-				 SECTION_FORMAT, 1);
+				 SECTION_FORMAT, 1, demux->id);
 	}
 	pr_dbg("sec_out_elem:0x%lx\n", (unsigned long)(sec_feed->sec_out_elem));
 	mutex_unlock(demux->pmutex);
@@ -787,7 +801,7 @@ static int _dmx_section_feed_stop_filtering(struct dmx_section_feed *feed)
 	int i = 0;
 	int start_flag = 0;
 
-	pr_dbg("%s\n", __func__);
+	pr_dbg("%s dmx id:%d\n", __func__, demux->id);
 
 	if (mutex_lock_interruptible(demux->pmutex))
 		return -ERESTARTSYS;
@@ -827,7 +841,7 @@ static int _dmx_section_feed_release_filter(struct dmx_section_feed *feed,
 	struct aml_dmx *demux = (struct aml_dmx *)feed->parent->priv;
 	int i = 0;
 
-	pr_dbg("%s\n", __func__);
+	pr_dbg("%s dmx id:%d\n", __func__, demux->id);
 
 	if (mutex_lock_interruptible(demux->pmutex))
 		return -ERESTARTSYS;
@@ -1031,6 +1045,7 @@ static int _dmx_allocate_section_feed(struct dmx_demux *dmx,
 	sec_feed->filter = vmalloc(sizeof(*sec_feed->filter) *
 				   sec_feed->sec_filter_num);
 	if (!sec_feed->filter) {
+		sec_feed->state = DMX_STATE_FREE;
 		mutex_unlock(demux->pmutex);
 		return -EBUSY;
 	}
@@ -1474,11 +1489,13 @@ static int _dmx_set_hw_source(struct dmx_demux *dmx, int hw_source)
 
 	if (hw_source >= DMA_0 && hw_source <= DMA_7) {
 		demux->local_sid = hw_source - DMA_0;
+		ts_output_update_filter(demux->id, demux->local_sid);
 		dsc_set_sid(demux->id, INPUT_LOCAL, demux->local_sid);
 	} else if (hw_source >= FRONTEND_TS0 && hw_source <= FRONTEND_TS7) {
 		demux->ts_index = hw_source - FRONTEND_TS0;
 		if (advb->ts[demux->ts_index].ts_sid != -1) {
 			demux->demod_sid = advb->ts[demux->ts_index].ts_sid;
+			ts_output_update_filter(demux->id, demux->demod_sid);
 			dsc_set_sid(demux->id, INPUT_DEMOD, demux->demod_sid);
 		}
 	}
@@ -1709,47 +1726,6 @@ static ssize_t register_value_store(struct class *class,
 	return size;
 }
 
-static int out_ts_elem_cb_test(struct out_elem *pout, char *buf,
-			       int count, void *udata,
-				   int req_len, int *req_ret)
-{
-	dprint("get data...\n");
-	return count;
-}
-
-void test_sid(void)
-{
-	int i = 0;
-	struct out_elem *ts_out_elem;
-
-	for (i = 0; i < 64; i++) {
-		dprint("##########sid:%d\n", i);
-		ts_out_elem = ts_output_open(i, 0, SECTION_FORMAT,
-				OTHER_TYPE, 0, 0);
-		if (ts_out_elem) {
-			ts_output_add_cb(ts_out_elem,
-					 out_ts_elem_cb_test, NULL, 0,
-					 SECTION_FORMAT, 1);
-			ts_output_set_mem(ts_out_elem, pes_buf_size, 0, 0, 0);
-			ts_output_add_pid(ts_out_elem, 0, 0, 0, 0);
-		} else {
-			dprint("%s error\n", __func__);
-		}
-		msleep(2000);
-		sc2_dump_register();
-
-		ts_output_close(ts_out_elem);
-	}
-}
-
-static ssize_t debug_sid_show(struct class *class,
-			      struct class_attribute *attr, char *buf)
-{
-	ts_output_sid_debug();
-	test_sid();
-	return 0;
-}
-
 static ssize_t dump_register_show(struct class *class,
 				  struct class_attribute *attr, char *buf)
 {
@@ -1782,6 +1758,45 @@ static ssize_t dump_filter_store(struct class *class,
 				 struct class_attribute *attr,
 				 const char *buf, size_t size)
 {
+	return size;
+}
+
+static ssize_t cache_status_show(struct class *class,
+				struct class_attribute *attr, char *buf)
+{
+	ssize_t size;
+	struct aml_dvb *advb = aml_get_dvb_device();
+
+	if (mutex_lock_interruptible(&advb->mutex))
+		return -ERESTARTSYS;
+
+	size = cache_status_info(buf);
+	mutex_unlock(&advb->mutex);
+	return size;
+}
+
+static ssize_t cache_status_store(struct class *class,
+				 struct class_attribute *attr,
+				 const char *buf, size_t size)
+{
+	int cache0_count = 0;
+	int cache1_count = 0;
+	int ret = 0;
+
+	struct aml_dvb *advb = aml_get_dvb_device();
+
+	if (mutex_lock_interruptible(&advb->mutex))
+		return -ERESTARTSYS;
+
+	dprint_i("%s\n", buf);
+	if (!strncmp(buf, "clear", 5)) {
+		cache_clear();
+	} else if (!strncmp(buf, "adjust", 6)) {
+		ret = sscanf(buf + 7, "%d %d", &cache0_count, &cache1_count);
+		if (ret == 2 && cache0_count > 0 && cache1_count > 0)
+			cache_adjust(cache0_count, cache1_count);
+	}
+	mutex_unlock(&advb->mutex);
 	return size;
 }
 
@@ -1881,10 +1896,10 @@ static struct class_attribute aml_dmx_class_attrs[] = {
 	       dump_register_store),
 	__ATTR(dump_filter, 0644, dump_filter_show,
 	       dump_filter_store),
-	__ATTR(debug_sid, 0644, debug_sid_show,
-	       NULL),
 	__ATTR(dump_av_level, 0644, dump_av_level_show,
 		   NULL),
+	__ATTR(cache_status, 0644, cache_status_show,
+	       cache_status_store),
 	__ATTR_NULL
 };
 

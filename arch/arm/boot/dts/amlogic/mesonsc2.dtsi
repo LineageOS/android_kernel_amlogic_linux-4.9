@@ -251,6 +251,11 @@
 		storage_version = <0x8200006C>;
 	};
 
+	ddr-scrambler@0xfe02e030 {
+		compatible = "amlogic, ddr-scrambler-preserve";
+		reg = <0xfe02e030 0x4>;
+	};
+
 	mailbox_mhu_fifo: mhu@fe006000 {
 		status = "okay";
 		compatible = "amlogic, meson_mhu_fifo";
@@ -429,6 +434,13 @@
 		compatible = "amlogic, audio_data";
 		query_licence_cmd = <0x82000050>;
 		status = "disabled";
+	};
+
+	amaudio: amaudio {
+		compatible = "amlogic, amaudio";
+		reg = <0xfe440000 0x10000>;
+		reg-names = "otp_tee_base";
+		status = "okay";
 	};
 
 	dwc3: dwc3@fde00000 {
@@ -1186,10 +1198,12 @@
 
 		clocks = <&clkc CLKID_PCIE_PLL
 			&clkc CLKID_PCIE
-			&clkc CLKID_PCIE_PHY>;
+			&clkc CLKID_PCIE_PHY
+			&clkc CLKID_PCIE_HCSL>;
 		clock-names = "pcie_refpll",
 				"pcie",
-				"pcie_phy";
+				"pcie_phy",
+				"pcie_hcsl";
 		/*reset-gpio-type 0:Shared pad(no reset)1:OD pad2:Normal pad*/
 		gpio-type = <2>;
 		pcie-apb-rst-bit = <14>;
@@ -1212,8 +1226,9 @@
 			"hdmi_vapb_clk",
 			"hdmi_vpu_clk";
 		/* refer to sc2-system-registers.docx */
-		interrupts = <0 204 1>;
-		interrupt-names = "hdmitx_hpd";
+		interrupts = <0 204 1
+			0 197 1>;
+		interrupt-names = "hdmitx_hpd", "viu1_vsync";
 		/* refer to hdmi_tx_module.h */
 		ic_type = <15>;
 		vend_data: vend_data{ /* Should modified by Customer */
@@ -1605,11 +1620,29 @@
 
 		pinctrl-names = "sd_all_pins",
 			"sd_clk_cmd_pins",
-			"sd_1bit_pins";
+			"sd_1bit_pins",
+			"sd_clk_cmd_uart_pins",
+			"sd_1bit_uart_pins",
+			"sd_to_ao_uart_pins",
+			"ao_to_sd_uart_pins",
+			"sd_to_ao_jtag_pins",
+			"ao_to_sd_jtag_pins",
+			"sd_all_pd_pins";
 
 		pinctrl-0 = <&sd_all_pins>;
 		pinctrl-1 = <&sd_clk_cmd_pins>;
 		pinctrl-2 = <&sd_1bit_pins>;
+		pinctrl-3 = <&sd_to_ao_uart_clr_pins
+			&sd_clk_cmd_pins &ao_to_sd_uart_pins>;
+		pinctrl-4 = <&sd_to_ao_uart_clr_pins
+			&sd_1bit_pins &ao_to_sd_uart_pins>;
+		pinctrl-5 = <&sd_all_pins &sd_to_ao_uart_pins>;
+		pinctrl-6 = <&sd_to_ao_uart_clr_pins
+			&ao_to_sd_uart_pins>;
+		pinctrl-7 = <&sd_all_pins &sd_to_ao_uart_pins>;
+		pinctrl-8 = <&sd_to_ao_uart_clr_pins
+			&ao_to_sd_uart_pins>;
+		pinctrl-9 = <&sd_all_pd_pins>;
 
 		clocks = <&clkc CLKID_SD_EMMC_B>,
 			<&clkc CLKID_SD_EMMC_B_CLK_COMP>,
@@ -1632,6 +1665,7 @@
 			vol_switch =  <&gpio GPIOD_2 GPIO_ACTIVE_HIGH>;
 			vol_switch_18 = <1>; /* 1 = high, 0 = low */
 			vol_switch_delay = <150>; /* Uint: ms*/
+			no_sduart = <1>;
 			card_type = <5>;
 			/* 3:sdio device(ie:sdio-wifi),
 			 * 4:SD combo (IO+mem) card
@@ -1796,6 +1830,14 @@
 			compatible = "amlogic,sha_dma";
 			dev_name = "aml_sha_dma";
 			status = "okay";
+		};
+
+		crypto {
+			compatible = "amlogic,crypto_sc2";
+			dev_name = "aml_crypto_dev";
+			status = "okay";
+			thread = /bits/ 8 <0x5>;
+			interrupts = <0 29 1>;
 		};
 	};
 
@@ -2296,9 +2338,28 @@
 
 	ao_to_sd_uart_pins:ao_to_sd_uart_pins {
 		mux {
-			groups = "uart_ao_tx_a_c3",
-					"uart_ao_rx_a_c2";
-			function = "uart_ao_a_ee";
+			groups = "uart_b_rx_c",
+					"uart_b_tx_c";
+			function = "uart_b";
+			bias-pull-up;
+			input-enable;
+		};
+	};
+
+	sd_to_ao_uart_clr_pins:sd_to_ao_uart_clr_pins {
+		mux {
+			groups = "GPIOD_0",
+					"GPIOD_1";
+			function = "gpio_periphs";
+			output-high;
+		};
+	};
+
+	sd_to_ao_uart_pins:sd_to_ao_uart_pins {
+		mux {
+			groups = "uart_b_rx_d",
+					"uart_b_tx_d";
+			function = "uart_b";
 			bias-pull-up;
 			input-enable;
 		};

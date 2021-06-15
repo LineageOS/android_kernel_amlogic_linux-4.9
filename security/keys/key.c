@@ -296,6 +296,7 @@ struct key *key_alloc(struct key_type *type, const char *desc,
 	key->gid = gid;
 	key->perm = perm;
 	key->restrict_link = restrict_link;
+	key->last_used_at = ktime_get_real_seconds();
 
 	if (!(flags & KEY_ALLOC_NOT_IN_QUOTA))
 		key->flags |= 1 << KEY_FLAG_IN_QUOTA;
@@ -381,7 +382,7 @@ int key_payload_reserve(struct key *key, size_t datalen)
 		spin_lock(&key->user->lock);
 
 		if (delta > 0 &&
-		    (key->user->qnbytes + delta >= maxbytes ||
+		    (key->user->qnbytes + delta > maxbytes ||
 		     key->user->qnbytes + delta < key->user->qnbytes)) {
 			ret = -EDQUOT;
 		}
@@ -627,8 +628,26 @@ EXPORT_SYMBOL(key_reject_and_link);
  * schedule the cleanup task to come and pull it out of the tree in process
  * context at some later time.
  */
+
+#ifdef CONFIG_AMLOGIC_MODIFY
+#include <linux/memory.h>
+int is_key_invalid(struct key *key)
+{
+	if (key && key < (struct key *)PAGE_OFFSET)
+		return 1;
+	return 0;
+}
+EXPORT_SYMBOL(is_key_invalid);
+#endif
+
 void key_put(struct key *key)
 {
+#ifdef CONFIG_AMLOGIC_MODIFY
+	if (is_key_invalid(key)) {
+		WARN(1, "INVALID__x2__KEY:%p\n", key);
+		return;
+	}
+#endif
 	if (key) {
 		key_check(key);
 

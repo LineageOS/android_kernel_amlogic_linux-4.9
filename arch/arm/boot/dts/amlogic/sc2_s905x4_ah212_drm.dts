@@ -80,6 +80,13 @@
 			alignment = <0x400000>;
 			alloc-ranges = <0x7f800000 0x800000>;
 		};
+		dsp_fw_reserved:linux,dsp_fw {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0x00800000>;
+			alignment = <0x400000>;
+			alloc-ranges = <0x30000000 0x00800000>;
+		};
 		ion_cma_reserved:linux,ion-dev {
 			compatible = "shared-dma-pool";
 			reusable;
@@ -151,13 +158,6 @@
 			reusable;
 			size = <0x2000000>;
 			alignment = <0x400000>;
-		};
-		dsp_fw_reserved:linux,dsp_fw {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0x00800000>;
-			alignment = <0x400000>;
-			alloc-ranges = <0x3400000 0x00800000>;
 		};
 	};
 
@@ -444,6 +444,8 @@
 		fe0_ant_poweron_value = <0>;
 		fe0_ant_power_gpio = <&gpio GPIOC_1 GPIO_ACTIVE_HIGH>;
 		fe0_ts  = <0>;
+		fe0_tuner0 = <0>; /* T/C */
+		fe0_tuner1 = <1>; /* S */
 
 		fe1_demod = "cxd2856";
 		fe1_i2c_adap_id = <&i2c2>;
@@ -454,6 +456,12 @@
 		fe1_ant_poweron_value = <0>;
 		fe1_ant_power_gpio = <&gpio GPIOC_1 GPIO_ACTIVE_HIGH>;
 		fe1_ts  = <1>;
+		fe1_tuner0 = <0>; /* T/C */
+		fe1_tuner1 = <1>; /* S */
+
+		tuner_num = <2>; /* for extern demod use tuner */
+		tuner0_name = "r836_tuner";
+		tuner1_name = "av2018_tuner";
 	};
 
 	demux {
@@ -857,6 +865,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
+#if 0
 		aml-audio-card,dai-link@6 {
 			mclk-fs = <256>;
 			suffix-name = "alsaPORT-earc";
@@ -868,7 +877,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
-
+#endif
 		aml-audio-card,dai-link@7 {
 			mclk-fs = <256>;
 			continuous-clock;
@@ -923,11 +932,11 @@
 		};
 		opp04 {
 			opp-hz = /bits/ 64 <1000000000>;
-			opp-microvolt = <819000>;
+			opp-microvolt = <799000>;
 		};
 		opp05 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <829000>;
+			opp-microvolt = <809000>;
 		};
 		opp06 {
 			opp-hz = /bits/ 64 <1404000000>;
@@ -951,11 +960,11 @@
 		};
 		opp11 {
 			opp-hz = /bits/ 64 <1908000000>;
-			opp-microvolt = <1019000>;
+			opp-microvolt = <989000>;
 		};
 		opp12 {
 			opp-hz = /bits/ 64 <2000000000>;
-			opp-microvolt = <1049000>;
+			opp-microvolt = <1019000>;
 		};
 	};
 
@@ -1400,7 +1409,7 @@
 }; /* end of audiobus */
 
 &earc {
-	status = "okay";
+	status = "disabled";
 };
 
 &pinctrl_audio {

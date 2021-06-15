@@ -1069,10 +1069,12 @@
 
 		clocks = <&clkc CLKID_PCIE_PLL
 			&clkc CLKID_PCIE_COMB
-			&clkc CLKID_PCIE_PHY>;
+			&clkc CLKID_PCIE_PHY
+			&clkc CLKID_PCIE_HCSL>;
 		clock-names = "pcie_refpll",
 				"pcie",
-				"pcie_phy";
+				"pcie_phy",
+				"pcie_hcsl";
 		/*reset-gpio-type 0:Shared pad(no reset)1:OD pad2:Normal pad*/
 		gpio-type = <2>;
 		pcie-apb-rst-bit = <15>;
@@ -1100,8 +1102,9 @@
 			"hdmi_vapb_clk",
 			"hdmi_vpu_clk";
 		/* HPD, 57 + 32 = 89; CEC, 151 + 32 = 183*/
-		interrupts = <0 57 1>;
-		interrupt-names = "hdmitx_hpd";
+		interrupts = <0 57 1
+			0 3 1>;
+		interrupt-names = "hdmitx_hpd", "viu1_vsync";
 		/* 0:M8B 1:GXBB 2:GXTVBB 3:GXL 4:GXM
 		 * 5:TXL 6:TXLX 7:AXG 8:GXLX 9:TXHD
 		 * 10:G12A
@@ -1200,12 +1203,7 @@
 		dev_name = "vout";
 		status = "okay";
 
-		/* fr_policy:
-		 *    0: disable
-		 *    1: nearby (only for 60->59.94 and 30->29.97)
-		 *    2: force (60/50/30/24/59.94/23.97)
-		 */
-		fr_policy = <2>;
+		fr_policy = <0>;
 	};
 
 	vout2 {
@@ -1217,12 +1215,7 @@
 		clock-names = "vpu_clkc0",
 			"vpu_clkc";
 
-		/* fr_policy:
-		 *    0: disable
-		 *    1: nearby (only for 60->59.94 and 30->29.97)
-		 *    2: force (60/50/30/24/59.94/23.97)
-		 */
-		fr_policy = <2>;
+		fr_policy = <0>;
 	};
 
 	dummy_venc: dummy_venc {

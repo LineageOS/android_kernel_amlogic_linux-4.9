@@ -35,10 +35,12 @@
 
 #define HHI_PCIE_PLL_CNTL0		0x98 /* 0x26 offset in data sheet */
 #define HHI_PCIE_PLL_CNTL1		0x9c /* 0x27 offset in data sheet */
+#define HHI_PCIE_PLL_CNTL5		0xac /* 0x2b offset in data sheet */
 #define HHI_XTAL_DIVN_CNTL		0xbc /* 0x2f offset in data sheet */
 //#define HHI_PCIE_PLL_CNTL6	0xf0 /* 0x3c offset in data sheet */
 
 #define HHI_HIFI_PLL_CNTL0		0xD8 /* 0x36 offset in data sheet */
+#define HHI_HIFI_PLL_CNTL1		0xDc /* 0x36 offset in data sheet */
 
 #define HHI_GCLK_MPEG0			0x140 /* 0x50 offset in data sheet */
 #define HHI_GCLK_MPEG1			0x144 /* 0x51 offset in data sheet */
@@ -223,11 +225,11 @@ static const struct fclk_rate_table fclk_pll_rate_table[] = {
 
 /*PCIE clk_out = 24M*m/2/2/OD*/
 static const struct pll_rate_table g12a_pcie_pll_rate_table[] = {
-	PLL_RATE(100000000, 150, 0, 9),
+	PLL_RATE(100000000, 100, 1, 9),
 	{ /* sentinel */ },
 };
 
 static const struct pll_rate_table g12a_hifi_pll_rate_table[] = {
-	PLL_RATE(666000000ULL,	222, 1, 3), /*DCO=5328M*/
+	PLL_RATE(589824000ULL,	196, 1, 3), /*DCO=4718.592M*/
 };
 #endif /* __G12A_H */

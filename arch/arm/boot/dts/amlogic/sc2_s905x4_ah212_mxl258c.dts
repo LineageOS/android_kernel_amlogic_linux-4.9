@@ -79,6 +79,13 @@
 			alignment = <0x400000>;
 			alloc-ranges = <0x7f800000 0x800000>;
 		};
+		dsp_fw_reserved:linux,dsp_fw {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0x00800000>;
+			alignment = <0x400000>;
+			alloc-ranges = <0x30000000 0x00800000>;
+		};
 		ion_cma_reserved:linux,ion-dev {
 			compatible = "shared-dma-pool";
 			reusable;
@@ -149,13 +156,6 @@
 			reusable;
 			size = <0x2000000>;
 			alignment = <0x400000>;
-		};
-		dsp_fw_reserved:linux,dsp_fw {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0x00800000>;
-			alignment = <0x400000>;
-			alloc-ranges = <0x3400000 0x00800000>;
 		};
 	};
 
@@ -909,6 +909,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
+#if 0
 		aml-audio-card,dai-link@6 {
 			mclk-fs = <256>;
 			suffix-name = "alsaPORT-earc";
@@ -920,7 +921,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
-
+#endif
 		aml-audio-card,dai-link@7 {
 			mclk-fs = <256>;
 			continuous-clock;
@@ -975,11 +976,11 @@
 		};
 		opp04 {
 			opp-hz = /bits/ 64 <1000000000>;
-			opp-microvolt = <819000>;
+			opp-microvolt = <799000>;
 		};
 		opp05 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <829000>;
+			opp-microvolt = <809000>;
 		};
 		opp06 {
 			opp-hz = /bits/ 64 <1404000000>;
@@ -999,15 +1000,15 @@
 		};
 		opp10 {
 			opp-hz = /bits/ 64 <1800000000>;
-			opp-microvolt = <969000>;
+			opp-microvolt = <959000>;
 		};
 		opp11 {
 			opp-hz = /bits/ 64 <1908000000>;
-			opp-microvolt = <1019000>;
+			opp-microvolt = <989000>;
 		};
 		opp12 {
 			opp-hz = /bits/ 64 <2000000000>;
-			opp-microvolt = <1049000>;
+			opp-microvolt = <1019000>;
 		};
 	};
 
@@ -1468,7 +1469,7 @@
 }; /* end of audiobus */
 
 &earc {
-	status = "okay";
+	status = "disabled";
 };
 
 &pinctrl_audio {

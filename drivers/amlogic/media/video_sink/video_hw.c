@@ -506,6 +506,17 @@ void set_video_enabled(u32 value, u32 index)
 }
 EXPORT_SYMBOL(set_video_enabled);
 
+bool get_disable_video_flag(enum vd_path_e vd_path)
+{
+	if (vd_path == VD1_PATH)
+		return vd_layer[0].disable_video == VIDEO_DISABLE_NORMAL;
+	else if (vd_path == VD2_PATH)
+		return vd_layer[1].disable_video == VIDEO_DISABLE_NORMAL;
+
+	return false;
+}
+EXPORT_SYMBOL(get_disable_video_flag);
+
 bool is_di_on(void)
 {
 	bool ret = false;
@@ -4505,6 +4516,29 @@ static int vpp_zorder_check(void)
 	return force_flush;
 }
 
+static void post_blend_dummy_data_update(void)
+{
+	u32 bg_color;
+
+	if (vd_layer[0].enabled)
+		bg_color = vd_layer[0].video_en_bg_color;
+	else
+		bg_color = vd_layer[0].video_dis_bg_color;
+
+	/* for channel background setting
+	 * no auto flag, return
+	 */
+	if (!(bg_color & VIDEO_AUTO_POST_BLEND_DUMMY))
+		return;
+
+	if (!legacy_vpp)
+		VSYNC_WR_MPEG_REG(VPP_POST_BLEND_BLEND_DUMMY_DATA,
+				  bg_color & 0x00ffffff);
+	else
+		VSYNC_WR_MPEG_REG(VPP_DUMMY_DATA1,
+				  bg_color & 0x00ffffff);
+}
+
 void vpp_blend_update(
 	const struct vinfo_s *vinfo)
 {
@@ -4890,6 +4924,8 @@ void vpp_blend_update(
 			vpp_misc_set);
 	}
 
+	post_blend_dummy_data_update();
+
 	if ((vd_layer[1].dispbuf && video2_off_req) ||
 	    (!vd_layer[1].dispbuf &&
 	     (video1_off_req || video2_off_req)))
@@ -4937,7 +4973,10 @@ static bool is_vframe_changed(
 		return true;
 
 	if (cur_vf && new_vf &&
-	    ((cur_vf->bufWidth != new_vf->bufWidth) ||
+	    (((cur_vf->type & VIDTYPE_COMPRESS) &&
+	     ((cur_vf->compWidth != new_vf->compWidth) ||
+	     (cur_vf->compHeight != new_vf->compHeight))) ||
+	     (cur_vf->bufWidth != new_vf->bufWidth) ||
 	     (cur_vf->width != new_vf->width) ||
 	     (cur_vf->height != new_vf->height) ||
 	     (cur_vf->sar_width != new_vf->sar_width) ||
