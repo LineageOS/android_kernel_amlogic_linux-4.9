@@ -108,6 +108,9 @@ MODULE_AMLOG(LOG_LEVEL_ERROR, 0, LOG_DEFAULT_LEVEL_DESC, LOG_MASK_DESC);
 #define TRACE_INCLUDE_PATH .
 #define TRACE_INCLUDE_FILE video_trace
 #include <trace/define_trace.h>
+#ifdef CONFIG_AMLOGIC_MEDIA_MSYNC
+#include <uapi/linux/amlogic/msync.h>
+#endif
 
 static int get_count;
 static int get_di_count;
@@ -904,6 +907,7 @@ static u32 vsync_freerun;
  * >1000: speed*(vsync_slow_factor/1000000)
  */
 static u32 vsync_slow_factor = 1;
+static int video_delay_val;
 
 /* pts alignment */
 static bool vsync_pts_aligned;
@@ -2478,17 +2482,18 @@ static inline bool vpts_expire(struct vframe_s *cur_vf,
 #else
 	if (smooth_sync_enable) {
 		org_vpts = timestamp_vpts_get();
-		if ((abs(org_vpts + vsync_pts_inc - systime) <
-			M_PTS_SMOOTH_MAX)
-		    && (abs(org_vpts + vsync_pts_inc - systime) >
-			M_PTS_SMOOTH_MIN)) {
+		if ((abs(org_vpts + vsync_pts_inc + video_delay_val - systime) <
+			M_PTS_SMOOTH_MAX) &&
+		(abs(org_vpts + vsync_pts_inc + video_delay_val - systime)
+			> M_PTS_SMOOTH_MIN)) {
 
 			if (!video_frame_repeat_count) {
 				vpts_ref = org_vpts;
 				video_frame_repeat_count++;
 			}
 
-			if ((int)(org_vpts + vsync_pts_inc - systime) > 0) {
+			if ((int)(org_vpts + vsync_pts_inc +
+				video_delay_val - systime) > 0) {
 				adjust_pts =
 				    vpts_ref + (vsync_pts_inc -
 						M_PTS_SMOOTH_ADJUST) *
@@ -2508,13 +2513,17 @@ static inline bool vpts_expire(struct vframe_s *cur_vf,
 			video_frame_repeat_count = 0;
 		}
 	}
+	if (video_delay_val && !omx_secret_mode) {
+		expired = ((int)(timestamp_pcrscr_get() +
+			vsync_pts_align - pts - video_delay_val)) >= 0;
+		return expired;
+	}
 	if (tsync_get_mode() == TSYNC_MODE_PCRMASTER)
 		expired = (timestamp_pcrscr_get() + vsync_pts_align >= pts) ?
 				true : false;
 	else
-		expired = (int)(timestamp_pcrscr_get() +
-				vsync_pts_align - pts) >= 0;
-
+		expired = ((int)(timestamp_pcrscr_get() +
+			vsync_pts_align - pts)) >= 0;
 #ifdef PTS_THROTTLE
 	if (expired && next_vf && next_vf->next_vf_pts_valid &&
 		(vsync_slow_factor == 1) &&
@@ -2628,8 +2637,8 @@ void vsync_rdma_process(void)
 }
 #endif
 
-static enum vmode_e old_vmode = VMODE_MAX;
-static enum vmode_e new_vmode = VMODE_MAX;
+static char old_vmode[32];
+static char new_vmode[32];
 static inline bool video_vf_disp_mode_check(struct vframe_s *vf)
 {
 	struct provider_disp_mode_req_s req;
@@ -4034,6 +4043,10 @@ static irqreturn_t vsync_isr_in(int irq, void *dev_id)
 	if (debug_flag & DEBUG_FLAG_VSYNC_DONONE)
 		return IRQ_HANDLED;
 
+#ifdef CONFIG_AMLOGIC_MEDIA_MSYNC
+	msync_vsync_update();
+#endif
+
 	if (cur_vd1_path_id == 0xff)
 		cur_vd1_path_id = vd1_path_id;
 	if (cur_vd2_path_id == 0xff)
@@ -4222,11 +4235,11 @@ static irqreturn_t vsync_isr_in(int irq, void *dev_id)
 
 	/* vout mode detection under old tunnel mode */
 	if ((vf) && ((vf->type & VIDTYPE_NO_VIDEO_ENABLE) == 0)) {
-		if (old_vmode != new_vmode) {
+		if (strcmp(old_vmode, new_vmode)) {
 			vd_layer[0].property_changed = true;
 			vd_layer[1].property_changed = true;
 			pr_info("detect vout mode change!!!!!!!!!!!!\n");
-			old_vmode = new_vmode;
+			strcpy(old_vmode, new_vmode);
 		}
 	}
 	toggle_cnt = 0;
@@ -4886,7 +4899,9 @@ static irqreturn_t vsync_isr_in(int irq, void *dev_id)
 					(cur_dispbuf, vf,
 					frame_repeat_count
 					* vsync_pts_inc) &&
-					timestamp_pcrscr_enable_state()) {
+					((timestamp_pcrscr_enable_state() ||
+					tsync_get_mode() ==
+					TSYNC_MODE_PCRMASTER))) {
 #if defined(CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM)
 					int iret1 = 0, iret2 = 0;
 #endif
@@ -5338,11 +5353,11 @@ SET_FILTER:
 
 	/* vout mode detection under new non-tunnel mode */
 	if (vd_layer[0].dispbuf || vd_layer[1].dispbuf) {
-		if (old_vmode != new_vmode) {
+		if (strcmp(old_vmode, new_vmode)) {
 			vd_layer[0].property_changed = true;
 			vd_layer[1].property_changed = true;
 			pr_info("detect vout mode change!!!!!!!!!!!!\n");
-			old_vmode = new_vmode;
+			strcpy(old_vmode, new_vmode);
 		}
 	}
 
@@ -6576,9 +6591,6 @@ EXPORT_SYMBOL(di_unreg_notify);
 #define signal_color_primaries ((vf->signal_type >> 16) & 0xff)
 #define signal_transfer_characteristic ((vf->signal_type >> 8) & 0xff)
 
-#define DV_SEI 0x01000000
-#define HDR10P 0x02000000
-
 static int check_media_sei(char *sei, u32 sei_size, u32 sei_type)
 {
 	int ret = 0;
@@ -6599,7 +6611,10 @@ static int check_media_sei(char *sei, u32 sei_size, u32 sei_type)
 		type = (type << 8) | *p++;
 		type = (type << 8) | *p++;
 
-		if (type == sei_type) {
+		if (((sei_type == DV_SEI || sei_type == HDR10P) &&
+			sei_type == type) ||
+			(sei_type == DV_AV1_SEI &&
+			sei_type == (type & 0xffff0000))) {
 			ret = 1;
 			break;
 		}
@@ -6613,7 +6628,7 @@ static s32 clear_vframe_dovi_md_info(struct vframe_s *vf)
 	if (!vf)
 		return -1;
 
-	/* invaild src fmt case */
+	/* invalid src fmt case */
 	if (vf->src_fmt.sei_magic_code != SEI_MAGIC_CODE)
 		return -1;
 
@@ -6635,6 +6650,8 @@ s32 update_vframe_src_fmt(
 	int src_fmt = -1;
 	int ret = 0;
 #endif
+	int i;
+	char *p;
 
 	if (!vf)
 		return -1;
@@ -6644,6 +6661,31 @@ s32 update_vframe_src_fmt(
 	vf->src_fmt.sei_ptr = sei;
 	vf->src_fmt.sei_size = size;
 	vf->src_fmt.dual_layer = false;
+	if (debug_flag & DEBUG_FLAG_OMX_DV_DROP_FRAME) {
+		pr_info("===update vf %p, sei %p, size %d, dual_layer %d===\n",
+			vf, sei, size, dual_layer);
+		if (sei && size > 15) {
+			p = (char *)sei;
+			for (i = 0; i < size; i += 16)
+				pr_info("%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+					p[i],
+					p[i + 1],
+					p[i + 2],
+					p[i + 3],
+					p[i + 4],
+					p[i + 5],
+					p[i + 6],
+					p[i + 7],
+					p[i + 8],
+					p[i + 9],
+					p[i + 10],
+					p[i + 11],
+					p[i + 12],
+					p[i + 13],
+					p[i + 14],
+					p[i + 15]);
+		}
+	}
 
 	if (vf->type & VIDTYPE_MVC) {
 		vf->src_fmt.fmt = VFRAME_SIGNAL_FMT_MVC;
@@ -6651,14 +6693,16 @@ s32 update_vframe_src_fmt(
 		if (vf->discard_dv_data) {
 			if (debug_flag & DEBUG_FLAG_OMX_DV_DROP_FRAME)
 				pr_info("ignore nonstandard dv\n");
-		} else if (dual_layer || check_media_sei(sei, size, DV_SEI)) {
+		} else if (dual_layer || check_media_sei(sei, size, DV_SEI) ||
+			   check_media_sei(sei, size, DV_AV1_SEI)) {
 			vf->src_fmt.fmt = VFRAME_SIGNAL_FMT_DOVI;
 			vf->src_fmt.dual_layer = dual_layer;
 #if PARSE_MD_IN_ADVANCE
 			if (vf->src_fmt.md_buf && vf->src_fmt.comp_buf) {
 				if (debug_flag & DEBUG_FLAG_OMX_DV_DROP_FRAME)
-					pr_info("parse vf %p, sei %p, size %d\n",
-						vf, sei, size);
+					pr_info("parse vf %p, sei %p, size %d, md_buf %p\n",
+						vf, sei, size,
+						vf->src_fmt.md_buf);
 				ret = parse_sei_and_meta_ext
 					(vf, sei, size,
 					 &vf->src_fmt.comp_size,
@@ -8224,11 +8268,11 @@ static ssize_t video_screen_mode_show(struct class *cla,
 {
 	struct disp_info_s *layer = &glayer_info[0];
 	static const char * const wide_str[] = {
-		"normal", "full stretch", "4-3", "16-9", "non-linear",
+		"normal", "full stretch", "4-3", "16-9", "non-linear-V",
 		"normal-noscaleup",
 		"4-3 ignore", "4-3 letter box", "4-3 pan scan", "4-3 combined",
 		"16-9 ignore", "16-9 letter box", "16-9 pan scan",
-		"16-9 combined", "Custom AR", "AFD"
+		"16-9 combined", "Custom AR", "AFD", "non-linear-T"
 	};
 
 	if (layer->wide_mode < ARRAY_SIZE(wide_str)) {
@@ -8302,6 +8346,30 @@ static ssize_t video_seek_flag_store(struct class *cla,
 		return -EINVAL;
 
 	return count;
+}
+
+static ssize_t video_videodelay_store(struct class *class,
+				struct class_attribute *attr,
+				const char *buf, size_t count)
+{
+	int r;
+	int value;
+
+	r = kstrtoint(buf, 0, &value);
+	if (r < 0)
+		return -EINVAL;
+
+	video_delay_val = value * 90;
+
+	return count;
+}
+
+static ssize_t video_videodelay_show(struct class *cla,
+				struct class_attribute *attr,
+				char *buf)
+{
+	return sprintf(buf, "%d(%dms)\n", video_delay_val,
+						video_delay_val / 90);
 }
 
 #ifdef PTS_TRACE_DEBUG
@@ -8522,6 +8590,20 @@ static ssize_t video_test_screen_show(struct class *cla,
 {
 	return sprintf(buf, "0x%x\n", test_screen);
 }
+
+/* [24]    Flag: enable/disable auto background color */
+/* [23:16] Y */
+/* [15: 8] Cb */
+/* [ 7: 0] Cr */
+static ssize_t video_background_show(struct class *cla,
+				      struct class_attribute *attr,
+				      char *buf)
+{
+	return sprintf(buf, "channel_bg(0x%x) no_channel_bg(0x%x)\n",
+		       vd_layer[0].video_en_bg_color,
+		       vd_layer[0].video_dis_bg_color);
+}
+
 static ssize_t video_rgb_screen_show(struct class *cla,
 				      struct class_attribute *attr, char *buf)
 {
@@ -8768,6 +8850,29 @@ static ssize_t video_test_screen_store(struct class *cla,
 	return count;
 }
 
+/* [24]    Flag: enable/disable auto background color */
+/* [23:16] Y */
+/* [15: 8] Cb */
+/* [ 7: 0] Cr */
+static ssize_t video_background_store(struct class *cla,
+				       struct class_attribute *attr,
+				       const char *buf, size_t count)
+{
+	int parsed[2];
+
+	if (likely(parse_para(buf, 2, parsed) == 2)) {
+		pr_info("video bg color, channel(0x%x) no_channel(0x%x)\n",
+			 parsed[0], parsed[1]);
+		vd_layer[0].video_en_bg_color = parsed[0];
+		vd_layer[0].video_dis_bg_color = parsed[1];
+	} else {
+		pr_err("video_background: wrong input params\n");
+		return -EINVAL;
+	}
+
+	return count;
+}
+
 static ssize_t video_rgb_screen_store(struct class *cla,
 				       struct class_attribute *attr,
 				       const char *buf, size_t count)
@@ -8853,6 +8958,36 @@ static ssize_t video_nonlinear_factor_store(struct class *cla,
 		return -EINVAL;
 
 	if (vpp_set_nonlinear_factor(layer, factor) == 0)
+		vd_layer[0].property_changed = true;
+
+	return count;
+}
+
+static ssize_t video_nonlinear_t_factor_show(struct class *cla,
+					   struct class_attribute *attr,
+					   char *buf)
+{
+	u32 factor;
+	struct disp_info_s *layer = &glayer_info[0];
+
+	factor = vpp_get_nonlinear_t_factor(layer);
+
+	return sprintf(buf, "%d\n", factor);
+}
+
+static ssize_t video_nonlinear_t_factor_store(struct class *cla,
+					    struct class_attribute *attr,
+					    const char *buf, size_t count)
+{
+	int r;
+	u32 factor;
+	struct disp_info_s *layer = &glayer_info[0];
+
+	r = kstrtoint(buf, 0, &factor);
+	if (r < 0)
+		return -EINVAL;
+
+	if (vpp_set_nonlinear_t_factor(layer, factor) == 0)
 		vd_layer[0].property_changed = true;
 
 	return count;
@@ -11043,6 +11178,10 @@ static struct class_attribute amvideo_class_attrs[] = {
 	       0664,
 	       video_seek_flag_show,
 	       video_seek_flag_store),
+	__ATTR(video_delay_val,
+		   0664,
+		   video_videodelay_show,
+		   video_videodelay_store),
 	__ATTR(disable_video,
 	       0664,
 	       video_disable_show,
@@ -11083,6 +11222,10 @@ static struct class_attribute amvideo_class_attrs[] = {
 	       0644,
 	       vpp_saturation_hue_show,
 	       vpp_saturation_hue_store),
+	__ATTR(video_background,
+	       0644,
+	       video_background_show,
+	       video_background_store),
 	__ATTR(test_screen,
 	       0644,
 	       video_test_screen_show,
@@ -11107,6 +11250,10 @@ static struct class_attribute amvideo_class_attrs[] = {
 	       0644,
 	       video_nonlinear_factor_show,
 	       video_nonlinear_factor_store),
+	__ATTR(nonlinear_t_factor,
+	       0644,
+	       video_nonlinear_t_factor_show,
+	       video_nonlinear_t_factor_store),
 	__ATTR(freerun_mode,
 	       0644,
 	       video_freerun_mode_show,
@@ -11430,7 +11577,7 @@ int vout_notify_callback(struct notifier_block *block, unsigned long cmd,
 		vsync_pts_inc_scale = vinfo->sync_duration_den;
 		vsync_pts_inc_scale_base = vinfo->sync_duration_num;
 		spin_unlock_irqrestore(&lock, flags);
-		new_vmode = vinfo->mode;
+		strncpy(new_vmode, vinfo->name, 32);
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 		pr_info("DOLBY: vout_notify_callback: VOUT_EVENT_MODE_CHANGE\n");
 		/* force send hdmi pkt in dv code */
@@ -11471,7 +11618,8 @@ static void vout_hook(void)
 			vinfo->sync_duration_num;
 		vsync_pts_inc_scale = vinfo->sync_duration_den;
 		vsync_pts_inc_scale_base = vinfo->sync_duration_num;
-		old_vmode = new_vmode = vinfo->mode;
+		strcpy(old_vmode, vinfo->name);
+		strcpy(new_vmode, vinfo->name);
 	}
 #ifdef CONFIG_AM_VIDEO_LOG
 	if (vinfo) {

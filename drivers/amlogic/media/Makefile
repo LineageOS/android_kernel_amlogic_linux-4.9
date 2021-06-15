@@ -7,7 +7,6 @@ obj-$(CONFIG_AMLOGIC_VOUT)		+=	vout/
 obj-$(CONFIG_AMLOGIC_MEDIA_DEINTERLACE)	+=	deinterlace/
 obj-$(CONFIG_AMLOGIC_MEDIA_DEINTERLACE)	+=	di_multi/
 obj-$(CONFIG_AMLOGIC_MEDIA_DEINTERLACE)	+=	di_local/
-obj-$(CONFIG_AMLOGIC_MEDIA_DEINTERLACE)	+=	di_multi_v3/
 obj-$(CONFIG_AMLOGIC_MEDIA_VIN)		+=	vin/
 obj-$(CONFIG_AMLOGIC_MEDIA_VIDEO_PROCESSOR)	+=	video_processor/
 obj-$(CONFIG_AMLOGIC_MEDIA_ENHANCEMENT) += enhancement/
@@ -16,3 +15,4 @@ obj-$(CONFIG_AMLOGIC_MEDIA_GDC) += gdc/
 
 obj-$(CONFIG_AMLOGIC_MEDIA_ALGORITHM) += algorithm/
 obj-$(CONFIG_AMLOGIC_VIDEO_CAPTURE) += camera/
+obj-$(CONFIG_AMLOGIC_MEDIA_MSYNC) += avsync/

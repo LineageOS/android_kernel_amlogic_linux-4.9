@@ -1,22 +1,22 @@
 .. -*- coding: utf-8; mode: rst -*-
 
-.. _CA_SET_DESCR_EX:
+.. _CA_SC2_SET_DESCR_EX:
 
-============
-CA_SET_DESCR_EX
-============
+===================
+CA_SC2_SET_DESCR_EX
+===================
 
 Name
 ----
 
-CA_SET_DESCR_EX
+CA_SC2_SET_DESCR_EX
 
 
 Synopsis
 --------
 
-.. c:function:: int ioctl(fd, CA_SET_DESCR, struct ca_descr_ex *desc)
-    :name: CA_SET_DESCR_EX
+.. c:function:: int ioctl(fd, CA_SC2_SET_DESCR, struct ca_sc2_descr_ex *desc)
+    :name: CA_SC2_SET_DESCR_EX
 
 
 Arguments
@@ -26,7 +26,7 @@ Arguments
   File descriptor returned by a previous call to :c:func:`open() <cec-open>`.
 
 ``msg``
-  Pointer to struct :c:type:`ca_descr_ex`.
+  Pointer to struct :c:type:`ca_sc2_descr_ex`.
 
 
 Description

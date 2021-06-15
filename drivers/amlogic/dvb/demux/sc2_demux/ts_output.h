@@ -175,11 +175,12 @@ int ts_output_reset(struct out_elem *pout);
  * \param dmx_id:dmx_id
  * \param format:format
  * \param is_sec: is section callback
+ * \param demux_id:dmx id
  * \retval 0:success.
  * \retval -1:fail.
  */
 int ts_output_add_cb(struct out_elem *pout, ts_output_cb cb, void *udata,
-		     u8 dmx_id, u8 format, bool is_sec);
+		     u8 dmx_id, u8 format, bool is_sec, u8 demux_id);
 
 /**
  * remove callback for getting data
@@ -198,4 +199,6 @@ struct out_elem *ts_output_find_dvr(int sid);
 
 int ts_output_sid_debug(void);
 int ts_output_dump_info(char *buf);
+int ts_output_update_filter(int dmx_no, int sid);
+
 #endif

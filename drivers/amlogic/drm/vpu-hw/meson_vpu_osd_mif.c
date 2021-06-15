@@ -98,8 +98,7 @@ static struct osd_mif_reg_s osd_mif_reg[HW_OSD_MIF_NUM] = {
 	}
 };
 
-static unsigned int osd_canvas[3][2] = {
-	{0x41, 0x42}, {0x43, 0x44}, {0x45, 0x46} };
+static unsigned int osd_canvas[3][2];
 static u32 osd_canvas_index[3] = {0, 0, 0};
 
 /*
@@ -528,6 +527,24 @@ void meson_drm_unmap_phyaddr(u8 *vaddr)
 	vunmap(addr);
 }
 
+void meson_drm_osd_canvas_alloc(void)
+{
+	if (canvas_pool_alloc_canvas_table("osd_drm",
+					   &osd_canvas[0][0],
+					   sizeof(osd_canvas) /
+					   sizeof(osd_canvas[0][0]),
+					   CANVAS_MAP_TYPE_1)) {
+		DRM_INFO("allocate drm osd canvas error.\n");
+	}
+}
+
+void meson_drm_osd_canvas_free(void)
+{
+	canvas_pool_free_canvas_table(&osd_canvas[0][0],
+				      sizeof(osd_canvas) /
+				      sizeof(osd_canvas[0][0]));
+}
+
 static int osd_check_state(struct meson_vpu_block *vblk,
 			   struct meson_vpu_block_state *state,
 		struct meson_vpu_pipeline_state *mvps)
@@ -545,7 +562,7 @@ static int osd_check_state(struct meson_vpu_block *vblk,
 		DRM_INFO("mvos is NULL!\n");
 		return -1;
 	}
-	DRM_DEBUG("%s check_state called.\n", osd->base.name);
+	DRM_DEBUG("%s - %d check_state called.\n", osd->base.name, vblk->index);
 	plane_info = &mvps->plane_info[vblk->index];
 	mvos->src_x = plane_info->src_x;
 	mvos->src_y = plane_info->src_y;
@@ -559,6 +576,7 @@ static int osd_check_state(struct meson_vpu_block *vblk,
 	mvos->rotation = plane_info->rotation;
 	mvos->afbc_en = plane_info->afbc_en;
 	mvos->blend_bypass = plane_info->blend_bypass;
+	mvos->plane_index = plane_info->plane_index;
 	return 0;
 }
 
@@ -571,24 +589,41 @@ static void osd_set_state(struct meson_vpu_block *vblk,
 	char name_buf[64];
 	struct drm_crtc *crtc;
 	struct am_meson_crtc *amc;
-	struct meson_vpu_osd *osd = to_osd_block(vblk);
-	struct meson_vpu_osd_state *mvos = to_osd_state(state);
+	struct meson_vpu_osd *osd;
+	struct meson_vpu_osd_state *mvos;
 	u32 pixel_format, canvas_index, src_h, byte_stride;
 	struct osd_scope_s scope_src = {0, 1919, 0, 1079};
-	struct osd_mif_reg_s *reg = osd->reg;
+	struct osd_mif_reg_s *reg;
 	bool alpha_div_en, reverse_x, reverse_y, afbc_en;
 	bool bflg = false;
 	void *buff = NULL;
 	u64 phy_addr;
 	u32 hold_line;
 
-	crtc = vblk->pipeline->crtc;
-	amc = to_am_meson_crtc(crtc);
-
-	if (!vblk) {
+	if (!vblk || !state) {
 		DRM_DEBUG("set_state break for NULL.\n");
 		return;
 	}
+
+	osd = to_osd_block(vblk);
+	mvos = to_osd_state(state);
+
+	reg = osd->reg;
+	if (!reg) {
+		DRM_DEBUG("set_state break for NULL OSD mixer reg.\n");
+		return;
+	}
+
+	crtc = vblk->pipeline->crtc;
+	if (!crtc) {
+		DRM_DEBUG("set_state break for NULL crtc.\n");
+		return;
+	}
+
+	amc = to_am_meson_crtc(crtc);
+
+	DRM_DEBUG("%s - %d osd_set_state called.\n", osd->base.name, vblk->index);
+
 	alpha_div_en = (mvos->premult_en && !mvos->blend_bypass) ? 1 : 0;
 	afbc_en = mvos->afbc_en ? 1 : 0;
 	src_h = mvos->src_h;
@@ -675,12 +710,15 @@ static void osd_hw_disable(struct meson_vpu_block *vblk)
 {
 	struct meson_vpu_osd *osd = to_osd_block(vblk);
 	struct osd_mif_reg_s *reg = osd->reg;
-	u8 version = vblk->pipeline->osd_version;
+	u8 version;
 
 	if (!vblk) {
 		DRM_DEBUG("disable break for NULL.\n");
 		return;
 	}
+
+	version = vblk->pipeline->osd_version;
+
 	/*G12B should always enable,avoid afbc decoder error*/
 	if ((version != OSD_V2) && (version != OSD_V3))
 		osd_block_enable(reg, 0);

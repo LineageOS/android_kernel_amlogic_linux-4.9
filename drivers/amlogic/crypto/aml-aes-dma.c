@@ -1095,7 +1095,7 @@ static struct crypto_alg aes_lite_algs[] = {
 		.cra_priority    = 200,
 		.cra_flags      = CRYPTO_ALG_TYPE_ABLKCIPHER |
 			CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK,
-		.cra_blocksize  = 1,
+		.cra_blocksize  = AES_BLOCK_SIZE,
 		.cra_ctxsize    = sizeof(struct aml_aes_ctx),
 		.cra_alignmask  = 0xf,
 		.cra_type       = &crypto_ablkcipher_type,
@@ -1160,7 +1160,7 @@ static struct crypto_alg aes_lite_algs[] = {
 		.cra_priority    = 100,
 		.cra_flags      = CRYPTO_ALG_TYPE_ABLKCIPHER |
 			CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK,
-		.cra_blocksize  = 1,
+		.cra_blocksize  = AES_BLOCK_SIZE,
 		.cra_ctxsize    = sizeof(struct aml_aes_ctx),
 		.cra_alignmask  = 0xf,
 		.cra_type       = &crypto_ablkcipher_type,
@@ -1247,6 +1247,9 @@ static void aml_aes_done_task(unsigned long data)
 		if (err == -EINPROGRESS)
 			return; /* DMA started. Not fininishing. */
 	}
+
+	if (dd->ctx->kte < 0)
+		err = set_aes_key_iv(dd, NULL, 0, NULL, 0);
 
 	aml_aes_finish_req(dd, err);
 	aml_aes_handle_queue(dd, NULL);

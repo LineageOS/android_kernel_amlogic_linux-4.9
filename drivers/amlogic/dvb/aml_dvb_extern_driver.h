@@ -26,9 +26,14 @@ struct dvb_extern_device {
 	struct class class;
 	struct device *dev;
 
+	struct proc_dir_entry *debug_proc_dir;
+
 	/* for debug. */
-	struct dvb_frontend fe;
+	struct dvb_frontend *tuner_fe;
+	struct dvb_frontend *demod_fe;
 	struct analog_parameters para;
+
+	struct gpio_config dvb_power;
 
 	int tuner_num;
 	int tuner_cur;

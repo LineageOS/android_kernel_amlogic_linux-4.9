@@ -19,6 +19,7 @@
 #define _HDMI_TX_MODULE_H
 #include "hdmi_info_global.h"
 #include "hdmi_config.h"
+#include "hdmi_hdcp.h"
 #include <linux/wait.h>
 #include <linux/clk.h>
 #include <linux/cdev.h>
@@ -26,6 +27,7 @@
 #include <linux/device.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/amlogic/media/vout/vout_notify.h>
+#include <linux/spinlock.h>
 
 #define DEVICE_NAME "amhdmitx"
 
@@ -295,50 +297,7 @@ struct hdmitx_clk_tree_s {
 	struct clk *venci_1_gate;
 };
 
-/* 2kB should be enough to record */
-#define HDCP_LOG_SIZE (1024 * 2)
-struct hdcplog_buf {
-	int idx;
-	unsigned char buf[HDCP_LOG_SIZE + 64]; /* padding 8 bytes */
-};
-
-enum hdcp_ver_e {
-	HDCPVER_NONE = 0,
-	HDCPVER_14,
-	HDCPVER_22,
-};
-
-#define MAX_KSV_LISTS 127
-struct hdcprp14_topo {
-	unsigned char max_cascade_exceeded:1;
-	unsigned char depth:3;
-	unsigned char max_devs_exceeded:1;
-	unsigned char device_count:7; /* 1 ~ 127 */
-	unsigned char ksv_list[MAX_KSV_LISTS * 5];
-};
-
-struct hdcprp22_topo {
-	unsigned int depth;
-	unsigned int device_count;
-	unsigned int v1_X_device_down;
-	unsigned int v2_0_repeater_down;
-	unsigned int max_devs_exceeded;
-	unsigned int max_cascade_exceeded;
-	unsigned char id_num;
-	unsigned char id_lists[MAX_KSV_LISTS * 5];
-};
-
-struct hdcprp_topo {
-	/* hdcp_ver currently used */
-	enum hdcp_ver_e hdcp_ver;
-	union {
-		struct hdcprp14_topo topo14;
-		struct hdcprp22_topo topo22;
-	} topo;
-};
-
 #define EDID_MAX_BLOCK              4
-#define HDMI_TMP_BUF_SIZE           1024
 struct hdmitx_dev {
 	struct cdev cdev; /* The cdev structure */
 	dev_t hdmitx_id;
@@ -436,6 +395,7 @@ struct hdmitx_dev {
 	struct hdmi_config_platform_data config_data;
 	enum hdmi_event_t hdmitx_event;
 	unsigned int irq_hpd;
+	unsigned int irq_viu1_vsync;
 	/*EDID*/
 	unsigned int cur_edid_block;
 	unsigned int cur_phy_block_ptr;
@@ -471,7 +431,6 @@ struct hdmitx_dev {
 	unsigned char mux_hpd_if_pin_high_flag;
 	int auth_process_timer;
 	struct hdmitx_info hdmi_info;
-	unsigned char tmp_buf[HDMI_TMP_BUF_SIZE];
 	unsigned int log;
 	unsigned int tx_aud_cfg; /* 0, off; 1, on */
 	/* For some un-well-known TVs, no edid at all */
@@ -535,6 +494,8 @@ struct hdmitx_dev {
 	unsigned int drm_feature;/*Direct Rander Management*/
 	unsigned int vend_id_hit:1;
 	bool systemcontrol_on;
+	unsigned char vid_mute_op;
+	spinlock_t edid_spinlock; /* edid hdr/dv cap lock */
 };
 
 #define CMD_DDC_OFFSET          (0x10 << 24)
@@ -602,7 +563,9 @@ struct hdmitx_dev {
 	#define SET_CT_GRAPHICS	2
 	#define SET_CT_PHOTO	3
 	#define SET_CT_CINEMA	4
+#define CONF_GET_AVI_BT2020 (CMD_CONF_OFFSET + 0X2000 + 0x05)
 #define CONF_VIDEO_MUTE_OP      (CMD_CONF_OFFSET + 0x1000 + 0x04)
+#define VIDEO_NONE_OP		0x0
 #define VIDEO_MUTE          0x1
 #define VIDEO_UNMUTE        0x2
 #define CONF_EMP_NUMBER         (CMD_CONF_OFFSET + 0x3000 + 0x00)

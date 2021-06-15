@@ -353,6 +353,12 @@
 		fe0_reset_gpio = <&gpio_ao GPIOAO_10 GPIO_ACTIVE_HIGH>;
 		fe0_ant_poweron_value = <0>;
 		fe0_ant_power_gpio = <&gpio GPIOH_5 GPIO_ACTIVE_HIGH>;
+		fe0_tuner0 = <0>; /* T/C */
+		fe0_tuner1 = <1>; /* S */
+
+		tuner_num = <2>; /* for extern demod use tuner */
+		tuner0_name = "r836_tuner";
+		tuner1_name = "av2018_tuner";
 	};
 
 	demux {
@@ -552,7 +558,16 @@
 		key_tolerance = <40 40 40>;
 	};
 
-	unifykey{
+	provisionkey {
+		compatible = "amlogic, provisionkey";
+		status = "okay";
+		key-permit-default = "write";
+		//new key not need add dts if started with KEY_PROVISION_
+		KEY_PROVISION_XXX { };
+		//test_my_added_keyname { };
+	};//End provisionkey
+
+unifykey{
 		compatible = "amlogic, unifykey";
 		status = "ok";
 		unifykey-num = <17>;
@@ -892,6 +907,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
+#if 0
 		aml-audio-card,dai-link@6 {
 			mclk-fs = <256>;
 			suffix-name = "alsaPORT-earc";
@@ -903,7 +919,7 @@
 				sound-dai = <&dummy_codec>;
 			};
 		};
-
+#endif
 		aml-audio-card,dai-link@7 {
 			mclk-fs = <256>;
 			continuous-clock;
@@ -1488,7 +1504,7 @@
 }; /* end of audiobus */
 
 &earc {
-	status = "okay";
+	status = "disabled";
 };
 
 &pinctrl_periphs {

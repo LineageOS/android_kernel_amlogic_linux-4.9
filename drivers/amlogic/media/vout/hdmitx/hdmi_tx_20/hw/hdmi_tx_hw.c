@@ -628,6 +628,7 @@ static void hdmi_hwi_init(struct hdmitx_dev *hdev)
 	hdmitx_wr_reg(HDMITX_DWC_A_HDCPCFG1, 0x67);
 	hdmitx_wr_reg(HDMITX_TOP_DISABLE_NULL, 0x7); /* disable NULL pkt */
 	hdmitx_wr_reg(HDMITX_DWC_A_HDCPCFG0, 0x13);
+	hdmitx_set_reg_bits(HDMITX_DWC_HDCP22REG_CTRL, 1, 1, 1);
 	/* Enable skpclk to HDCP2.2 IP */
 	hdmitx_set_reg_bits(HDMITX_TOP_CLK_CNTL, 1, 7, 1);
 	/* Enable esmclk to HDCP2.2 IP */
@@ -801,6 +802,19 @@ static irqreturn_t intr_handler(int irq, void *dev)
 		pr_info("hdcp22: reg stat: 0x%x\n", dat_dwc);
 
 next:
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t vsync_intr_handler(int irq, void *dev)
+{
+	struct hdmitx_dev *hdev = (struct hdmitx_dev *)dev;
+
+	if (hdev->vid_mute_op != VIDEO_NONE_OP) {
+		hdev->hwop.cntlconfig(hdev,
+			CONF_VIDEO_MUTE_OP, hdev->vid_mute_op);
+		hdev->vid_mute_op = VIDEO_NONE_OP;
+	}
+
 	return IRQ_HANDLED;
 }
 
@@ -2947,6 +2961,13 @@ static void hdmitx_setupirq(struct hdmitx_dev *phdev)
 	r = request_irq(phdev->irq_hpd, &intr_handler,
 			IRQF_SHARED, "hdmitx",
 			(void *)phdev);
+	if (r != 0)
+		pr_info(SYS "can't request hdmitx irq\n");
+	r = request_irq(phdev->irq_viu1_vsync, &vsync_intr_handler,
+			IRQF_SHARED, "hdmi_vsync",
+			(void *)phdev);
+	if (r != 0)
+		pr_info(SYS "can't request viu1_vsync irq\n");
 }
 
 static void hdmitx_uninit(struct hdmitx_dev *phdev)
@@ -3877,10 +3898,13 @@ static void check_read_ksv_list_st(void)
 static int hdmitx_cntl_ddc(struct hdmitx_dev *hdev, unsigned int cmd,
 	unsigned long argv)
 {
+	struct hdcp_obs_val *obs;
 	int i = 0;
+	int ret = 0;
 	unsigned char *tmp_char = NULL;
 	struct hdcprp14_topo *topo14 = NULL;
 	unsigned int val;
+	unsigned char tmp[5];
 
 	if ((cmd & CMD_DDC_OFFSET) != CMD_DDC_OFFSET) {
 		pr_err(HW "ddc: invalid cmd 0x%x\n", cmd);
@@ -3888,6 +3912,36 @@ static int hdmitx_cntl_ddc(struct hdmitx_dev *hdev, unsigned int cmd,
 	}
 
 	switch (cmd) {
+	case DDC_HDCP14_SAVE_OBS:
+		obs = (struct hdcp_obs_val *)hdev;
+		ret = 0;
+		tmp[0] = hdmitx_rd_reg(HDMITX_DWC_A_HDCPOBS0) & 0xff;
+		tmp[1] = hdmitx_rd_reg(HDMITX_DWC_A_HDCPOBS1) & 0xff;
+		tmp[2] = hdmitx_rd_reg(HDMITX_DWC_A_HDCPOBS2) & 0xff;
+		tmp[3] = hdmitx_rd_reg(HDMITX_DWC_A_HDCPOBS3) & 0xff;
+		tmp[4] = hdmitx_rd_reg(HDMITX_DWC_A_APIINTSTAT) & 0xff;
+		/* if current status is not equal last obs, then return 1 */
+		if (obs->obs0 != tmp[0]) {
+			obs->obs0 = tmp[0];
+			ret |= (1 << 0);
+		}
+		if (obs->obs1 != tmp[1]) {
+			obs->obs1 = tmp[1];
+			ret |= (1 << 1);
+		}
+		if (obs->obs2 != tmp[2]) {
+			obs->obs2 = tmp[2];
+			ret |= (1 << 2);
+		}
+		if (obs->obs3 != tmp[3]) {
+			obs->obs3 = tmp[3];
+			ret |= (1 << 3);
+		}
+		if (obs->intstat != tmp[4]) {
+			obs->intstat = tmp[4];
+			ret |= (1 << 4);
+		}
+		return ret;
 	case DDC_RESET_EDID:
 		hdmitx_wr_reg(HDMITX_DWC_I2CM_SOFTRSTZ, 0);
 		memset(hdev->tmp_edid_buf, 0, ARRAY_SIZE(hdev->tmp_edid_buf));
@@ -4201,6 +4255,13 @@ static int hdmitx_cntl_config(struct hdmitx_dev *hdev, unsigned int cmd,
 		}
 		if (argv == CLR_AVI_BT2020)
 			hdmitx_set_avi_colorimetry(hdev->para);
+		break;
+	case CONF_GET_AVI_BT2020:
+		if (((hdmitx_rd_reg(HDMITX_DWC_FC_AVICONF1) & 0xC0) == 0xC0) &&
+		    ((hdmitx_rd_reg(HDMITX_DWC_FC_AVICONF2) & 0x70) == 0x60))
+			ret = 1;
+		else
+			ret = 0;
 		break;
 	case CONF_CLR_DV_VS10_SIG:
 /* if current is DV/VSIF.DOVI, next will swith to HDR, need set
@@ -5011,7 +5072,7 @@ static void config_hdmi20_tx(enum hdmi_vic vic,
 	data32 |= (0 << 0);
 	hdmitx_wr_reg(HDMITX_DWC_FC_AVICONF3,   data32);
 
-	hdmitx_wr_reg(HDMITX_DWC_FC_AVIVID, (para->vic & HDMITX_VIC_MASK));
+	hdmitx_wr_reg(HDMITX_DWC_FC_AVIVID, vic & HDMITX_VIC_MASK);
 
 	/* For VESA modes, set VIC as 0 */
 	if (para->vic >= HDMITX_VESA_OFFSET) {

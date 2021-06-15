@@ -840,10 +840,12 @@ static int smc_hw_set_param(struct smc_dev *smc)
 //      unsigned long freq_cpu = clk_get_rate(aml_smartcard_clk)/1000*DIV_SMC;
 
 	pr_error("hw set param\n");
+	clk_set_rate(aml_smartcard_clk, smc->param.freq * 1000);
 
 	v = SMC_READ_REG(REG0);
 	reg0 = (struct smccard_hw_reg0 *)&v;
-	reg0->etu_divider = smc->param.f / smc->param.d - 1;
+	reg0->etu_divider = ETU_DIVIDER_CLOCK_HZ * smc->param.f /
+	    (smc->param.d * smc->param.freq) - 1;
 	SMC_WRITE_REG(REG0, v);
 	pr_error("REG0: 0x%08lx\n", v);
 	pr_error("f	  :%d\n", smc->param.f);
@@ -959,7 +961,8 @@ static int smc_hw_setup(struct smc_dev *smc)
 	reg0->rst_level = RESET_ENABLE;
 //      reg0->io_level = 0;
 	reg0->recv_fifo_threshold = FIFO_THRESHOLD_DEFAULT;
-	reg0->etu_divider = smc->param.f / smc->param.d - 1;
+	reg0->etu_divider = ETU_DIVIDER_CLOCK_HZ * smc->param.f
+	    / (smc->param.d * smc->param.freq) - 1;
 	reg0->first_etu_offset = 5;
 	SMC_WRITE_REG(REG0, v);
 	smc_clk_enable(reg0->clk_en);
@@ -1418,8 +1421,8 @@ static int smc_hw_reset(struct smc_dev *smc)
 
 			sc_reg0_reg->rst_level = RESET_ENABLE;
 			sc_reg0_reg->clk_en = 1;
-			sc_reg0_reg->etu_divider =
-			    smc->param.f / smc->param.d - 1;
+			sc_reg0_reg->etu_divider = ETU_DIVIDER_CLOCK_HZ *
+			    smc->param.f / (smc->param.d * smc->param.freq) - 1;
 			SMC_WRITE_REG(REG0, sc_reg0);
 			smc_clk_enable(sc_reg0_reg->clk_en);
 
@@ -1477,8 +1480,8 @@ static int smc_hw_reset(struct smc_dev *smc)
 //                      sc_reg0_reg->start_atr_en = 1;
 			sc_reg0_reg->start_atr = 1;
 			sc_reg0_reg->enable = 1;
-			sc_reg0_reg->etu_divider =
-			    smc->param.f / smc->param.d - 1;
+			sc_reg0_reg->etu_divider = ETU_DIVIDER_CLOCK_HZ *
+			    smc->param.f / (smc->param.d * smc->param.freq) - 1;
 			SMC_WRITE_REG(REG0, sc_reg0);
 #ifdef RST_FROM_PIO
 
@@ -2260,6 +2263,7 @@ static ssize_t smc_read(struct file *filp,
 		long cr;
 
 		pr_dbg("read %d bytes\n", ret);
+		spin_unlock_irqrestore(&smc->slock, flags);
 		if (cnt >= ret) {
 			cr = copy_to_user(buff, smc->recv_buf + start, ret);
 		} else {
@@ -2268,6 +2272,7 @@ static ssize_t smc_read(struct file *filp,
 			cr = copy_to_user(buff, smc->recv_buf + start, cnt);
 			cr = copy_to_user(buff + cnt, smc->recv_buf, cnt1);
 		}
+		spin_lock_irqsave(&smc->slock, flags);
 		_atomic_wrap_add(&smc->recv_start, ret, RECV_BUF_SIZE);
 	}
 	spin_unlock_irqrestore(&smc->slock, flags);
@@ -2312,6 +2317,7 @@ static ssize_t smc_write(struct file *filp,
 		int cnt = SEND_BUF_SIZE - start;
 		long cr;
 
+		spin_unlock_irqrestore(&smc->slock, flags);
 		if (cnt >= ret) {
 			cr = copy_from_user(smc->send_buf + start, buff, ret);
 		} else {
@@ -2320,6 +2326,7 @@ static ssize_t smc_write(struct file *filp,
 			cr = copy_from_user(smc->send_buf + start, buff, cnt);
 			cr = copy_from_user(smc->send_buf, buff + cnt, cnt1);
 		}
+		spin_lock_irqsave(&smc->slock, flags);
 		_atomic_wrap_add(&smc->send_start, ret, SEND_BUF_SIZE);
 	}
 

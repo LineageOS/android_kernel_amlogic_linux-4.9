@@ -11,7 +11,7 @@
 
 / {
     partitions: partitions{
-		parts = <19>;
+		parts = <22>;
 		part-0 = <&logo>;
 		part-1 = <&recovery_a>;
 		part-2 = <&recovery_b>;
@@ -24,13 +24,16 @@
 		part-9 = <&param>;
 		part-10 = <&boot_a>;
 		part-11 = <&boot_b>;
-		part-12 = <&rsv>;
+		part-12 = <&oem_a>;
 		part-13 = <&metadata>;
-		part-14 = <&rsv2>;
-		part-15 = <&vbmeta_a>;
-		part-16 = <&vbmeta_b>;
-		part-17 = <&super>;
-		part-18 = <&data>;
+		part-14 = <&oem_b>;
+		part-15 = <&odm_ext_a>;
+		part-16 = <&odm_ext_b>;
+		part-17 = <&rsv>;
+		part-18 = <&vbmeta_a>;
+		part-19 = <&vbmeta_b>;
+		part-20 = <&super>;
+		part-21 = <&userdata>;
 
 		logo:logo{
 			pname = "logo";
@@ -78,8 +81,8 @@
 			size = <0x0 0x800000>;
 			mask = <2>;
 		};
-		rsv:rsv{
-			pname = "rsv";
+		oem_a:oem_a{
+			pname = "oem_a";
 			size = <0x0 0x1000000>;
 			mask = <1>;
 		};
@@ -88,8 +91,25 @@
 			size = <0x0 0x1000000>;
 			mask = <1>;
 		};
-		rsv2:rsv2{
-			pname = "rsv2";
+		oem_b:oem_b{
+			pname = "oem_b";
+			size = <0x0 0x1000000>;
+			mask = <1>;
+		};
+		odm_ext_a:odm_ext_a
+		{
+			pname = "odm_ext_a";
+			size = <0x0 0x1000000>;
+			mask = <1>;
+		};
+		odm_ext_b:odm_ext_b
+		{
+			pname = "odm_ext_b";
+			size = <0x0 0x1000000>;
+			mask = <1>;
+		};
+		rsv:rsv{
+			pname = "rsv";
 			size = <0x0 0x1000000>;
 			mask = <1>;
 		};
@@ -126,9 +146,9 @@
 			size = <0x0 0xC8800000>;
 			mask = <1>;
 		};
-		data:data
+		userdata:userdata
 		{
-			pname = "data";
+			pname = "userdata";
 			size = <0xffffffff 0xffffffff>;
 			mask = <4>;
 		};

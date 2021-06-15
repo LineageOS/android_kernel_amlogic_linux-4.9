@@ -613,6 +613,7 @@ struct usr_crc_info_t {
 #define AMSTREAM_SET_AUDIO_DELAY_LIMIT_MS 0x11B
 #define AMSTREAM_SET_DRMMODE 0x11C
 #define AMSTREAM_SET_WORKMODE 0x11D
+#define AMSTREAM_SET_VIDEO_ID 0x11E
 
 /*  video set   cmd */
 #define AMSTREAM_SET_OMX_VPTS 0x160
@@ -642,6 +643,7 @@ struct usr_crc_info_t {
 #define AMSTREAM_SET_NO_POWERDOWN   0x178
 #define AMSTREAM_SET_DV_META_WITH_EL 0x179
 #define AMSTREAM_SET_FCC_MODE 0x180
+#define AMSTREAM_SET_DMC_URGENT  0x17a
 
 /*  video set ex cmd */
 #define AMSTREAM_SET_EX_VIDEO_AXIS 0x260
@@ -699,6 +701,7 @@ struct usr_crc_info_t {
 #define AMSTREAM_GET_EX_VDECSTAT 0x902
 #define AMSTREAM_GET_EX_ADECSTAT 0x903
 #define AMSTREAM_GET_EX_UD_POC 0x904
+#define AMSTREAM_GET_EX_WR_COUNT 0x905
 
 /*  video get ex cmd */
 #define AMSTREAM_GET_EX_VF_STATUS 0x960
@@ -737,7 +740,8 @@ struct am_ioctl_parm_ex {
 		struct adec_status astatus;
 
 		struct userdata_poc_info_t data_userdata_info;
-		char data[24];
+		u32 wr_count;
+		char data[20];
 
 	};
 	u32 cmd;

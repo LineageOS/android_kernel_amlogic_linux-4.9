@@ -176,6 +176,11 @@ static struct meson_clk_pll g12a_hifi_pll = {
 		.shift   = 16,
 		.width   = 2,
 	},
+	.frac = {
+		.reg_off = HHI_HIFI_PLL_CNTL1,
+		.shift   = 0,
+		.width   = 19,
+	},
 	.rate_table = g12a_hifi_pll_rate_table,
 	.rate_count = ARRAY_SIZE(g12a_hifi_pll_rate_table),
 	.lock = &clk_lock,
@@ -219,6 +224,19 @@ static struct meson_clk_pll g12a_pcie_pll = {
 		.parent_names = (const char *[]){ "xtal" },
 		.num_parents = 1,
 		.flags = CLK_GET_RATE_NOCACHE,
+	},
+};
+
+static struct clk_gate g12a_pcie_hcsl = {
+	.reg = (void *)HHI_PCIE_PLL_CNTL5,
+	.bit_idx = 3,
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "pcie_hcsl",
+		.ops = &clk_gate_ops,
+		.parent_names = (const char *[]){ "pcie_pll" },
+		.num_parents = 1,
+		.flags = (CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE),
 	},
 };
 
@@ -838,6 +856,7 @@ static struct clk_hw *g12a_clk_hws[] = {
 	[CLKID_GEN_CLK_SEL]	= &g12a_gen_clk_sel.hw,
 	[CLKID_GEN_CLK_DIV]	= &g12a_gen_clk_div.hw,
 	[CLKID_GEN_CLK]		= &g12a_gen_clk.hw,
+	[CLKID_PCIE_HCSL]       = &g12a_pcie_hcsl.hw,
 
 };
 /* Convenience tables to populate base addresses in .probe */
@@ -926,6 +945,7 @@ static struct clk_gate *g12a_clk_gates[] = {
 	&g12a_24m,
 	&g12a_12m_gate,
 	&g12a_gen_clk,
+	&g12a_pcie_hcsl
 };
 
 static int g12a_cpu_clk_notifier_cb(struct notifier_block *nb,
