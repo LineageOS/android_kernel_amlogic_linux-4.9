@@ -89,7 +89,7 @@ void dprev3_init(void)
 {/*reg:*/
 	struct di_hpre_s  *pre = get_hw_pre();
 
-	pre->pre_st = eDI_PRE_ST_IDLE;
+	pre->pre_st = (enum eDI_PRE_ST4)eDI_PRE_ST_IDLE;
 
 	/*timer out*/
 	div3_tout_int(&pre->tout, 40);	/*ms*/
