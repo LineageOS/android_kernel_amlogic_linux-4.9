@@ -864,7 +864,7 @@ static int hifi4dsp_platform_probe(struct platform_device *pdev)
 		HIFI4DSP_PRNT("kzalloc for p_dsp_miscdev error\n");
 		goto miscdev_malloc_error;
 	}
-	if (!&p_dsp_miscdev->dsp_miscdev)
+	if (&p_dsp_miscdev->dsp_miscdev == NULL)
 		pr_info("register dsp _p_dsp_miscdev->dsp_miscdev alloc error\n");
 	else
 		pr_info("register dsp _p_dsp_miscdev->dsp_miscdev alloc success");
