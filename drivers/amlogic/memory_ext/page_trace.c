@@ -1397,7 +1397,7 @@ int slab_trace_mark_object(void *object, unsigned long ip,
 	if (save_obj_stack(stack, SLAB_STACK_DEP))
 		return -EINVAL;
 	hash = jhash2((unsigned int *)stack,
-		      sizeof(stack) / sizeof(int), 0x9747b28c);
+		      sizeof(stack) / sizeof(unsigned long), 0x9747b28c);
 	record_stack(hash, stack);
 	trace->object_ip[index] = hash;
 	pr_debug("%s, mk object:%p,%lx, idx:%ld, trace:%p, group:%p,%ld, %pf\n",
