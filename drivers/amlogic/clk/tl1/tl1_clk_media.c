@@ -614,19 +614,12 @@ static struct meson_composite m_composite[] = {
 	{},
 };
 
-/* array for single hw*/
-static struct meson_hw m_hw[] = {
-	{CLKID_VDEC_MUX, &vdec_mux.hw},
-	{CLKID_HCODEC_MUX, &hcodec_mux.hw},
-	{CLKID_HEVC_MUX, &hevc_mux.hw},
-};
 void meson_tl1_media_init(void)
 {
 	int i;
-	int length, lengthhw;
+	int length;
 
 	length = ARRAY_SIZE(m_composite);
-	lengthhw = ARRAY_SIZE(m_hw);
 
 	/* Populate base address for media muxes */
 	for (i = 0; i < ARRAY_SIZE(tl1_media_clk_muxes); i++)
