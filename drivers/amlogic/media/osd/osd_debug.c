@@ -544,7 +544,7 @@ static void osd_test_rect(void)
 	struct ge2d_context_s *context = ge2d_context;
 
 #ifdef CONFIG_AMLOGIC_MEDIA_CANVAS
-	if (!osd_hw.osd_meson_dev.osd_ver == OSD_SIMPLE) {
+	if (osd_hw.osd_meson_dev.osd_ver != OSD_SIMPLE) {
 		canvas_read(OSD1_CANVAS_INDEX, &cs);
 		cs_addr = cs.addr;
 		cs_width = cs.width;
@@ -659,7 +659,7 @@ static void osd_test_rect(void)
 
 static void osd_debug_auto_test(void)
 {
-	if (!osd_hw.osd_meson_dev.osd_ver == OSD_SIMPLE)
+	if (osd_hw.osd_meson_dev.osd_ver != OSD_SIMPLE)
 		osd_test_colorbar();
 
 	osd_test_dummydata();
