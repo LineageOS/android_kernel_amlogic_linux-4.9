@@ -2229,7 +2229,7 @@ static void hdmitx_set_emp_pkt(unsigned char *data, unsigned int type,
 			memcpy(&virt_ptr_align32bit[10], &data[0],
 				sizeof(unsigned char) * remainder);
 		} else {
-			if ((i == 0)) {
+			if (i == 0) {
 			/*MD: first package need PB[7]-[27]*/
 				memcpy(&virt_ptr_align32bit[10], &data[0],
 					sizeof(unsigned char) * 21);
