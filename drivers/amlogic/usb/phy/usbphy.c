@@ -164,7 +164,7 @@ int clk_enable_usb_meson8(struct platform_device *pdev,
 #if 0
 	if (is_meson_m8m2_cpu() && (port_idx == USB_PORT_IDX_B)) {
 #endif
-	if ((port_idx == USB_PORT_IDX_B)) {
+	if (port_idx == USB_PORT_IDX_B) {
 		adp_bc.d32 = peri->adp_bc;
 		adp_bc.b.aca_enable = 1;
 		peri->adp_bc = adp_bc.d32;
