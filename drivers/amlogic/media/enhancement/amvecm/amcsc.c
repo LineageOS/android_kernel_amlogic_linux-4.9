@@ -3671,7 +3671,7 @@ static void print_primaries_info(struct vframe_master_display_colour_s *p)
 {
 	int i, j;
 
-	if (!p->present_flag & 1) {
+	if (!(p->present_flag & 1)) {
 		pr_csc(1, "\tmaster display color not available");
 		return;
 	}
