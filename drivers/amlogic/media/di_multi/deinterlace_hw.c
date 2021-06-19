@@ -4866,7 +4866,7 @@ void dbg_mif_reg(struct seq_file *s, enum DI_MIF0_ID eidx)
 
 	if (DIM_IS_IC_EF(SC2)) {
 		reg = opl1()->reg_mif_tab[eidx];
-		seq_printf(s, "dump reg:%s\n", dim_get_mif_id_name(eidx));
+		seq_printf(s, "dump reg:%s\n", dim_get_mif_id_name((enum EDI_MIF_REG_INDEX)eidx));
 
 		for (i = 0; i < MIF_REG_NUB; i++) {
 			addr = reg[i];
