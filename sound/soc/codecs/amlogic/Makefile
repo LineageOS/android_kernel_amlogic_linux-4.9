@@ -1,6 +1,3 @@
-KBUILD_CFLAGS += -Wlarger-than=28792
-KBUILD_CFLAGS += -Wstack-usage=1856
-
 #Amlogic
 snd-soc-dummy_codec-objs := dummy_codec.o
 snd-soc-pdm-dummy-objs := pdm_dummy.o
