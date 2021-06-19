@@ -2140,7 +2140,7 @@ static int DRX_Start(struct drxd_state *state, s32 off)
 			}
 			break;
 		}
-		status = status;
+
 		if (status < 0)
 			break;
 
@@ -2251,7 +2251,7 @@ static int DRX_Start(struct drxd_state *state, s32 off)
 			break;
 
 		}
-		status = status;
+
 		if (status < 0)
 			break;
 
@@ -2317,7 +2317,7 @@ static int DRX_Start(struct drxd_state *state, s32 off)
 			}
 			break;
 		}
-		status = status;
+
 		if (status < 0)
 			break;
 
