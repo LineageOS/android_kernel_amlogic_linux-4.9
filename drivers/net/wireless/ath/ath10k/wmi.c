@@ -5903,13 +5903,13 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
 
 int ath10k_wmi_start_scan_verify(const struct wmi_start_scan_arg *arg)
 {
-	if (arg->ie_len && !arg->ie)
+	if (arg->ie_len && arg->ie == NULL)
 		return -EINVAL;
-	if (arg->n_channels && !arg->channels)
+	if (arg->n_channels && arg->channels == NULL)
 		return -EINVAL;
-	if (arg->n_ssids && !arg->ssids)
+	if (arg->n_ssids && arg->ssids == NULL)
 		return -EINVAL;
-	if (arg->n_bssids && !arg->bssids)
+	if (arg->n_bssids && arg->bssids == NULL)
 		return -EINVAL;
 
 	if (arg->ie_len > WLAN_SCAN_PARAMS_MAX_IE_LEN)
