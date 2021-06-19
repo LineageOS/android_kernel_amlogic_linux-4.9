@@ -17,7 +17,7 @@
  */
 
 #ifndef __DOLBY_SYS_H__
-#define __DOLBY_SYS_H_
+#define __DOLBY_SYS_H__
 #if 1
 #include <linux/module.h>
 #include <linux/types.h>
