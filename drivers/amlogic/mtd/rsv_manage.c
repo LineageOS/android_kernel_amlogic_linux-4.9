@@ -309,7 +309,7 @@ int aml_nand_scan_shipped_bbt(struct mtd_info *mtd)
 		}
 	}
 
-	if ((col0_oob == 0xFF))
+	if (col0_oob == 0xFF)
 		continue;
 
 	if (col0_oob != 0xFF) {
