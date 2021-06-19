@@ -1462,7 +1462,7 @@ static void set_di_mif_v1(struct DI_MIF_S *mif,
 
 	// Dummy pixel value
 	op->wr(off + RDMIFXN_DUMMY_PIXEL,   0x00808000);
-	if ((mif->video_mode == 0))   {// 4:2:0 block mode.
+	if (mif->video_mode == 0) {// 4:2:0 block mode.
 		hfmt_en      = 1;
 		hz_yc_ratio  = 1;
 		hz_ini_phase = 0;
@@ -3603,7 +3603,7 @@ void set_di_mif_v3(struct DI_MIF_S *mif, enum DI_MIF0_ID mif_index,
 
 	// Dummy pixel value
 	op->wr(off + reg[MIF_DUMMY_PIXEL],   0x00808000);
-	if ((mif->video_mode == 0))   {// 4:2:0 block mode.
+	if (mif->video_mode == 0) {// 4:2:0 block mode.
 		hfmt_en      = 1;
 		hz_yc_ratio  = 1;
 		hz_ini_phase = 0;
