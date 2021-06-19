@@ -1351,7 +1351,7 @@ int global_scene_change(int *curve_nodes_cur,
 		frm_dif[N - 1] = frm_dif[N - 1] - frm_dif_osd;
 		valid_blk_num[N-1] = (blk_vnum - vnum_osd) * blk_hnum;
 		/*debug*/
-		if ((amlc_debug == 0x4)) {
+		if (amlc_debug == 0x4) {
 			pr_info("#vnum_osd = %d;\n", vnum_osd);
 			pr_info("#valid_blk_num[%d] =  %d\n",
 				N-1, valid_blk_num[N-1]);
