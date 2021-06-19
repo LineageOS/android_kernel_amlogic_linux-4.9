@@ -182,7 +182,7 @@ void dpre_init(void)
 {/*reg:*/
 	struct di_hpre_s  *pre = get_hw_pre();
 
-	pre->pre_st = EDI_PRE_ST4_IDLE;
+	pre->pre_st = (enum EDI_PRE_ST4)EDI_PRE_ST4_IDLE;
 	//bset(&pre->self_trig_mask, 2);//
 
 	/*timer out*/
