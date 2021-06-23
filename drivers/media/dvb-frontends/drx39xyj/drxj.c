@@ -11071,7 +11071,7 @@ ctrl_power_mode(struct drx_demod_instance *demod, enum drx_power_mode *mode)
 		}
 	}
 
-	if ((*mode == DRX_POWER_UP)) {
+	if (*mode == DRX_POWER_UP) {
 		/* Restore analog & pin configuartion */
 
 		/* Initialize default AFE configuartion for VSB */
