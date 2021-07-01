@@ -31,6 +31,7 @@ dtb-y += g12a_s905x2_u211_1g.dtb
 dtb-y += g12a_s905x2_u211_512m.dtb
 dtb-y += g12a_s905x2_u211_buildroot.dtb
 dtb-y += g12a_s905x2_u212.dtb
+dtb-y += g12a_s905x2_u212_sti6130d3x0.dtb
 dtb-y += g12a_s905x2_u212_1g.dtb
 dtb-y += g12a_s905x2_u212_buildroot.dtb
 dtb-y += g12a_s905x2_u212_drm_buildroot.dtb
