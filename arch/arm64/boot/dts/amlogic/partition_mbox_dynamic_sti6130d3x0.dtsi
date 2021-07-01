@@ -19,7 +19,7 @@
 		part-4 = <&cri_data>;
 		part-5 = <&param>;
 		part-6 = <&boot>;
-		part-7 = <&frp>;
+		part-7 = <&factory>;
 		part-8 = <&rsv>;
 		part-9 = <&metadata>;
 		part-10 = <&vbmeta>;
@@ -40,12 +40,12 @@
 		};
 		misc:misc{
 			pname = "misc";
-			size = <0x0 0x800000>;
+			size = <0x0 0x200000>;
 			mask = <1>;
 		};
 		dtbo:dtbo{
 			pname = "dtbo";
-			size = <0x0 0x800000>;
+			size = <0x0 0x200000>;
 			mask = <1>;
 		};
 		cri_data:cri_data
@@ -54,14 +54,14 @@
 			size = <0x0 0x800000>;
 			mask = <2>;
 		};
-		frp:frp{
-			pname = "frp";
-			size = <0x0 0x200000>;
-			mask = <1>;
+		factory:factory{
+			pname = "factory";
+			size = <0x0 0x800000>;
+			mask = <17>;
 		};
 		rsv:rsv{
 			pname = "rsv";
-			size = <0x0 0x600000>;
+			size = <0x0 0x1000000>;
 			mask = <1>;
 		};
 		metadata:metadata{
@@ -93,7 +93,7 @@
 		super:super
 		{
 			pname = "super";
-			size = <0x0 0x7C400000>;
+			size = <0x0 0x64000000>;
 			mask = <1>;
 		};
 		cache:cache

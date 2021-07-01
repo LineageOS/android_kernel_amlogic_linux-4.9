@@ -26,7 +26,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/input/meson_rc.h>
 #include <dt-bindings/phy/phy-amlogic-pcie.h>
-#include "mesong12a-bifrost.dtsi"
+#include "mesong12a-bifrost_sti6130d3x0.dtsi"
 
 / {
 	cpus:cpus {
@@ -342,6 +342,29 @@
 			reg-names = "mux","gpio", "drive-strength";
 			gpio-controller;
 			#gpio-cells = <2>;
+		};
+		
+		jtag_apao_pins:jtag_apao_pin {
+			mux {
+				  groups = "jtag_ao_tdi",
+				  "jtag_ao_tdo",
+				  "jtag_ao_clk",
+				  "jtag_ao_tms";
+			function = "jtag_a";
+			};
+		};
+		remote_pins:remote_pin {
+			mux {
+				groups = "remote_input_ao";
+				function = "remote_input_ao";
+			};
+		};
+
+		irblaster_pins:irblaster_pin {
+			mux {
+				groups = "remote_out_ao";
+				function = "remote_out_ao";
+			};
 		};
 	};
 
@@ -779,7 +802,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&irblaster_pins>;
 				interrupts = <GIC_SPI 198 IRQ_TYPE_EDGE_RISING>;
-				status = "disabled";
+				status = "okay";
 			};
 		};/* end of aobus */
 
@@ -845,7 +868,7 @@
 		dev_name = "meson-remote";
 		reg = <0x0 0xff808040 0x00 0x44>, /*Multi-format IR controller*/
 			<0x0 0xff808000 0x00 0x20>; /*Legacy IR controller*/
-		status = "okay";
+		status = "disabled";
 		protocol = <REMOTE_TYPE_NEC>;
 		led_blink = <1>;
 		led_blink_frq = <100>;
@@ -862,119 +885,18 @@
 		map1 = <&map_1>;
 		map2 = <&map_2>;
 		map_0: map_0{
-			mapname = "amlogic-remote-1";
-			customcode = <0xfb04>;
+			mapname = "askey-remote-1";
+			customcode = <0x7f00>;
 			release_delay = <80>;
-			size  = <50>;   /*keymap size*/
-			keymap = <REMOTE_KEY(0x47, KEY_0)
-				REMOTE_KEY(0x13, KEY_1)
-				REMOTE_KEY(0x10, KEY_2)
-				REMOTE_KEY(0x11, KEY_3)
-				REMOTE_KEY(0x0F, KEY_4)
-				REMOTE_KEY(0x0C, KEY_5)
-				REMOTE_KEY(0x0D, KEY_6)
-				REMOTE_KEY(0x0B, KEY_7)
-				REMOTE_KEY(0x08, KEY_8)
-				REMOTE_KEY(0x09, KEY_9)
-				REMOTE_KEY(0x5C, KEY_RIGHTCTRL)
-				REMOTE_KEY(0x51, KEY_F3)
-				REMOTE_KEY(0x50, KEY_F4)
-				REMOTE_KEY(0x40, KEY_F5)
-				REMOTE_KEY(0x4d, KEY_F6)
-				REMOTE_KEY(0x43, KEY_F7)
-				REMOTE_KEY(0x17, KEY_F8)
-				REMOTE_KEY(0x00, KEY_F9)
-				REMOTE_KEY(0x01, KEY_F10)
-				REMOTE_KEY(0x16, KEY_F11)
-				REMOTE_KEY(0x49, KEY_BACKSPACE)
-				REMOTE_KEY(0x06, KEY_PROPS)
-				REMOTE_KEY(0x14, KEY_UNDO)
-				REMOTE_KEY(0x44, KEY_UP)
-				REMOTE_KEY(0x1D, KEY_DOWN)
-				REMOTE_KEY(0x1C, KEY_LEFT)
-				REMOTE_KEY(0x48, KEY_RIGHT)
-				REMOTE_KEY(0x53, KEY_LEFTMETA)
-				REMOTE_KEY(0x45, KEY_PAGEUP)
-				REMOTE_KEY(0x19, KEY_PAGEDOWN)
-				REMOTE_KEY(0x52, KEY_PAUSE)
-				REMOTE_KEY(0x05, KEY_HANGEUL)
-				REMOTE_KEY(0x59, KEY_HANJA)
-				REMOTE_KEY(0x1b, KEY_SCALE)
-				REMOTE_KEY(0x04, KEY_KPCOMMA)
-				REMOTE_KEY(0x1A, KEY_POWER)
-				REMOTE_KEY(0x0A, KEY_TAB)
-				REMOTE_KEY(0x0e, KEY_MUTE)
-				REMOTE_KEY(0x1F, KEY_HOME)
-				REMOTE_KEY(0x1e, KEY_FRONT)
-				REMOTE_KEY(0x07, KEY_COPY)
-				REMOTE_KEY(0x12, KEY_OPEN)
-				REMOTE_KEY(0x54, KEY_PASTE)
-				REMOTE_KEY(0x02, KEY_FIND)
-				REMOTE_KEY(0x4f, KEY_A)
-				REMOTE_KEY(0x42, KEY_B)
-				REMOTE_KEY(0x5d, KEY_C)
-				REMOTE_KEY(0x4c, KEY_D)
-				REMOTE_KEY(0x58, KEY_CUT)
-				REMOTE_KEY(0x55, KEY_CALC)>;
+			size  = <39>;   /*keymap size*/
+			keymap = <0x13000b 0x1a0002 0x1f0003 0x580004 0x160005 0x1b0006 0x540007 0x120008 0x170009 0x50000a 0x4c009e 0x5f0061 0x30067 0x5e006c 0x20069 0x40006a 0x420066 0x7008b 0x5b0068 0x18006d 0x5d00cf 0x4a0077 0x4b0080 0x800a7 0x51019c 0x520197 0x400d0 0x5300a8 0x1e0074 0x1c009e 0x5a0071 0x7a00fd 0x7c00fa 0x7700fb 0x7b00fc 0x790246 0x840246 0xa0192 0x60193>;
 		};
 		map_1: map_1{
-			mapname = "amlogic-remote-2";
-			customcode = <0xfe01>;
+			mapname = "askey-remote-2";
+			customcode = <0x7f>;
 			release_delay = <80>;
-			size  = <53>;
-			keymap = <REMOTE_KEY(0x01, KEY_1)
-				REMOTE_KEY(0x02, KEY_2)
-				REMOTE_KEY(0x03, KEY_3)
-				REMOTE_KEY(0x04, KEY_4)
-				REMOTE_KEY(0x05, KEY_5)
-				REMOTE_KEY(0x06, KEY_6)
-				REMOTE_KEY(0x07, KEY_7)
-				REMOTE_KEY(0x08, KEY_8)
-				REMOTE_KEY(0x09, KEY_9)
-				REMOTE_KEY(0x0a, KEY_0)
-				REMOTE_KEY(0x1F, KEY_FN_F1)
-				REMOTE_KEY(0x15, KEY_MENU)
-				REMOTE_KEY(0x16, KEY_TAB)
-				REMOTE_KEY(0x0c, KEY_CHANNELUP)
-				REMOTE_KEY(0x0d, KEY_CHANNELDOWN)
-				REMOTE_KEY(0x0e, KEY_VOLUMEUP)
-				REMOTE_KEY(0x0f, KEY_VOLUMEDOWN)
-				REMOTE_KEY(0x11, KEY_HOME)
-				REMOTE_KEY(0x1c, KEY_RIGHT)
-				REMOTE_KEY(0x1b, KEY_LEFT)
-				REMOTE_KEY(0x19, KEY_UP)
-				REMOTE_KEY(0x1a, KEY_DOWN)
-				REMOTE_KEY(0x1d, KEY_ENTER)
-				REMOTE_KEY(0x17, KEY_MUTE)
-				REMOTE_KEY(0x49, KEY_FINANCE)
-				REMOTE_KEY(0x43, KEY_BACK)
-				REMOTE_KEY(0x12, KEY_FN_F4)
-				REMOTE_KEY(0x14, KEY_FN_F5)
-				REMOTE_KEY(0x18, KEY_FN_F6)
-				REMOTE_KEY(0x59, KEY_INFO)
-				REMOTE_KEY(0x5a, KEY_STOPCD)
-				REMOTE_KEY(0x10, KEY_POWER)
-				REMOTE_KEY(0x42, KEY_PREVIOUSSONG)
-				REMOTE_KEY(0x44, KEY_NEXTSONG)
-				REMOTE_KEY(0x1e, KEY_REWIND)
-				REMOTE_KEY(0x4b, KEY_FASTFORWARD)
-				REMOTE_KEY(0x58, KEY_PLAYPAUSE)
-				REMOTE_KEY(0x46, KEY_PROPS)
-				REMOTE_KEY(0x40, KEY_UNDO)
-				REMOTE_KEY(0x38, KEY_SCROLLLOCK)
-				REMOTE_KEY(0x57, KEY_FN)
-				REMOTE_KEY(0x5b, KEY_FN_ESC)
-				REMOTE_KEY(0x54, KEY_RED)
-				REMOTE_KEY(0x4c, KEY_GREEN)
-				REMOTE_KEY(0x4e, KEY_YELLOW)
-				REMOTE_KEY(0x55, KEY_BLUE)
-				REMOTE_KEY(0x53, KEY_BLUETOOTH)
-				REMOTE_KEY(0x52, KEY_WLAN)
-				REMOTE_KEY(0x39, KEY_CAMERA)
-				REMOTE_KEY(0x41, KEY_SOUND)
-				REMOTE_KEY(0x0b, KEY_QUESTION)
-				REMOTE_KEY(0x00, KEY_CHAT)
-				REMOTE_KEY(0x13, KEY_SEARCH)>;
+			size  = <33>;
+			keymap = <0x13000b 0x1a0002 0x1f0003 0x580004 0x160005 0x1b0006 0x540007 0x120008 0x170009 0x50000a 0x4c000f 0x5f0061 0x30067 0x5e006c 0x20069 0x40006a 0x420066 0x7008b 0x5b0068 0x18006d 0x5d00cf 0x4a0077 0x4b0080 0x800a7 0x51019c 0x520197 0x400d0 0x5300a8 0x1e0074 0x1c009e 0x5a0071 0xa0192 0x60193>;
 		};
 		map_2: map_2{
 			mapname = "amlogic-remote-3";
@@ -1130,7 +1052,7 @@
 		/* Refer to the following URL at:
 		 * http://standards.ieee.org/develop/regauth/oui/oui.txt
 		 */
-		vendor_id = <0x000000>;
+		vendor_id = <0x88de7c>;
 		product_desc = "G12A"; /* Max Chars: 16    */
 		cec_osd_string = "AML_MBOX"; /* Max Chars: 14    */
 		cec_version = <5>;/*5:1.4;6:2.0*/
@@ -1318,7 +1240,6 @@
 			&clkc CLKID_DEMUX
 			&clkc CLKID_AHB_ARB0
 			&clkc CLKID_DOS
-			&clkc CLKID_CLK81
 			&clkc CLKID_VDEC_MUX
 			&clkc CLKID_HCODEC_MUX
 			&clkc CLKID_HEVC_MUX
@@ -1327,7 +1248,6 @@
 			"demux",
 			"ahbarb0",
 			"vdec",
-			"clk_81",
 			"clk_vdec_mux",
 			"clk_hcodec_mux",
 			"clk_hevc_mux",
@@ -1415,7 +1335,7 @@
 	};
 
 	sd_emmc_c: emmc@ffe07000 {
-		status = "disabled";
+		status = "okay";
 		compatible = "amlogic, meson-mmc-g12a";
 		reg = <0x0 0xffe07000 0x0 0x800>;
 		interrupts = <0 191 1>;

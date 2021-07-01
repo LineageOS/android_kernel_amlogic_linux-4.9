@@ -17,8 +17,8 @@
 
 /dts-v1/;
 
-#include "mesong12a.dtsi"
-#include "partition_mbox_normal_dynamic.dtsi"
+#include "mesong12a_sti6130d3x0.dtsi"
+#include "partition_mbox_dynamic_sti6130d3x0.dtsi"
 
 / {
 	model = "Amlogic";
@@ -56,9 +56,9 @@
 		ramoops@0x07400000 {
 			compatible = "ramoops";
 			reg = <0x0 0x07400000 0x0 0x00100000>;
-			record-size = <0x20000>;
-			console-size = <0x40000>;
-			ftrace-size = <0x80000>;
+			record-size = <0x8000>;
+			console-size = <0x8000>;
+			ftrace-size = <0x40000>;
 			pmsg-size = <0x20000>;
 		};
 
@@ -101,7 +101,6 @@
 		/*di CMA pool */
 		di_cma_reserved:linux,di_cma {
 			compatible = "shared-dma-pool";
-			status = "disable";
 			reusable;
 			/* buffer_size = 3621952(yuv422 8bit)
 			 *  | 4736064(yuv422 10bit)
@@ -111,7 +110,7 @@
 			 * 10x4074560=40M(0x28) support 10bit
 			 */
 			//size = <0x0 0x0B000000>;
-			size = <0x0 0x0>;
+			size = <0x0 0xb000000>;
 			alignment = <0x0 0x400000>;
 		};
 		/*  POST PROCESS MANAGER */
@@ -125,7 +124,7 @@
 			reusable;
 			/* ion_codec_mm max can alloc size 80M*/
 			//size = <0x0 0x16400000>;
-			size = <0x0 0x1b000000>;/*ary*/
+			size = <0x0 0x16400000>;/*ary*/
 			alignment = <0x0 0x400000>;
 			linux,contiguous-region;
 		};
@@ -148,21 +147,14 @@
 		};
 	};
 
-	cma_shrinker {
-		compatible = "amlogic, cma-shrinker";
-		status = "okay";
-		adj  = <0 100 200 250 900 950>;
-		free = <8192 12288 16384 24576 28672 32768>;
-	};
-
 	amlogic_battery:dummy-battery {
 		compatible = "amlogic, dummy-battery";
-		status = "disabled";
+		status = "okay";
 	};
 
 	amlogic_charger:dummy-charger {
 		compatible = "amlogic, dummy-charger";
-		status = "disabled";
+		status = "okay";
 	};
 
 	gpioleds {
@@ -198,7 +190,7 @@
 	cvbsout {
 		compatible = "amlogic, cvbsout-g12a";
 		dev_name = "cvbsout";
-		status = "okay";
+		status = "disabled";
 		clocks = <&clkc CLKID_VCLK2_ENCI
 			&clkc CLKID_VCLK2_VENCI0
 			&clkc CLKID_VCLK2_VENCI1
@@ -423,7 +415,7 @@
 	unifykey{
 		compatible = "amlogic, unifykey";
 		status = "ok";
-		unifykey-num = <19>;
+		unifykey-num = <22>;
 		unifykey-index-0 = <&keysn_0>;
 		unifykey-index-1 = <&keysn_1>;
 		unifykey-index-2 = <&keysn_2>;
@@ -443,6 +435,10 @@
 		unifykey-index-16= <&keysn_16>;
 		unifykey-index-17= <&keysn_17>;
 		unifykey-index-18= <&keysn_18>;
+		unifykey-index-19= <&keysn_19>;
+		unifykey-index-20= <&keysn_20>;
+		unifykey-index-21= <&keysn_21>;
+		unifykey-index-22= <&keysn_22>;
 
 		keysn_0: key_0{
 			key-name = "usid";
@@ -540,6 +536,26 @@
 		keysn_18:key_18{
 			key-name = "KEY_PROVISION_XXX";
 			key-device = "provision";
+			key-permit = "read","write","del";
+		};
+		keysn_19:key_19{
+			key-name = "wifi_country_abbrev";
+			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_20:key_20{
+			key-name = "wifi_ccode";
+			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_21:key_21{
+			key-name = "wifi_regrev";
+			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_22:key_22{
+			key-name = "wifi_disable_5g_band";
+			key-device = "normal";
 			key-permit = "read","write","del";
 		};
 	};//End unifykey
@@ -1016,13 +1032,17 @@
 	aml_tdmc: tdmc {
 		compatible = "amlogic, g12a-snd-tdmc";
 		#sound-dai-cells = <0>;
-		dai-tdm-lane-slot-mask-out = <1 1 1 1>;
+		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
+		#dai-tdm-lane-slot-mask-out = <1 0 1 1>;
+		#dai-tdm-lane-oe-slot-mask-in = <0 0 0 0>;
+		dai-tdm-lane-oe-slot-mask-out = <1 0 0 0>;
 		dai-tdm-clk-sel = <2>;
 		clocks = <&clkaudio CLKID_AUDIO_MCLK_C
 				&clkc CLKID_MPLL2>;
 		clock-names = "mclk", "clk_srcpll";
-		/* indicate this tdm is only for HDMI multi-channel */
-		i2s2hdmi = <1>;
+		pinctrl-names = "tdm_pins";
+		pinctrl-0 = <&tdmc_mclk &tdmout_c &tdmin_c>;
+		mclk_pad = <1>;  /* 0: mclk_0; 1: mclk_1 */
 	};
 
 	tdmlb: tdm@3 {
@@ -1358,8 +1378,10 @@
 
 &usb3_phy_v2 {
 	status = "okay";
-	portnum = <1>;
-	otg = <0>;
+	portnum = <0>;
+	otg = <1>;
+	gpio-vbus-power = "GPIOH_6";
+	gpios = <&gpio GPIOH_6 GPIO_ACTIVE_HIGH>;
 };
 
 &dwc2_a {
