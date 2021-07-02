@@ -35,18 +35,20 @@
 		serial2 = &uart_B;
 		serial3 = &uart_C;
 		serial4 = &uart_AO_B;
+		i2c0 = &i2c2;
+		i2c1 = &i2c3;
+		i2c2 = &i2c0;
+		i2c3 = &i2c1;
+		i2c4 = &i2c_AO;
 		tsensor0 = &p_tsensor;
 		tsensor1 = &d_tsensor;
-		i2c0 = &i2c0;
-		i2c1 = &i2c1;
-		i2c2 = &i2c2;
-		i2c3 = &i2c3;
-		i2c4 = &i2c_AO;
+		spi0 = &spicc0;
+		spi1 = &spicc1;
 	};
 
 	memory@00000000 {
 		device_type = "memory";
-		linux,usable-memory = <0x0 0x000000 0x0 0x80000000>;
+		linux,usable-memory = <0x0 0x000000 0x0 0xf0000000>;
 	};
 
 	reserved-memory {
@@ -241,7 +243,7 @@
 	bt-dev{
 		compatible = "amlogic, bt-dev";
 		dev_name = "bt-dev";
-		status = "okay";
+		status = "disabled";
 		gpio_reset = <&gpio       GPIOX_17       GPIO_ACTIVE_HIGH>;
 		gpio_hostwake = <&gpio       GPIOX_19       GPIO_ACTIVE_HIGH>;
 	};
@@ -249,7 +251,7 @@
 	wifi{
 		compatible = "amlogic, aml_wifi";
 		dev_name = "aml_wifi";
-		status = "okay";
+		status = "disabled";
 		interrupt_pin = <&gpio       GPIOX_7       GPIO_ACTIVE_HIGH>;
 		irq_trigger_type = "GPIO_IRQ_LOW";
 		power_on_pin = <&gpio       GPIOX_6       GPIO_ACTIVE_HIGH>;
@@ -636,30 +638,12 @@
 	};//End unifykey
 
 	efusekey:efusekey{
-		keynum = <4>;
+		keynum = <1>;
 		key0 = <&key_0>;
-		key1 = <&key_1>;
-		key2 = <&key_2>;
-		key3 = <&key_3>;
 		key_0:key_0{
-			keyname = "mac";
+			keyname = "uuid";
 			offset = <0>;
-			size = <6>;
-		};
-		key_1:key_1{
-			keyname = "mac_bt";
-			offset = <6>;
-			size = <6>;
-		};
-		key_2:key_2{
-			keyname = "mac_wifi";
-			offset = <12>;
-			size = <6>;
-		};
-		key_3:key_3{
-			keyname = "usid";
-			offset = <18>;
-			size = <16>;
+			size = <32>;
 		};
 	};//End efusekey
 
@@ -968,6 +952,77 @@
 
 }; /* end of / */
 
+&custom_maps{
+	mapnum = <1>;
+	map0 = <&map_0>;
+	map_0: map_0{
+		mapname = "amlogic-remote-1";
+		customcode = <0xf708>;
+		release_delay = <80>;
+		size  = <60>;   /*keymap size*/
+		keymap = <REMOTE_KEY(0x10, KEY_0)
+			REMOTE_KEY(0x11, KEY_1)
+			REMOTE_KEY(0x12, KEY_2)
+			REMOTE_KEY(0x13, KEY_3)
+			REMOTE_KEY(0x14, KEY_4)
+			REMOTE_KEY(0x15, KEY_5)
+			REMOTE_KEY(0x16, KEY_6)
+			REMOTE_KEY(0x17, KEY_7)
+			REMOTE_KEY(0x18, KEY_8)
+			REMOTE_KEY(0x19, KEY_9)
+			REMOTE_KEY(0x1f, KEY_REPLY) /*KEY_ENTER*/
+			REMOTE_KEY(0x20, KEY_F3)
+			REMOTE_KEY(0x50, KEY_F4)
+			REMOTE_KEY(0x40, KEY_F5)
+			REMOTE_KEY(0x4d, KEY_F6)
+			REMOTE_KEY(0x96, KEY_F7)
+			REMOTE_KEY(0x29, KEY_F8)
+			REMOTE_KEY(0x77, KEY_F9)
+			REMOTE_KEY(0x78, KEY_F10)
+			REMOTE_KEY(0X88, KEY_F11)
+			REMOTE_KEY(0x30, KEY_BACKSPACE)
+			REMOTE_KEY(0x06, KEY_PROPS)
+			REMOTE_KEY(0x28, KEY_UNDO)
+			REMOTE_KEY(0x00, KEY_UP)
+			REMOTE_KEY(0x01, KEY_DOWN)
+			REMOTE_KEY(0x03, KEY_LEFT)
+			REMOTE_KEY(0x02, KEY_RIGHT)
+			REMOTE_KEY(0x53, KEY_LEFTMETA)
+			REMOTE_KEY(0x51, KEY_PAGEUP)
+			REMOTE_KEY(0x52, KEY_PAGEDOWN)
+			REMOTE_KEY(0x07, KEY_PAUSE)
+			REMOTE_KEY(0x98, KEY_HANGEUL)
+			REMOTE_KEY(0x59, KEY_HANJA)
+			REMOTE_KEY(0x1b, KEY_SCALE)
+			REMOTE_KEY(0x04, KEY_KPCOMMA)
+			REMOTE_KEY(0x0A, KEY_POWER)
+			REMOTE_KEY(0x81, KEY_TAB)
+			REMOTE_KEY(0x0D, KEY_MUTE)
+			REMOTE_KEY(0x0c, KEY_HOMEPAGE)
+			REMOTE_KEY(0x1e, KEY_FRONT)
+			REMOTE_KEY(0x80, KEY_COPY)
+			REMOTE_KEY(0x95, KEY_OPEN)
+			REMOTE_KEY(0x54, KEY_PASTE)
+			REMOTE_KEY(0x79, KEY_FIND)
+			REMOTE_KEY(0x4f, KEY_A)
+			REMOTE_KEY(0x97, KEY_B)
+			REMOTE_KEY(0x92, KEY_C)
+			REMOTE_KEY(0x4c, KEY_D)
+			REMOTE_KEY(0x93, KEY_CUT)
+			REMOTE_KEY(0x1c, KEY_BACK)
+			REMOTE_KEY(0x58, KEY_VOLUMEUP)
+			REMOTE_KEY(0x5d, KEY_VOLUMEDOWN)
+			REMOTE_KEY(0x05, KEY_RED)
+			REMOTE_KEY(0x09, KEY_GREEN)
+			REMOTE_KEY(0x42, KEY_YELLOW)
+			REMOTE_KEY(0x43, KEY_BLUE)
+			REMOTE_KEY(0x1a, KEY_MENU)
+			REMOTE_KEY(0x44, KEY_REWIND)
+			REMOTE_KEY(0x45, KEY_FASTFORWARD)
+			REMOTE_KEY(0x55, KEY_CALC)>;
+	};
+};
+
 &vddcpu0 {
 	pwms = <&pwm_AO_cd MESON_PWM_1 1250 0>;
 	regulator-min-microvolt = <720000>;
@@ -1020,62 +1075,12 @@
 		status = "okay";
 };
 
-&i2c0 {
-	status = "okay";
-	pinctrl-names="default";
-	pinctrl-0=<&i2c0_master_pins2>;
-	clock-frequency = <400000>;
-
-	gt9xx@5d {
-		compatible = "goodix,gt9xx";
-		status = "disabled";
-		reg = <0x5d>;
-		reset-gpio = <&gpio GPIOZ_9 0x00>;
-		irq-gpio = <&gpio GPIOZ_3 0x00>;
-	};
-
-	ftxx@38 {
-		compatible = "focaltech,fts";
-		status = "disabled";
-		reg = <0x38>;
-		reset-gpio = <&gpio GPIOZ_9 0x00>;
-		irq-gpio = <&gpio GPIOZ_3 0x00>;
-		x_max = <600>;
-		y_max = <1024>;
-		max-touch-number = <10>;
-	};
+&i2c2 {
+	status = "disabled";
 };
 
-/*&i2c2 {
- *	status = "okay";
- *	pinctrl-names="default";
- *	pinctrl-0=<&i2c2_master_pins2>;
- *	clock-frequency = <300000>;
- *};
- */
-
 &i2c3 {
-	status = "ok";
-	pinctrl-names="default";
-	pinctrl-0=<&i2c3_master_pins2>;
-	clock-frequency = <300000>; /* default 100k */
-
-	/* for ref board */
-	ad82584f_62: ad82584f_62@62 {
-		compatible = "ESMT, ad82584f";
-		#sound-dai-cells = <0>;
-		reg = <0x31>;
-		status = "disabled";
-		reset_pin = <&gpio GPIOA_5 0>;
-		no_mclk;
-	};
-
-	bl_extern_i2c {
-		compatible = "bl_extern, i2c";
-		dev_name = "lp8556";
-		reg = <0x2c>;
-		status = "disabled";
-	};
+	status = "disabled";
 };
 
 &audiobus {
@@ -1523,12 +1528,12 @@
 	};
 
 	pdmin: pdmin {
-		mux { /* GPIOZ_2, GPIOZ_3, GPIOZ_4, GPIOZ_5, GPIOZ_6 */
-			groups = "pdm_din0_z",
-				"pdm_din1_z",
-				"pdm_din2_z",
-				"pdm_din3_z",
-				"pdm_dclk_z";
+		mux { /* gpioa_5, gpioa_6, gpioa_7, gpioa_8, gpioa_9*/
+			groups = "pdm_din0_a",
+			"pdm_din1_a",
+			"pdm_din2_a",
+			"pdm_din3_a",
+			"pdm_dclk_a";
 			function = "pdm";
 		};
 	};
@@ -1607,25 +1612,30 @@
 &usb3_phy_v2 {
 	status = "okay";
 	portnum = <1>;
-	otg = <0>;
+	otg = <1>;
+	gpio-vbus-power = "GPIOAO_2";
+	gpios = <&gpio_ao GPIOAO_2 GPIO_ACTIVE_HIGH>;
 };
 
 &dwc2_a {
 	status = "okay";
 	/** 0: normal, 1: otg+dwc3 host only, 2: otg+dwc3 device only*/
-	controller-type = <1>;
+	controller-type = <3>;
 };
 &ethmac {
 	status = "okay";
-	pinctrl-names = "internal_eth_pins";
-	pinctrl-0 = <&internal_eth_pins>;
-	mc_val = <0x4be04>;
+	pinctrl-names = "external_eth_pins";
+	pinctrl-0 = <&external_eth_pins>;
+	mc_val = <0x1621>;
 
-	internal_phy=<1>;
+	internal_phy=<0>;
+
+	/* reset */
+	rst_pin-gpios = <&gpio GPIOZ_15 GPIO_ACTIVE_LOW>;
 };
 
 &uart_A {
-	status = "okay";
+	status = "disabled";
 };
 
 /*if you want to use vdin just modify status to "ok"*/
@@ -1799,7 +1809,7 @@
 };
 
 &irblaster {
-	status = "okay";
+	status = "disabled";
 };
 
 &dummy_venc {
