@@ -113,6 +113,7 @@ dtb-y += sm1_s905x3_ac214_drm_buildroot.dtb
 dtb-y += sm1_s905x3_ac215.dtb
 dtb-y += sm1_s905y3_ac223.dtb
 dtb-y += sm1_s905y3_bananapim5.dtb
+dtb-y += sm1_s905y3_bananapim5_wifi_overlay.dtb
 dtb-y += sm1_s905y3_deadpool.dtb
 dtb-y += sm1_s905y3_odroidc4.dtb
 dtb-y += sti6140d350_overlay.dtb
