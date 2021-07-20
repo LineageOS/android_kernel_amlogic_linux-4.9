@@ -221,6 +221,7 @@ struct ppmgr2_device {
 	int bottom_first;
 
 	struct mutex *ge2d_canvas_mutex;
+	unsigned int no_drop_i;
 };
 
 #define ION_VF_RECEIVER_NAME_SIZE 32
@@ -292,6 +293,7 @@ struct ionvideo_dev {
 	int is_actived;
 	u64 last_pts_us64;
 	unsigned int freerun_mode;
+	unsigned int no_drop_i;
 	unsigned int skip_frames;
 
 	wait_queue_head_t wq;

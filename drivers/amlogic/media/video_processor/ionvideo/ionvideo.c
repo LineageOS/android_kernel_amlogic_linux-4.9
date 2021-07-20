@@ -34,6 +34,7 @@
 #define IONVIDEO_DEVICE_NAME   "ionvideo"
 
 #define V4L2_CID_USER_AMLOGIC_IONVIDEO_BASE  (V4L2_CID_USER_BASE + 0x1100)
+#define V4L2_CID_USER_AMLOGIC_IONVIDEO_NO_DROP_I  (V4L2_CID_USER_BASE + 0x1101)
 #define SCALE_4K_TO_1080P 1
 static struct mutex ppmgr2_ge2d_canvas_mutex;
 
@@ -64,6 +65,10 @@ MODULE_PARM_DESC(vid_limit, "capture memory limit in megabytes");
 static unsigned int freerun_mode = 1;
 module_param(freerun_mode, uint, 0664);
 MODULE_PARM_DESC(freerun_mode, "av synchronization");
+
+static unsigned int no_drop_i;
+module_param(no_drop_i, uint, 0664);
+MODULE_PARM_DESC(no_drop_i, "no drop i");
 
 static const struct ionvideo_fmt formats[] = {
 	{.name = "RGB32 (LE)",
@@ -124,6 +129,11 @@ static int vidioc_s_ctrl(struct file *file, void *priv,
 		if (ctrl->value) {
 			dev->freerun_mode = 1;
 			IONVID_DBG("ionvideo: set freerun mode\n");
+		}
+	} else if (ctrl->id == V4L2_CID_USER_AMLOGIC_IONVIDEO_NO_DROP_I) {
+		if (ctrl->value) {
+			dev->no_drop_i = 1;
+			IONVID_DBG("ionvideo: set no_drop_i mode\n");
 		}
 	}
 	return 0;
@@ -216,7 +226,8 @@ static void videoc_omx_compute_pts(struct ionvideo_dev *dev,
 		if (dev->is_omx_video_started == 0) {
 			dev->pts = dev->last_pts_us64
 				+ (DUR2PTS(vf->duration) * 100 / 9);
-			if ((vf->type & 0x1) == VIDTYPE_INTERLACE)
+			if ((vf->type & 0x1) == VIDTYPE_INTERLACE &&
+				!dev->no_drop_i)
 				dev->pts += (DUR2PTS(vf->duration) * 100 / 9);
 		}
 	}
@@ -265,6 +276,8 @@ static int ionvideo_fillbuff(struct ionvideo_dev *dev,
 		return -EAGAIN;
 	}
 
+	dev->ppmgr2_dev.no_drop_i = dev->no_drop_i;
+
 	if (vf && dev->once_record == 1) {
 		dev->once_record = 0;
 		if ((vf->type & VIDTYPE_INTERLACE_BOTTOM) == 0x3)
@@ -281,7 +294,8 @@ static int ionvideo_fillbuff(struct ionvideo_dev *dev,
 		}
 		vf_put(vf, dev->vf_receiver_name);
 	} else {
-		if ((vf->type & 0x1) == VIDTYPE_INTERLACE) {
+		if ((vf->type & 0x1) == VIDTYPE_INTERLACE &&
+			dev->no_drop_i == 0) {
 			if ((dev->ppmgr2_dev.bottom_first
 				&& (vf->type & 0x2)) || (dev
 				->ppmgr2_dev
@@ -574,6 +588,7 @@ static int vidioc_open(struct file *file)
 	dev->vf_wait_cnt = 0;
 	/*for libplayer osd*/
 	dev->freerun_mode = freerun_mode;
+	dev->no_drop_i = no_drop_i;
 
 	v4l2q_init(&dev->input_queue, IONVIDEO_POOL_SIZE + 1,
 			&dev->ionvideo_input_queue[0]);

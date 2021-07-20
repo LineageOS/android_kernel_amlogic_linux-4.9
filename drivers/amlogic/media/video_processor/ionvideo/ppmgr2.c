@@ -495,11 +495,13 @@ int ppmgr2_process(struct vframe_s *vf, struct ppmgr2_device *ppd, int index)
 		return -1;
 	}
 
-	if (src_vf->type & VIDTYPE_INTERLACE) {
-		if ((ppd->bottom_first && src_vf->type & 0x2)
-			|| (ppd->bottom_first == 0
-			&& (src_vf->type & 0x2) == 0)) {
-			return -EAGAIN;
+	if (ppd->no_drop_i == 0) {
+		if (src_vf->type & VIDTYPE_INTERLACE) {
+			if ((ppd->bottom_first && src_vf->type & 0x2) ||
+			    (ppd->bottom_first == 0 &&
+			     (src_vf->type & 0x2) == 0)) {
+				return -EAGAIN;
+			}
 		}
 	}
 
