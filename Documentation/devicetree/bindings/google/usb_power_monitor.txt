@@ -1,0 +1,21 @@
+Google USB Power Monitor
+
+Required properties:
+ - compatible: "google,usb-power-monitor"
+
+Optional properties:
+ - bc_chg_det-gpio		gpio pin for BC 1.2 chg_det
+
+ - typec_power_supply		typec power supply phandle, have to support get
+				property of POWER_SUPPLY_PROP_ONLINE and
+				POWER_SUPPLY_PROP_CURRENT_MAX.
+
+ - #thermal-sensor-cells	export to thermal zone
+
+Example:
+	usb-power-monitor {
+		compatible = "google,usb-power-monitor";
+		bc_chg_det-gpio = <&gpio GPIOH_8 GPIO_ACTIVE_HIGH>;
+		typec_power_supply = <&rt1711h>;
+		#thermal-sensor-cells = <0>;
+	};
