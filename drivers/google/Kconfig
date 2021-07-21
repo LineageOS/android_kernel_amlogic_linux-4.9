@@ -1,0 +1,16 @@
+
+menuconfig GOOGLE_DRIVER
+	tristate "Google Drivers"
+	default n
+	help
+	  Google Drivers
+
+if GOOGLE_DRIVER
+
+config GOOGLE_USB_POWER_MONITOR
+	tristate "USB Power Monitor"
+	depends on OF && HWMON && THERMAL && THERMAL_OF
+	help
+	  Sabrina USB power monitor
+
+endif # GOOGLE_DRIVER
