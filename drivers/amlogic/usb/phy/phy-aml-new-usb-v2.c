@@ -75,3 +75,28 @@ int amlogic_new_usbphy_reset_phycfg_v2(struct amlogic_usb_v2 *phy, int cnt)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(amlogic_new_usbphy_reset_phycfg_v2);
+
+int amlogic_reset_phycfg_otgport(struct amlogic_usb_v2 *phy, int cnt)
+{
+	u32 val;
+	u32 temp = 0;
+
+	temp = temp | (1 << cnt);
+
+	/* set usb phy to low power mode */
+	val = readl((void __iomem		*)
+		((unsigned long)phy->reset_regs + (0x21 * 4 - 0x8)));
+	writel((val & (~temp)), (void __iomem	*)
+		((unsigned long)phy->reset_regs + (0x21 * 4 - 0x8)));
+
+	udelay(100);
+
+	val = readl((void __iomem *)
+		((unsigned long)phy->reset_regs + (0x21 * 4 - 0x8)));
+	writel((val | temp), (void __iomem *)
+		((unsigned long)phy->reset_regs + (0x21 * 4 - 0x8)));
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(amlogic_reset_phycfg_otgport);
+

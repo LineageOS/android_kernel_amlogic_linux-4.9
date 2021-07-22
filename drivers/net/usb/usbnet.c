@@ -91,6 +91,8 @@ MODULE_PARM_DESC (msg_level, "Override default message level");
 
 /*-------------------------------------------------------------------------*/
 
+extern void usb2_reset_otgport_phy(void);
+
 /* handles CDC Ethernet and many other network "bulk data" interfaces */
 int usbnet_get_endpoints(struct usbnet *dev, struct usb_interface *intf)
 {
@@ -182,17 +184,27 @@ static void intr_complete (struct urb *urb)
 	struct usbnet	*dev = urb->context;
 	int		status = urb->status;
 
+	if (status)
+		printk("### (%s) status: %d ###", __func__, status);
+
 	switch (status) {
 	/* success */
 	case 0:
 		dev->driver_info->status(dev, urb);
 		break;
 
+	case -ECONNRESET:
+		usb2_reset_otgport_phy();
+		return;
+
 	/* software-driven interface shutdown */
 	case -ENOENT:		/* urb killed */
 	case -ESHUTDOWN:	/* hardware gone */
 		netif_dbg(dev, ifdown, dev->net,
 			  "intr shutdown, code %d\n", status);
+		return;
+	case -EPROTO:
+		usb2_reset_otgport_phy();
 		return;
 
 	/* NOTE:  not throttling like RX/TX, since this endpoint
@@ -589,6 +601,9 @@ static void rx_complete (struct urb *urb)
 	state = rx_done;
 	entry->urb = NULL;
 
+	if (urb_status)
+		printk("### (%s) urb_status: %d ###", __func__, urb_status);
+
 	switch (urb_status) {
 	/* success */
 	case 0:
@@ -606,6 +621,7 @@ static void rx_complete (struct urb *urb)
 
 	/* software-driven interface shutdown */
 	case -ECONNRESET:		/* async unlink */
+		usb2_reset_otgport_phy();
 	case -ESHUTDOWN:		/* hardware gone */
 		netif_dbg(dev, ifdown, dev->net,
 			  "rx shutdown, code %d\n", urb_status);
@@ -616,6 +632,7 @@ static void rx_complete (struct urb *urb)
 	 * so we still recover when the fault isn't a hub_wq delay.
 	 */
 	case -EPROTO:
+		usb2_reset_otgport_phy();
 	case -ETIME:
 	case -EILSEQ:
 		dev->net->stats.rx_errors++;
@@ -1219,6 +1236,7 @@ static void tx_complete (struct urb *urb)
 		dev->net->stats.tx_packets += entry->packets;
 		dev->net->stats.tx_bytes += entry->length;
 	} else {
+		printk("### (%s) urb->status: %d ###", __func__, urb->status);
 		dev->net->stats.tx_errors++;
 
 		switch (urb->status) {
@@ -1228,7 +1246,8 @@ static void tx_complete (struct urb *urb)
 
 		/* software-driven interface shutdown */
 		case -ECONNRESET:		// async unlink
-		case -ESHUTDOWN:		// hardware gone
+			usb2_reset_otgport_phy();
+		case -ESHUTDOWN:		// hardware gone			
 			break;
 
 		/* like rx, tx gets controller i/o faults during hub_wq
