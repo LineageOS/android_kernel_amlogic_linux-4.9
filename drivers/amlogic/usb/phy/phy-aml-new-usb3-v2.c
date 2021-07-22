@@ -27,6 +27,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/delay.h>
 #include <linux/usb/phy.h>
+#include <linux/usb/role.h>
 #include <linux/amlogic/usb-v2.h>
 #include <linux/amlogic/aml_gpio_consumer.h>
 #include <linux/workqueue.h>
@@ -40,6 +41,10 @@
 
 struct usb_aml_regs_v2 usb_new_aml_regs_v2;
 struct amlogic_usb_v2	*g_phy_v2;
+struct usb_role_switch *host_mode_sw;
+u32 typec_host_mode;
+u32 idpin_host_mode;
+u32 force_host_mode;
 
 static void power_switch_to_pcie(struct amlogic_usb_v2 *phy);
 
@@ -110,22 +115,33 @@ static void amlogic_new_usb3phy_shutdown(struct usb_phy *x)
 	phy->suspend_flag = 1;
 }
 
+static void update_host_mode(struct amlogic_usb_v2 *phy)
+{
+	unsigned long reg_addr = ((unsigned long)phy->usb2_phy_cfg);
+
+	if (idpin_host_mode || typec_host_mode || force_host_mode) {
+		dev_info(phy->dev, "host mode");
+		amlogic_new_set_vbus_power(phy, 1);
+		aml_new_usb_notifier_call(0);
+		set_mode(reg_addr, HOST_MODE);
+	} else {
+		dev_info(phy->dev, "device mode");
+		set_mode(reg_addr, DEVICE_MODE);
+		aml_new_usb_notifier_call(1);
+		amlogic_new_set_vbus_power(phy, 0);
+	}
+}
+
 void aml_new_usb_v2_init(void)
 {
 	union usb_r5_v2 r5 = {.d32 = 0};
-	unsigned long reg_addr;
 
 	if (!g_phy_v2)
 		return;
 
-	reg_addr = (unsigned long)g_phy_v2->usb2_phy_cfg;
-
 	r5.d32 = readl(usb_new_aml_regs_v2.usb_r_v2[5]);
-	if (r5.b.iddig_curr == 0) {
-		amlogic_new_set_vbus_power(g_phy_v2, 1);
-		aml_new_usb_notifier_call(0);
-		set_mode(reg_addr, HOST_MODE);
-	}
+	idpin_host_mode = (r5.b.iddig_curr == 0) ? 1 : 0;
+	update_host_mode(g_phy_v2);
 }
 EXPORT_SYMBOL(aml_new_usb_v2_init);
 
@@ -435,23 +451,53 @@ static void set_mode(unsigned long reg_addr, int mode)
 	udelay(500);
 }
 
+static enum usb_role get_host_mode(struct device *dev)
+{
+	return (force_host_mode || typec_host_mode || idpin_host_mode)
+			? USB_ROLE_HOST
+			: USB_ROLE_DEVICE;
+}
+
+static int set_host_mode(struct device *dev, enum usb_role role)
+{
+	if (typec_host_mode || idpin_host_mode) {
+		dev_err(dev, "host mode was locked by typec or idpin");
+		return -EPERM;
+	}
+
+	force_host_mode = (role == USB_ROLE_HOST ? 1 : 0);
+
+	if (g_phy_v2)
+		update_host_mode(g_phy_v2);
+
+	return 0;
+}
+
+static const struct usb_role_switch_desc host_mode_sw_desc = {
+	.get = get_host_mode,
+	.set = set_host_mode,
+	.allow_userspace_control = true,
+};
+
+void amlogic_typec_set_mode(int mode)
+{
+	if (!g_phy_v2)
+		return;
+
+	typec_host_mode = (mode == HOST_MODE) ? 1 : 0;
+	update_host_mode(g_phy_v2);
+}
+EXPORT_SYMBOL(amlogic_typec_set_mode);
+
 static void amlogic_gxl_work(struct work_struct *work)
 {
 	struct amlogic_usb_v2 *phy =
 		container_of(work, struct amlogic_usb_v2, work.work);
 	union usb_r5_v2 r5 = {.d32 = 0};
-	unsigned long reg_addr = ((unsigned long)phy->usb2_phy_cfg);
 
 	r5.d32 = readl(usb_new_aml_regs_v2.usb_r_v2[5]);
-	if (r5.b.iddig_curr == 0) {
-		amlogic_new_set_vbus_power(phy, 1);
-		aml_new_usb_notifier_call(0);
-		set_mode(reg_addr, HOST_MODE);
-	} else {
-		set_mode(reg_addr, DEVICE_MODE);
-		aml_new_usb_notifier_call(1);
-		amlogic_new_set_vbus_power(phy, 0);
-	}
+	idpin_host_mode = (r5.b.iddig_curr == 0) ? 1 : 0;
+	update_host_mode(phy);
 	r5.b.usb_iddig_irq = 0;
 	writel(r5.d32, usb_new_aml_regs_v2.usb_r_v2[5]);
 }
@@ -737,11 +783,20 @@ static int amlogic_new_usb3_v2_probe(struct platform_device *pdev)
 
 	g_phy_v2 = phy;
 
+	host_mode_sw = usb_role_switch_register(dev, &host_mode_sw_desc);
+	if (IS_ERR(host_mode_sw)) {
+		dev_err(dev, "failed to register usb role switch\n");
+		host_mode_sw = NULL;
+	}
+
 	return 0;
 }
 
 static int amlogic_new_usb3_remove(struct platform_device *pdev)
 {
+	if (host_mode_sw)
+		usb_role_switch_unregister(host_mode_sw);
+
 	return 0;
 }
 
