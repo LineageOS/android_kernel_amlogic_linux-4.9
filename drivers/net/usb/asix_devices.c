@@ -689,6 +689,7 @@ static int ax88772_bind(struct usbnet *dev, struct usb_interface *intf)
 	int ret, i;
 	u8 buf[ETH_ALEN] = {0}, chipcode = 0;
 	u32 phyid;
+	u16 psc;
 	struct asix_common_private *priv;
 
 	usbnet_get_endpoints(dev,intf);
@@ -736,6 +737,11 @@ static int ax88772_bind(struct usbnet *dev, struct usb_interface *intf)
 		netdev_dbg(dev->net, "Failed to reset AX88772: %d\n", ret);
 		return ret;
 	}
+
+	asix_read_cmd(dev, AX_CMD_READ_EEPROM, 0x18, 0, 2, &psc, 0);
+	le16_to_cpus(&psc);
+	asix_write_cmd(dev, AX_CMD_SW_RESET, AX_SWRESET_IPRL |
+			(psc & 0x7f00), 0, 0, NULL, 0);
 
 	/* Read PHYID register *AFTER* the PHY was reset properly */
 	phyid = asix_get_phyid(dev);
