@@ -1942,6 +1942,7 @@ extern void usb_led_activity(enum usb_led_event ev);
 #else
 static inline void usb_led_activity(enum usb_led_event ev) {}
 #endif
+void usb2_reset_otgport_phy(void);
 
 #endif  /* __KERNEL__ */
 

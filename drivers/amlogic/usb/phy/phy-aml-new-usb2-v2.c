@@ -129,6 +129,13 @@ void set_usb_phy_host_low_reset(int port)
 
 }
 
+void usb2_reset_otgport_phy(void)
+{
+	if (!g_phy2_v2)
+		return;
+	printk(KERN_ERR"%s\n", __func__);
+	amlogic_reset_phycfg_otgport(g_phy2_v2, 17);
+}
 
 void set_usb_pll(struct amlogic_usb_v2 *phy, void __iomem	*reg)
 {
@@ -145,7 +152,7 @@ void set_usb_pll(struct amlogic_usb_v2 *phy, void __iomem	*reg)
 	/* PHY Tune */
 	if (g_phy2_v2) {
 		if (g_phy2_v2->phy_version) {
-		/**tl1 g12b revB don't need set 0x10 ,0x38 and 0x34**/
+		/**tl1 g12b revB don't need set 0x10 ,0x38**/
 			writel(phy->pll_setting[3], reg + 0x50);
 			writel(0x2a, reg + 0x54);
 
