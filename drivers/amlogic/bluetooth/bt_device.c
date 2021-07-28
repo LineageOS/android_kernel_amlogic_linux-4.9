@@ -432,6 +432,7 @@ static int bt_resume(struct platform_device *pdev)
 	}
 	event = sdio_get_vendor();
 	BT_INFO("event = %d\n", event);
+/*
 	if ((event != 625) && get_resume_method() == BT_WAKEUP) {
 		input_event(pdata->input_dev,
 			EV_KEY, KEY_POWER, 1);
@@ -440,6 +441,7 @@ static int bt_resume(struct platform_device *pdev)
 			EV_KEY, KEY_POWER, 0);
 		input_sync(pdata->input_dev);
 	}
+*/
 
 	return 0;
 }
