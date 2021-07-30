@@ -225,7 +225,7 @@
 		dev_name = "aml_wifi";
 		status = "okay";
 		interrupt_pin = <&gpio       GPIOX_7       GPIO_ACTIVE_HIGH>;
-		irq_trigger_type = "GPIO_IRQ_HIGH";
+		irq_trigger_type = "GPIO_IRQ_LOW";
 		power_on_pin = <&gpio       GPIOX_6       GPIO_ACTIVE_HIGH>;
 		dhd_static_buf;	//if use bcm wifi, config dhd_static_buf
 		pinctrl-names = "default";
@@ -539,7 +539,7 @@
 	};
 	gpioleds {
 		compatible = "gpio-leds";
-		status = "okay";
+		status = "disabled";
 
 		green {
 			label="green";
@@ -556,7 +556,7 @@
 	// Askey++ Gavim 20190130
 	gpio_keypad{
 		compatible = "amlogic, gpio_keypad";
-		status = "okay";
+		status = "disabled";
 		scan_period = <20>;
 		key_num = <1>;
 		key_name = "bt_pair";
@@ -1408,7 +1408,7 @@
 };
 
 &saradc {
-	status = "disabled";
+	status = "okay";
 };
 
 &defendkey {
@@ -1418,4 +1418,3 @@
 &dummy_venc {
 	status = "okay";
 };
-
