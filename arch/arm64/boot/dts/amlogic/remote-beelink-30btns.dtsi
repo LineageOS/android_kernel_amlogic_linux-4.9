@@ -1,0 +1,52 @@
+/* BOX6D/Belink GT-LP remote (30 keys)*/
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/input/meson_rc.h>
+
+&custom_maps {
+		mapnum = <1>;
+		map0 = <&map_0>;
+		map_0: map_0{
+				mapname = "beelink-ir";
+				customcode = <0x7f80>;
+				release_delay = <80>;
+				fn_key_scancode = <0x52>;
+				cursor_left_scancode = <0x25>;
+				cursor_right_scancode = <0x27>;
+				cursor_up_scancode = <0x26>;
+				cursor_down_scancode = <0x28>;
+				cursor_ok_scancode = <0x0d>;
+				size  = <30>;   /*keymap size*/
+				keymap = <REMOTE_KEY(0x51, KEY_POWER)
+						REMOTE_KEY(0x40,KEY_F9)
+						REMOTE_KEY(0x4d,KEY_MUTE)
+						REMOTE_KEY(0x53,KEY_HOME)
+						REMOTE_KEY(0xbc,KEY_CALC)
+						REMOTE_KEY(0x1b,KEY_BACK)
+						REMOTE_KEY(0x49,KEY_MENU)
+						REMOTE_KEY(0x0d,KEY_RIGHTCTRL)
+						REMOTE_KEY(0x26,KEY_UP)
+						REMOTE_KEY(0x25,KEY_LEFT)
+						REMOTE_KEY(0x27,KEY_RIGHT)
+						REMOTE_KEY(0x28,KEY_DOWN)
+						REMOTE_KEY(0x4e,KEY_VOLUMEUP)
+						REMOTE_KEY(0x56,KEY_VOLUMEDOWN)
+						REMOTE_KEY(0x54,290)
+						REMOTE_KEY(0x41,KEY_SCROLLUP)
+						REMOTE_KEY(0x42,KEY_SCROLLDOWN)
+						REMOTE_KEY(0x30,KEY_0)
+						REMOTE_KEY(0x31,KEY_1)
+						REMOTE_KEY(0x32,KEY_2)
+						REMOTE_KEY(0x33,KEY_3)
+						REMOTE_KEY(0x34,KEY_4)
+						REMOTE_KEY(0x35,KEY_5)
+						REMOTE_KEY(0x36,KEY_6)
+						REMOTE_KEY(0x37,KEY_7)
+						REMOTE_KEY(0x38,KEY_8)
+						REMOTE_KEY(0x39,KEY_9)
+						REMOTE_KEY(0x44,KEY_BACKSPACE)
+						REMOTE_KEY(0x58,288)
+						REMOTE_KEY(0x52,KEY_F5)>;
+		};
+};
+
