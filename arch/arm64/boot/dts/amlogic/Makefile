@@ -87,6 +87,7 @@ dtb-y += gxm_q200_2g_buildroot.dtb
 dtb-y += gxm_q201_1g.dtb
 dtb-y += gxm_q201_2g.dtb
 dtb-y += gxm_skt.dtb
+dtb-y += hertz_3g.dtb
 dtb-y += sc2_pxp.dtb
 dtb-y += sc2_s905x4_ah212.dtb
 dtb-y += sc2_s905x4_ah212_buildroot.dtb
