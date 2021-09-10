@@ -187,6 +187,17 @@
 		};
 	};
 
+	gpio_keypad {
+		compatible = "amlogic, gpio_keypad";
+		status = "okay";
+		scan_period = <20>;
+		key_num = <1>;
+		key_name = "bt_pair";
+		key_code = <249>;
+		key-gpios = <&gpio_ao  GPIOAO_3  GPIO_ACTIVE_HIGH>;
+		detect_mode = <0>;/*0:polling mode, 1:irq mode*/
+	};
+
 	cvbsout {
 		compatible = "amlogic, cvbsout-g12a";
 		dev_name = "cvbsout";
