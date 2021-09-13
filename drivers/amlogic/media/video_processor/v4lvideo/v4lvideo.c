@@ -78,7 +78,7 @@ bool di_bypass_p;
 /*dec set count mutex*/
 struct mutex mutex_dec_count;
 
-#define MAX_KEEP_FRAME 64
+#define MAX_KEEP_FRAME 128
 #define DI_NR_COUNT 1
 
 struct keep_mem_info {
