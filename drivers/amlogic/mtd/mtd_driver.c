@@ -18,7 +18,7 @@
 #include "aml_mtd.h"
 
 /* extern int nand_get_device( struct mtd_info *mtd, int new_state); */
-/* extern void nand_release_device(struct mtd_info *mtd); */
+/* extern void nand_release_device(struct nand_chip *chip); */
 
 #define nand_notifier_to_blk(l) container_of(l, struct aml_nand_device, nb)
 
@@ -280,7 +280,7 @@ static int mtd_nand_remove(struct platform_device *pdev)
 		if (aml_chip) {
 			mtd = aml_chip->mtd;
 			if (mtd) {
-				nand_release(mtd);
+				nand_release(mtd_to_nand(mtd));
 				kfree(mtd);
 			}
 			kfree(aml_chip);
