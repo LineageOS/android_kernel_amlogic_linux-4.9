@@ -4010,7 +4010,7 @@ void set_di_mif_v3(struct DI_MIF_S *mif, enum DI_MIF0_ID mif_index,
 
 	if (is_mask(SC2_REG_MSK_nr)) { /* dbg */
 		op = &sc2reg;
-		PR_INF("%s:%s:\n", __func__, dim_get_mif_id_name((enum EDI_MIF_REG_INDEX)mif_index));
+		PR_INF("%s:%s:\n", __func__, dim_get_mif_id_name(mif_index));
 	}
 
 	reg = mif_reg_get_v3();
