@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7e9906bc_111736a0",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 8
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2021-12-20T18:47:29Z",
+      "side": 1,
+      "message": "new diff https://www.toptal.com/developers/hastebin/hihatayule.yaml",
+      "revId": "eae01697bc8ca681fc2f4cf7657c6aedfbae9cb6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
