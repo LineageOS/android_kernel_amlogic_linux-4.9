@@ -942,6 +942,7 @@
 		clock-names = "mclk", "clk_srcpll";
 		pinctrl-names = "tdm_pins";
 		pinctrl-0 = <&tdmout_a &tdmin_a>;
+		status = "disabled";
 	};
 
 	aml_tdmb: tdmb {
@@ -967,6 +968,7 @@
 		 * 4: spdifout_b;
 		 */
 		samesource_sel = <3>;
+		status = "disabled";
 	};
 
 	aml_tdmc: tdmc {
@@ -983,6 +985,7 @@
 		pinctrl-names = "tdm_pins";
 		pinctrl-0 = <&tdmc_mclk &tdmout_c &tdmin_c>;
 		mclk_pad = <1>;  /* 0: mclk_0; 1: mclk_1 */
+		status = "disabled";
 	};
 
 	tdmlb: tdm@3 {
@@ -1026,7 +1029,7 @@
 					"spdif_pins_mute";
 		pinctrl-0 = <&spdifout &spdifin>;
 		pinctrl-1 = <&spdifout_a_mute>;
-		status = "okay";
+		status = "disabled";
 	};
 	aml_spdif_b: spdif_b {
 		compatible = "amlogic, g12a-snd-spdif-b";
@@ -1054,7 +1057,7 @@
 		pinctrl-names = "pdm_pins";
 		pinctrl-0 = <&pdmin>;
 		filter_mode = <1>; /* mode 0~4, defalut:1 */
-		status = "okay";
+		status = "disabled";
 	};
 
 	loopback:loopback@0 {
@@ -1109,7 +1112,7 @@
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
 
-		status = "okay";
+		status = "disabled";
 	};
 
 	audioresample: resample {
