@@ -932,6 +932,7 @@
 
 &audiobus {
 	aml_tdma: tdma {
+		status = "disabled";
 		compatible = "amlogic, g12a-snd-tdma";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1>;
@@ -942,10 +943,10 @@
 		clock-names = "mclk", "clk_srcpll";
 		pinctrl-names = "tdm_pins";
 		pinctrl-0 = <&tdmout_a &tdmin_a>;
-		status = "disabled";
 	};
 
 	aml_tdmb: tdmb {
+		status = "disabled";
 		compatible = "amlogic, g12a-snd-tdmb";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
@@ -968,10 +969,10 @@
 		 * 4: spdifout_b;
 		 */
 		samesource_sel = <3>;
-		status = "disabled";
 	};
 
 	aml_tdmc: tdmc {
+		status = "disabled";
 		compatible = "amlogic, g12a-snd-tdmc";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <1 0 0 0>;
@@ -985,7 +986,6 @@
 		pinctrl-names = "tdm_pins";
 		pinctrl-0 = <&tdmc_mclk &tdmout_c &tdmin_c>;
 		mclk_pad = <1>;  /* 0: mclk_0; 1: mclk_1 */
-		status = "disabled";
 	};
 
 	tdmlb: tdm@3 {
