@@ -188,8 +188,9 @@
 		status = "okay";
 		sys_led {
 			label="sys_led";
-			gpios=<&gpio_ao GPIOAO_11 GPIO_ACTIVE_HIGH>;
+			gpios=<&gpio GPIOA_12 GPIO_ACTIVE_HIGH>;
 			default-state ="on";
+			linux,default-trigger="heartbeat";
 		};
 	};
 
