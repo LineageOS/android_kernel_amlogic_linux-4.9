@@ -784,37 +784,27 @@
 	sensor: sensor {
 		compatible = "soc, sensor";
 		status = "okay";
-		sensor-name = "os08a10"; /*imx290;os08a10;imx227*/
+		sensor-name = "imx415"; /*imx290;os08a10;imx227*/
 		pinctrl-names="default";
-		pinctrl-0=<&clk12_24_z_pins>;
+		pinctrl-0=<&clk12_24_ao_pins>;
 		clocks = <&clkc CLKID_24M>;
 		clock-names = "g12a_24m";
-		reset = <&gpio GPIOZ_12 GPIO_ACTIVE_HIGH>;
-		ir_cut_gpio = <&gpio GPIOZ_11 GPIO_ACTIVE_HIGH
-				&gpio GPIOZ_7 GPIO_ACTIVE_HIGH>;
+		reset = <&gpio GPIOA_11 GPIO_ACTIVE_HIGH>;
+		ir_cut_gpio = <&gpio GPIOA_10 GPIO_ACTIVE_HIGH>;
 	};
 
 	iq: iq {
 		compatible = "soc, iq";
 		status = "okay";
-		sensor-name = "os08a10"; /*imx290;os08a10;imx227*/
+		sensor-name = "imx415"; /*imx290;os08a10;imx227*/
 	};
 }; /* end of / */
 
 &i2c2 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names="default";
 	pinctrl-0=<&i2c2_master_pins2>;
 	clock-frequency = <100000>; /* default 100k */
-	sensor-i2c@6c {
-		compatible = "arm, i2c-sensor";
-		reg = <0x6c>;
-		reg-names = "i2c-sensor";
-		slave-addr = <0x6c>;
-		reg-type = <2>;
-		reg-data-type = <1>;
-		link-device = <&phycsi>;
-	};
 };
 
 &isp {
@@ -900,11 +890,22 @@
 	clock-frequency = <100000>; /* default 100k */
 
 	/* for ref board */
+	sensor-i2c@6c {
+		status = "okay";
+		compatible = "arm, i2c-sensor";
+		reg = <0x6c>;
+		reg-names = "i2c-sensor";
+		slave-addr = <0x6c>;
+		reg-type = <2>;
+		reg-data-type = <1>;
+		link-device = <&phycsi>;
+	};
+
 	ad82584f_62: ad82584f_62@62 {
 		compatible = "ESMT, ad82584f";
 		#sound-dai-cells = <0>;
 		reg = <0x31>;
-		status = "okay";
+		status = "disabled";
 		reset_pin = <&gpio GPIOA_5 0>;
 		no_mclk;
 	};
@@ -927,6 +928,7 @@
 
 &audiobus {
 	aml_tdma: tdma {
+		status = "disabled";
 		compatible = "amlogic, g12a-snd-tdma";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1>;
@@ -940,6 +942,7 @@
 	};
 
 	aml_tdmb: tdmb {
+		status = "disabled";
 		compatible = "amlogic, g12a-snd-tdmb";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
@@ -965,6 +968,7 @@
 	};
 
 	aml_tdmc: tdmc {
+		status = "disabled";
 		compatible = "amlogic, g12a-snd-tdmc";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <1 0 0 0>;
@@ -1021,7 +1025,7 @@
 				"spdif_pins_mute";
 		pinctrl-0 = <&spdifout &spdifin>;
 		pinctrl-1 = <&spdifout_a_mute>;
-		status = "okay";
+		status = "disabled";
 	};
 	aml_spdif_b: spdif_b {
 		compatible = "amlogic, g12a-snd-spdif-b";
@@ -1049,7 +1053,7 @@
 		pinctrl-names = "pdm_pins";
 		pinctrl-0 = <&pdmin>;
 		filter_mode = <1>; /* mode 0~4, defalut:1 */
-		status = "okay";
+		status = "disabled";
 	};
 
 	loopback:loopback@0 {
@@ -1104,7 +1108,7 @@
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
 
-		status = "okay";
+		status = "disabled";
 	};
 
 	audioresample: resample {
@@ -1255,14 +1259,6 @@
 			output-high;
 		};
 	};
-
-	clk12_24_z_pins:clk12_24_z_pins {
-		mux {
-			groups = "clk12_24_z";
-			function = "clk12_24_ee";
-			drive-strength = <3>;
-		};
-	};
 }; /* end of pinctrl_periphs */
 
 &pinctrl_aobus {
@@ -1277,6 +1273,14 @@
 		mux { /* gpiao_10 */
 			groups = "GPIOAO_10";
 			function = "gpio_aobus";
+		};
+	};
+
+	clk12_24_ao_pins:clk12_24_ao_pins {
+		mux {
+			groups = "clk12_24_ao";
+			function = "clk12_24_ao";
+			drive-strength = <3>;
 		};
 	};
 };  /* end of pinctrl_aobus */
