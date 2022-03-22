@@ -79,6 +79,7 @@ extern int selinux_android_netlink_route;
 extern int selinux_policycap_netpeer;
 extern int selinux_policycap_openperm;
 extern int selinux_policycap_alwaysnetwork;
+extern int selinux_android_netlink_getneigh;
 
 /*
  * type_datum properties
