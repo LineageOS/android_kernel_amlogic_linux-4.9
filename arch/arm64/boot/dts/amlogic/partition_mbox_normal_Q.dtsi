@@ -47,7 +47,7 @@
 		};
 		dtbo:dtbo{
 			pname = "dtbo";
-			size = <0x0 0x200000>;
+			size = <0x0 0x800000>;
 			mask = <1>;
 		};
 		cri_data:cri_data
