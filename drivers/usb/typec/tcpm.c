@@ -4638,7 +4638,9 @@ static int tcpm_psy_get_current_max(struct tcpm_port *port,
 	if (port->pps_data.active)
 		val->intval = port->pps_data.max_curr * 1000;
 	else
-		val->intval = port->current_limit * 1000;
+		val->intval = max_t(size_t, tcpm_get_max_fixed_current(port),
+				  port->current_limit) * 1000;
+
 	return 0;
 }
 
