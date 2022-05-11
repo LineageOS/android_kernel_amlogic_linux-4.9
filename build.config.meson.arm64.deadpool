@@ -1,0 +1,31 @@
+ARCH=arm64
+BRANCH=android-4.9
+CROSS_COMPILE=aarch64-linux-android-
+DEFCONFIG=meson64_defconfig
+CLANG_TRIPLE=aarch64-linux-gnu-
+
+#It is a must to set GPU driver's version
+GPU_DRV_VERSION=r32p1
+
+KERNEL_DEVICETREE="g12a_s905y2_deadpool sm1_s905y3_deadpool"
+DTBO_DEVICETREE=android_p_overlay_dt
+PRODUCT_DIRNAME=deadpool
+BOARD_DEVICENAME=deadpool
+CONFIG_KERNEL_VERSION=4.9
+
+EXTRA_CMDS=''
+KERNEL_DIR=common
+LINUX_GCC_CROSS_COMPILE_PREBUILTS_BIN=prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin
+FILES="
+arch/arm64/boot/Image
+vmlinux
+System.map
+"
+EXT_MODULES="
+private/dhd-driver/bcmdhd.101.10.240.x
+private/mali-driver/bifrost
+private/optee_driver
+private/media_modules
+"
+
+STOP_SHIP_TRACEPRINTK=1
