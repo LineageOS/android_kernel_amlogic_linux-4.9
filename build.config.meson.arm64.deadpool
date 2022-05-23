@@ -59,6 +59,8 @@ jpegenc.ko
 mali.ko
 media_clock.ko
 media_sync.ko
+optee.ko
+optee_armtz.ko
 stream_input.ko
 video_framerate_adapter.ko
 vpu.ko
