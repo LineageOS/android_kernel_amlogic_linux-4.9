@@ -15,28 +15,36 @@ fi
 tmp_dir=$(mktemp -d -t deadpool-kernel-XXXXXXXXXX)
 
 # TODO: firmware should be built from kernel
-# Back up firmwares
-mv ${install_path}/4.9/lib/firmware/video/* ${tmp_dir}/
+# Back up deadpool.dtb and dtbo.img
+cp -rf ${FLAGS_install_path}/4.9/deadpool.dtb ${tmp_dir}/
+cp -rf ${FLAGS_install_path}/4.9/dtbo.img ${tmp_dir}/
 
 # Clean target
-rm -rf ${install_path}/4.9/*
+rm -rf ${FLAGS_install_path}/4.9/*
 
 # Download go/ab artifacts
 /google/data/ro/projects/android/fetch_artifact --bid ${FLAGS_build_id} \
   --target kernel_deadpool --nouse_oauth2 'Image'
 gzip Image
-mv 'Image.gz' ${tmp_dir}/
+mv Image.gz ${tmp_dir}/
+
 /google/data/ro/projects/android/fetch_artifact --bid ${FLAGS_build_id} \
-  --target kernel_deadpool --nouse_oauth2 '*.ko'
-mv '*.ko' ${tmp_dir}/
+  --target kernel_deadpool --nouse_oauth2 'unstripped/*.ko'
+mv *.ko ${tmp_dir}/
 
-mkdir -p ${install_path}/4.9/lib/firmware/video/
-mkdir -p ${install_path}/4.9/lib/modules/
+/google/data/ro/projects/android/fetch_artifact --bid ${FLAGS_build_id} \
+  --target kernel_deadpool --nouse_oauth2 'unstripped/*.bin'
+mv *.bin ${tmp_dir}/
 
-# Restore firmwares
-mv ${tmp_dir}/*.bin ${install_path}/4.9/lib/firmware/video/
+mkdir -p ${FLAGS_install_path}/4.9/lib/firmware/video/
+mkdir -p ${FLAGS_install_path}/4.9/lib/modules/
+
+# Restore deadpool.dtb and dtbo.img
+mv ${tmp_dir}/deadpool.dtb ${FLAGS_install_path}/4.9/
+mv ${tmp_dir}/dtbo.img ${FLAGS_install_path}/4.9/
 
 # Install go/ab artifacts
-mv ${tmp_dir}/Image.gz ${install_path}/4.9/
-mv ${tmp_dir}/optee* ${install_path}/4.9/lib/
-mv ${tmp_dir}/*.ko ${install_path}/4.9/lib/modules/
+mv ${tmp_dir}/Image.gz ${FLAGS_install_path}/4.9/
+mv ${tmp_dir}/*.bin ${FLAGS_install_path}/4.9/lib/firmware/video/
+mv ${tmp_dir}/optee* ${FLAGS_install_path}/4.9/lib/
+mv ${tmp_dir}/*.ko ${FLAGS_install_path}/4.9/lib/modules/
