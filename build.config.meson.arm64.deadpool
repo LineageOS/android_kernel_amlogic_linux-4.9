@@ -23,7 +23,7 @@ vmlinux
 System.map
 "
 EXT_MODULES="
-private/dhd-driver/bcmdhd.101.10.240.x
+private/dhd-driver/bcmdhd.101.10.361.x
 private/mali-driver/bifrost
 private/optee_driver
 private/media_modules
