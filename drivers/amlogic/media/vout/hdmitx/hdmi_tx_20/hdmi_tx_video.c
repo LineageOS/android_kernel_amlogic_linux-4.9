@@ -939,21 +939,7 @@ int hdmitx_set_display(struct hdmitx_dev *hdev, enum hdmi_vic VideoCode)
 	param = hdmi_get_video_param(VideoCode);
 	hdev->cur_video_param = param;
 	if (param) {
-		param->color = param->color_prefer;
-		/* HDMI CT 7-24 Pixel Encoding
-		 * YCbCr to YCbCr Sink
-		 */
-		switch (hdev->rxcap.native_Mode & 0x30) {
-		case 0x20:/*bit5==1, then support YCBCR444 + RGB*/
-		case 0x30:
-			param->color = COLORSPACE_YUV444;
-			break;
-		case 0x10:/*bit4==1, then support YCBCR422 + RGB*/
-			param->color = COLORSPACE_YUV422;
-			break;
-		default:
-			param->color = COLORSPACE_RGB444;
-		}
+		param->color = COLORSPACE_RGB444;
 		/* For Y420 modes */
 		switch (VideoCode) {
 		case HDMI_3840x2160p50_16x9_Y420:
