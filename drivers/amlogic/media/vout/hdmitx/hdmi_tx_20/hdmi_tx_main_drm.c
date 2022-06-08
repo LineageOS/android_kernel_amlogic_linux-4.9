@@ -952,14 +952,7 @@ ssize_t store_attr(struct device *dev, struct device_attribute *attr,
 {
 	strncpy(hdmitx_device.fmt_attr, buf, sizeof(hdmitx_device.fmt_attr));
 	hdmitx_device.fmt_attr[15] = '\0';
-	if (!memcmp(hdmitx_device.fmt_attr, "rgb", 3))
-		hdmitx_device.para->cs = COLORSPACE_RGB444;
-	else if (!memcmp(hdmitx_device.fmt_attr, "422", 3))
-		hdmitx_device.para->cs = COLORSPACE_YUV422;
-	else if (!memcmp(hdmitx_device.fmt_attr, "420", 3))
-		hdmitx_device.para->cs = COLORSPACE_YUV420;
-	else
-		hdmitx_device.para->cs = COLORSPACE_YUV444;
+	hdmitx_device.para->cs = COLORSPACE_RGB444;
 	return count;
 }
 

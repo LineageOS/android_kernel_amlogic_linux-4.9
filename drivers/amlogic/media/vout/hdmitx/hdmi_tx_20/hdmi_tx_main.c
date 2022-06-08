@@ -765,14 +765,7 @@ ssize_t store_attr(struct device *dev,
 {
 	strncpy(hdmitx_device.fmt_attr, buf, sizeof(hdmitx_device.fmt_attr));
 	hdmitx_device.fmt_attr[15] = '\0';
-	if (!memcmp(hdmitx_device.fmt_attr, "rgb", 3))
-		hdmitx_device.para->cs = COLORSPACE_RGB444;
-	else if (!memcmp(hdmitx_device.fmt_attr, "422", 3))
-		hdmitx_device.para->cs = COLORSPACE_YUV422;
-	else if (!memcmp(hdmitx_device.fmt_attr, "420", 3))
-		hdmitx_device.para->cs = COLORSPACE_YUV420;
-	else
-		hdmitx_device.para->cs = COLORSPACE_YUV444;
+	hdmitx_device.para->cs = COLORSPACE_RGB444;
 	return count;
 }
 /*aud_mode attr*/
@@ -6803,7 +6796,7 @@ static void check_hdmiuboot_attr(char *token)
 		"444", "422", "rgb", "420", NULL};
 	const char * const cd[] = {
 		"8bit", "10bit", "12bit", "16bit", NULL};
-	int i;
+	//int i;
 
 	if (hdmitx_device.fmt_attr[0] != 0)
 		return;
@@ -6811,7 +6804,7 @@ static void check_hdmiuboot_attr(char *token)
 	if (!token)
 		return;
 
-	for (i = 0; cs[i] != NULL; i++) {
+	/*for (i = 0; cs[i] != NULL; i++) {
 		if (strstr(token, cs[i])) {
 			if (strlen(cs[i]) < sizeof(attr))
 				strncpy(attr, cs[i], strlen(cs[i]));
@@ -6819,7 +6812,10 @@ static void check_hdmiuboot_attr(char *token)
 			break;
 		}
 	}
-	for (i = 0; cd[i] != NULL; i++) {
+	*/
+	strncpy(attr, cs[2], strlen(cs[2]));
+	strcat(attr, ",");
+	/*for (i = 0; cd[i] != NULL; i++) {
 		if (strstr(token, cd[i])) {
 			if (strlen(cd[i]) < sizeof(attr))
 				if (strlen(cd[i]) <
@@ -6831,6 +6827,11 @@ static void check_hdmiuboot_attr(char *token)
 			break;
 		}
 	}
+	*/
+	strncat(attr, cd[2], strlen(cd[2]));
+	strncpy(hdmitx_device.fmt_attr, attr,
+	       sizeof(hdmitx_device.fmt_attr));
+	hdmitx_device.fmt_attr[15] = '\0';
 	memcpy(hdmitx_device.backup_fmt_attr, hdmitx_device.fmt_attr,
 	       sizeof(hdmitx_device.fmt_attr));
 }
