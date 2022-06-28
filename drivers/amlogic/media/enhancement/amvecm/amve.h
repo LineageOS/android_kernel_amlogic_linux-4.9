@@ -207,5 +207,6 @@ extern void set_gamma_regs(int en, int sel);
 void amvecm_wb_enable(int enable);
 int vpp_pq_ctrl_config(struct pq_ctrl_s pq_cfg);
 unsigned int skip_pq_ctrl_load(struct am_reg_s *p);
+void eye_proc(int *rgb, int mtx_on);
 #endif
 

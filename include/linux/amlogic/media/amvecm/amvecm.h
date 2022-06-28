@@ -66,6 +66,7 @@
 #define VPP_VADJ1_BLMINUS_EN        (1 << 1)
 #define VPP_VADJ1_EN                (1 << 0)
 
+#define VPP_EYE_PROTECT_UPDATE      BIT(13)
 #define VPP_DEMO_DNLP_DIS           (1 << 3)
 #define VPP_DEMO_DNLP_EN            (1 << 2)
 #define VPP_DEMO_CM_DIS             (1 << 1)
@@ -274,6 +275,13 @@ enum meson_cpu_ver_e {
 
 /*cpu ver ioc*/
 #define AMVECM_IOC_S_MESON_CPU_VER _IOW(_VE_CM, 0x6b, enum meson_cpu_ver_e)
+
+struct eye_protect_s {
+	int en;
+	int rgb[3];
+};
+
+#define AMVECM_IOC_S_EYE_PROT   _IOW(_VE_CM, 0x78, struct eye_protect_s)
 
 struct am_vdj_mode_s {
 	int flag;

@@ -227,6 +227,10 @@ unsigned int vecm_latch_flag;
 module_param(vecm_latch_flag, uint, 0664);
 MODULE_PARM_DESC(vecm_latch_flag, "\n vecm_latch_flag\n");
 
+unsigned int vecm_latch_flag2;
+module_param(vecm_latch_flag2, uint, 0664);
+MODULE_PARM_DESC(vecm_latch_flag2, "\n vecm_latch_flag2\n");
+
 unsigned int vpp_demo_latch_flag;
 module_param(vpp_demo_latch_flag, uint, 0664);
 MODULE_PARM_DESC(vpp_demo_latch_flag, "\n vpp_demo_latch_flag\n");
@@ -301,6 +305,7 @@ static int wb_init_bypass_coef[24] = {
 	0, 0, 0, /* offset */
 	0, 0, 0  /* mode, right_shift, clip_en */
 };
+struct eye_protect_s eye_protect;
 
 /* vpp brightness/contrast/saturation/hue */
 static int __init amvecm_load_pq_val(char *str)
@@ -1096,6 +1101,14 @@ void amvecm_dejaggy_patch(struct vframe_s *vf)
 	}
 }
 
+void eye_prot_update(struct eye_protect_s *eye_prot)
+{
+	if (vecm_latch_flag2 & VPP_EYE_PROTECT_UPDATE) {
+		eye_proc(eye_prot->rgb, eye_prot->en);
+		vecm_latch_flag2 &= ~VPP_EYE_PROTECT_UPDATE;
+	}
+}
+
 void amvecm_video_latch(void)
 {
 	pc_mode_process();
@@ -1117,6 +1130,7 @@ void amvecm_video_latch(void)
 
 	/* ioc vadj1/2 switch */
 	amvecm_vadj_latch_process();
+	eye_prot_update(&eye_protect);
 }
 
 static void amvecm_overscan_process(
@@ -1526,6 +1540,7 @@ static long amvecm_ioctl(struct file *file,
 	struct vpp_pq_ctrl_s pq_ctrl;
 	enum meson_cpu_ver_e cpu_ver;
 	struct cms_data_s data;
+	struct eye_protect_s *eye_prot = NULL;
 
 	if (debug_amvecm & 2)
 		pr_info("[amvecm..] %s: cmd_nr = 0x%x\n",
@@ -2023,6 +2038,26 @@ static long amvecm_ioctl(struct file *file,
 			pq_user_latch_flag |= PQ_USER_CMS_CURVE_HUE_HS;
 		}
 		break;
+	case AMVECM_IOC_S_EYE_PROT:
+		mem_size = sizeof(struct eye_protect_s);
+		eye_prot = kmalloc(mem_size, GFP_KERNEL);
+		if (!eye_prot) {
+			pr_amvecm_dbg("eye_protect malloc fail\n");
+			ret = -ENOMEM;
+			break;
+		}
+		if (copy_from_user(eye_prot, (void __user *)arg,
+				   sizeof(struct eye_protect_s))) {
+			ret = -EFAULT;
+			pr_amvecm_dbg("eye_protect struct cp from usr failed\n");
+		} else {
+			pr_amvecm_dbg("eye_protect struct cp from usr success\n");
+			eye_protect.en = eye_prot->en;
+			memcpy(eye_protect.rgb,
+				eye_prot->rgb, 3 * sizeof(int));
+			vecm_latch_flag2 |= VPP_EYE_PROTECT_UPDATE;
+		}
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -2031,6 +2066,7 @@ static long amvecm_ioctl(struct file *file,
 		kfree(vpp_pq_load_table);
 
 	kfree(hdr_tm);
+	kfree(eye_prot);
 	return ret;
 }
 #ifdef CONFIG_COMPAT
