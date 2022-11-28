@@ -46,8 +46,19 @@ config BROKEN_ON_SMP
 	depends on BROKEN || !SMP
 	default y
 
+config AUGMENT_ARG_LIMIT
+	bool "Raise the init argument and environment limit for Khadas boards"
+	default n
+	help
+	  Some boards (Khadas i.e.) hand a large number of boot environment
+	  variables over from u-boot.  With the stock limit init panics with
+	  "Too many boot env vars" once buildvariant=userdebug and friends
+	  are added, and the firmware resets to factory settings. Say Y here
+	  to raise INIT_ENV_ARG_LIMIT to 128 on these boards.
+
 config INIT_ENV_ARG_LIMIT
 	int
+	default 128 if AUGMENT_ARG_LIMIT
 	default 32 if !UML
 	default 128 if UML
 	help
