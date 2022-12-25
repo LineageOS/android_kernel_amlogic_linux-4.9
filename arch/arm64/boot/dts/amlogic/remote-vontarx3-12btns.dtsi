@@ -1,0 +1,52 @@
+/*
+
+vontar x3 scan table
+
+0x7e817f80
+
+0x7c837f80               0x8c737f80
+
+             0xc7387f80
+0xc8377f80   0xec137f80  0xc6397f80
+             0xbf407f80
+
+             0xd8277f80
+
+0x76897f80               0x78877f80
+
+             0xb7487f80
+
+*/
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/input/meson_rc.h>
+
+&custom_maps {
+		mapnum = <1>;
+		map0 = <&map_0>;
+		map_0: map_0{
+				mapname = "vontarx3-ir";
+				customcode = <0x7f80>;
+				release_delay = <80>;
+				fn_key_scancode = <0x48>;
+				cursor_left_scancode = <0x37>;
+				cursor_right_scancode = <0x39>;
+				cursor_up_scancode = <0x38>;
+				cursor_down_scancode = <0x40>;
+				cursor_ok_scancode = <0x13>;
+				size  = <12>;   /*keymap size*/
+				keymap = <REMOTE_KEY(0x81, KEY_POWER)
+						REMOTE_KEY(0x73,KEY_HOME)
+						REMOTE_KEY(0x27,KEY_BACK)
+						REMOTE_KEY(0x83,KEY_MENU)
+						REMOTE_KEY(0x13,KEY_RIGHTCTRL)
+						REMOTE_KEY(0x38,KEY_UP)
+						REMOTE_KEY(0x37,KEY_LEFT)
+						REMOTE_KEY(0x39,KEY_RIGHT)
+						REMOTE_KEY(0x40,KEY_DOWN)
+						REMOTE_KEY(0x87,KEY_VOLUMEUP)
+						REMOTE_KEY(0x89,KEY_VOLUMEDOWN)
+						REMOTE_KEY(0x48,KEY_F5)>;
+		};
+};
+
