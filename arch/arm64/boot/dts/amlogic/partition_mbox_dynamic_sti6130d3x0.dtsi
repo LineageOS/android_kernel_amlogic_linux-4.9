@@ -26,7 +26,7 @@
 		part-11 = <&vbmeta>;
 		part-12 = <&super>;
 		part-13 = <&cache>;
-		part-14 = <&data>;
+		part-14 = <&userdata>;
 
 		logo:logo {
 			pname = "logo";
@@ -112,8 +112,8 @@
 			mask = <2>;
 		};
 
-		data:data {
-			pname = "data";
+		userdata:userdata {
+			pname = "userdata";
 			size = <0xffffffff 0xffffffff>;
 			mask = <4>;
 		};
