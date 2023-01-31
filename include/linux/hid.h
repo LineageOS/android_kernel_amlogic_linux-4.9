@@ -380,7 +380,6 @@ struct hid_local {
 	unsigned usage_minimum;
 	unsigned delimiter_depth;
 	unsigned delimiter_branch;
-	bool usage_page_last;
 };
 
 /*
