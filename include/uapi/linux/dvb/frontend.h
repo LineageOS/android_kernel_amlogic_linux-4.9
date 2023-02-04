@@ -538,38 +538,16 @@ struct dtv_property {
 			__u32 reserved1[3];
 			void *reserved2;
 		} buffer;
-	} u;
-	int result;
-} __attribute__ ((packed));
-
-struct dtv_property_32 {
-	__u32 cmd;
-	__u32 reserved[3];
-	union {
-		__u32 data;
-		struct dtv_fe_stats st;
+#if 0
+#ifdef CONFIG_AMLOGIC_DVB_COMPAT
 		struct {
 			__u8 data[32];
 			__u32 len;
 			__u32 reserved1[3];
-			__u32 reserved2;
-		} buffer;
-	} u;
-	int result;
-} __attribute__ ((packed));
-
-struct dtv_property_64 {
-	__u32 cmd;
-	__u32 reserved[3];
-	union {
-		__u32 data;
-		struct dtv_fe_stats st;
-		struct {
-			__u8 data[32];
-			__u32 len;
-			__u32 reserved1[3];
-			__u64 reserved2;
-		} buffer;
+			__u64 reserved;
+		} reserved;
+#endif
+#endif
 	} u;
 	int result;
 } __attribute__ ((packed));
@@ -579,17 +557,14 @@ struct dtv_property_64 {
 
 struct dtv_properties {
 	__u32 num;
+#if 0 && defined(CONFIG_AMLOGIC_DVB_COMPAT)
+	union {
+		struct dtv_property *props;
+		__u64                reserved;
+	};
+#else
 	struct dtv_property *props;
-};
-
-struct dtv_properties_32 {
-	__u32 num;
-	__u32 props;
-};
-
-struct dtv_properties_64 {
-	__u32 num;
-	__u64 props;
+#endif
 };
 
 #if defined(__DVB_CORE__) || !defined (__KERNEL__)
@@ -743,12 +718,6 @@ struct dvbsx_blindscanevent {
 
 #define FE_SET_PROPERTY		   _IOW('o', 82, struct dtv_properties)
 #define FE_GET_PROPERTY		   _IOR('o', 83, struct dtv_properties)
-
-#define FE_SET_PROPERTY_32     _IOW('o', 82, struct dtv_properties_32)
-#define FE_GET_PROPERTY_32     _IOR('o', 83, struct dtv_properties_32)
-
-#define FE_SET_PROPERTY_64     _IOW('o', 82, struct dtv_properties_64)
-#define FE_GET_PROPERTY_64     _IOR('o', 83, struct dtv_properties_64)
 
 #ifdef CONFIG_AMLOGIC_DVB_COMPAT
 /*for atv*/
