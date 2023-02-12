@@ -116,7 +116,7 @@ enum fe_type {
 	FE_QPSK,
 	FE_QAM,
 	FE_OFDM,
-	FE_ATSC
+	FE_ATSC,
 #ifdef CONFIG_AMLOGIC_DVB_COMPAT
 	FE_ANALOG,
 	FE_DTMB,

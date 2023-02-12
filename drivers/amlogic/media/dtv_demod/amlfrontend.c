@@ -4640,11 +4640,6 @@ static int aml_dtvdm_set_property(struct dvb_frontend *dev,
 	return r;
 
 }
-static int aml_dtvdm_get_property(struct dvb_frontend *dev,
-			struct dtv_property *tvp)
-{
-	return 0;
-}
 
 static struct dvb_frontend_ops aml_dtvdm_gxtvbb_ops = {
 	.delsys = { SYS_DVBC_ANNEX_A, SYS_DTMB},
@@ -4674,7 +4669,6 @@ static struct dvb_frontend_ops aml_dtvdm_gxtvbb_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,
@@ -4710,7 +4704,6 @@ static struct dvb_frontend_ops aml_dtvdm_txl_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,
@@ -4751,7 +4744,6 @@ static struct dvb_frontend_ops aml_dtvdm_txlx_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,
@@ -4787,7 +4779,6 @@ static struct dvb_frontend_ops aml_dtvdm_gxlx_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,
@@ -4823,7 +4814,6 @@ static struct dvb_frontend_ops aml_dtvdm_txhd_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,
@@ -4864,7 +4854,6 @@ static struct dvb_frontend_ops aml_dtvdm_tl1_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,
@@ -4905,7 +4894,6 @@ static struct dvb_frontend_ops aml_dtvdm_tm2_ops = {
 	.read_ucblocks        = aml_dtvdm_read_ucblocks,
 	.release              = aml_dtvdm_release,
 	.set_property         = aml_dtvdm_set_property,
-	.get_property	      = aml_dtvdm_get_property,
 
 /*-------------*/
 	.tune			= aml_dtvdm_tune,

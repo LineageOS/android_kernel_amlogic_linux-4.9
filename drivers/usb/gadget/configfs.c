@@ -1536,10 +1536,13 @@ static void configfs_composite_unbind(struct usb_gadget *gadget)
 #endif
 	spin_lock_irqsave(&gi->spinlock, flags);
 	cdev->gadget = NULL;
+	cdev->deactivations = 0;
+	gadget->deactivated = false;
 	set_gadget_data(gadget, NULL);
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
 
+#ifndef CONFIG_USB_CONFIGFS_UEVENT
 static int configfs_composite_setup(struct usb_gadget *gadget,
 		const struct usb_ctrlrequest *ctrl)
 {
@@ -1586,6 +1589,7 @@ static void configfs_composite_disconnect(struct usb_gadget *gadget)
 	composite_disconnect(gadget);
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
+#endif
 
 static void configfs_composite_suspend(struct usb_gadget *gadget)
 {

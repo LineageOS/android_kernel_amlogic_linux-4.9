@@ -1527,7 +1527,6 @@ static int dtv_property_process_get(struct dvb_frontend *fe,
 #ifdef CONFIG_AMLOGIC_DVB_COMPAT
 	case DTV_DELIVERY_SUB_SYSTEM:
 	case DTV_TS_INPUT:
-		r = 0;
 		//printk("dvb-core get sub sys\r\n");
 		break;
 #endif
