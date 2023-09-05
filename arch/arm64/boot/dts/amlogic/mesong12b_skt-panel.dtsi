@@ -48,7 +48,7 @@
 		 * power value:(0=output low, 1=output high, 2=input)
 		 * power delay:(unit in ms)
 		 */
-		lcd_cpu-gpios = <&gpio GPIOAO_6 GPIO_ACTIVE_HIGH
+		lcd_cpu-gpios = <&gpio GPIOAO_6 GPIO_ACTIVE_LOW
 				&gpio GPIOA_8 GPIO_ACTIVE_HIGH>;
 		lcd_cpu_gpio_names = "GPIOAO_6","GPIOA_8";
 
@@ -962,14 +962,13 @@
 		compatible = "amlogic, backlight-g12b";
 		status = "okay";
 		key_valid = <0>;
-		pinctrl-names = "pwm_on","pwm_off";
-		pinctrl-0 = <&pwm_f_pins2>;
-		pinctrl-1 = <&bl_pwm_off_pins>;
+		pinctrl-names = "pwm_on";
+		pinctrl-0 = <&bl_pwm_on_pins>;
+		// pinctrl-1 = <&bl_pwm_off_pins>;
 		pinctrl_version = <2>; /* for uboot */
 		bl_pwm_config = <&bl_pwm_conf>;
-		bl-gpios = <&gpio GPIOH_4 GPIO_ACTIVE_HIGH
-			&gpio GPIOH_5 GPIO_ACTIVE_HIGH>;
-		bl_gpio_names = "GPIOH_4","GPIOH_5";
+		bl-gpios = <&gpio GPIOZ_12 GPIO_ACTIVE_HIGH>;
+		bl_gpio_names = "GPIOZ_12";
 
 		/* pwm port: PWM_A, PWM_B, PWM_C, PWM_D, PWM_E, PWM_F, PWM_VS*/
 		/* power index:(point gpios_index, 0xff=invalid)
@@ -1012,6 +1011,14 @@
 		pwm_channel_0 {
 			pwm_port_index = <5>;
 			pwms = <&pwm_ef MESON_PWM_1 30040 0>;
+		};
+	};
+
+	bl_pwm_on_pins:bl_pwm_on_pin {
+		mux {
+			pins = "GPIOZ_12";
+			function = "gpio_periphs";
+			output-high;
 		};
 	};
 
