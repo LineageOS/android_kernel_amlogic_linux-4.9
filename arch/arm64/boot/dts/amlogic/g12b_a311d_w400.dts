@@ -20,6 +20,7 @@
 #include "partition_mbox_normal_Q.dtsi"
 #include "mesong12b.dtsi"
 #include "mesong12b_skt-panel.dtsi"
+#include <dt-bindings/thermal/thermal.h>
 
 / {
 	model = "Amlogic";
@@ -805,6 +806,23 @@
 		status = "okay";
 		sensor-name = "os08a10"; /*imx290;os08a10;imx227*/
 	};
+
+	fan0: pwm-fan {
+		status = "okay";
+		compatible = "pwm-fan";
+		#cooling-cells = <2>;
+		pinctrl-names="default";
+		pinctrl-0=<&pwm_ao_a_pins>;
+		pwms = <&pwm_AO_ab 0 100000 0>;
+		cooling-levels = <0 50 100 150 200 255>;
+		amlogic,temp-trips = <
+			60000   1
+			65000   2
+			70000   3
+			75000   4
+			80000   5
+		>;
+	};
 }; /* end of / */
 
 &i2c2 {
@@ -844,15 +862,29 @@
 
 &pwm_ab {
 		status = "okay";
-	};
+};
 
 &pwm_ef {
 		status = "okay";
-	};
+};
+
+&pwm_AO_ab {
+		status = "okay";
+};
 
 &pwm_AO_cd {
 		status = "okay";
+};
+
+&soc_thermal {
+	cooling-maps {
+		cpu_fan_map {
+			trip = <&pcontrol>;
+			cooling-device = <&fan0 THERMAL_NO_LIMIT \
+				THERMAL_NO_LIMIT>;
+		};
 	};
+};
 
 &i2c0 {
 	status = "okay";
