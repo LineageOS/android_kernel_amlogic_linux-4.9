@@ -28,6 +28,11 @@
 
 #define MAX_PWM 255
 
+struct thermal_trips {
+	int temp;
+	int state;
+};
+
 struct pwm_fan_ctx {
 	struct mutex lock;
 	struct pwm_device *pwm;
@@ -35,6 +40,8 @@ struct pwm_fan_ctx {
 	unsigned int pwm_fan_state;
 	unsigned int pwm_fan_max_state;
 	unsigned int *pwm_fan_cooling_levels;
+	unsigned int is_temp_trips_proprity;
+	struct thermal_trips *thermal_trips;
 	struct thermal_cooling_device *cdev;
 };
 
@@ -117,6 +124,26 @@ static struct attribute *pwm_fan_attrs[] = {
 
 ATTRIBUTE_GROUPS(pwm_fan);
 
+static int pwm_fan_temp_to_state(struct pwm_fan_ctx *ctx, int temp)
+{
+	struct thermal_trips *trips;
+	int i, state = 0;
+
+	if (ctx->is_temp_trips_proprity != 1)
+		return -EINVAL;
+
+	trips = ctx->thermal_trips;
+
+	for (i = 0; trips[i].state != INT_MAX; i++) {
+		if (temp >= trips[i].temp)
+			state = trips[i].state;
+	}
+
+	//ctx->pwm_fan_state = state;
+
+	return state;
+}
+
 /* thermal cooling device callbacks */
 static int pwm_fan_get_max_state(struct thermal_cooling_device *cdev,
 				 unsigned long *state)
@@ -167,10 +194,49 @@ pwm_fan_set_cur_state(struct thermal_cooling_device *cdev, unsigned long state)
 	return ret;
 }
 
+static int
+pwm_fan_power2state(struct thermal_cooling_device *cdev,
+			       struct thermal_zone_device *tz, u32 power,
+			       unsigned long *state)
+{
+	struct pwm_fan_ctx *ctx = cdev->devdata;
+	int i, temp;
+
+	temp = tz->temperature;
+	i = pwm_fan_temp_to_state(ctx, temp);
+	if (i >= 0)
+		*state = i;
+	else
+		*state = 0;
+
+	return 0;
+}
+
+static int pwm_fan_state2power(struct thermal_cooling_device *cdev,
+			       struct thermal_zone_device *tz,
+			       unsigned long state, u32 *power)
+{
+	*power = 0;
+
+	return 0;
+}
+
+static int pwm_fan_get_requested_power(struct thermal_cooling_device *cdev,
+				       struct thermal_zone_device *tz,
+				       u32 *power)
+{
+	*power = 0;
+
+	return 0;
+}
+
 static const struct thermal_cooling_device_ops pwm_fan_cooling_ops = {
 	.get_max_state = pwm_fan_get_max_state,
 	.get_cur_state = pwm_fan_get_cur_state,
 	.set_cur_state = pwm_fan_set_cur_state,
+	.power2state   = pwm_fan_power2state,
+	.state2power   = pwm_fan_state2power,
+	.get_requested_power = pwm_fan_get_requested_power,
 };
 
 static int pwm_fan_of_get_cooling_data(struct device *dev,
@@ -210,6 +276,44 @@ static int pwm_fan_of_get_cooling_data(struct device *dev,
 	}
 
 	ctx->pwm_fan_max_state = num - 1;
+
+	return 0;
+}
+
+static int pwm_fan_get_thermal_trips(struct device *dev, char *porp_name,
+				     struct thermal_trips **trips)
+{
+	struct device_node *np = dev->of_node;
+	struct thermal_trips *thermal_trips;
+	const struct property *prop;
+	int count, i;
+
+	prop = of_find_property(np, porp_name, NULL);
+	if (!prop)
+		return -EINVAL;
+	if (!prop->value)
+		return -ENODATA;
+	count = of_property_count_u32_elems(np, porp_name);
+	if (count < 0)
+		return -EINVAL;
+	if (count % 2)
+		return -EINVAL;
+	thermal_trips = devm_kzalloc(dev,
+				     sizeof(*thermal_trips) * (count / 2 + 1),
+				     GFP_KERNEL);
+	if (!thermal_trips)
+		return -ENOMEM;
+
+	for (i = 0; i < count / 2; i++) {
+		of_property_read_u32_index(np, porp_name, 2 * i,
+					   &thermal_trips[i].temp);
+		of_property_read_u32_index(np, porp_name, 2 * i + 1,
+					   &thermal_trips[i].state);
+	}
+	thermal_trips[i].temp = 0;
+	thermal_trips[i].state = INT_MAX;
+
+	*trips = thermal_trips;
 
 	return 0;
 }
@@ -277,6 +381,12 @@ static int pwm_fan_probe(struct platform_device *pdev)
 	ret = pwm_fan_of_get_cooling_data(&pdev->dev, ctx);
 	if (ret)
 		return ret;
+
+	if (of_find_property(pdev->dev.of_node, "amlogic,temp-trips", NULL))
+		if (pwm_fan_get_thermal_trips(&pdev->dev,
+					"amlogic,temp-trips",
+					&ctx->thermal_trips) == 0)
+			ctx->is_temp_trips_proprity = 1;
 
 	ctx->pwm_fan_state = ctx->pwm_fan_max_state;
 	if (IS_ENABLED(CONFIG_THERMAL)) {
