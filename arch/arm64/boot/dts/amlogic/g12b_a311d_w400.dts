@@ -590,7 +590,7 @@
 				system-clock-frequency = <24576000>;
 			};
 			tdmacodec: codec {
-				sound-dai = <&dummy_codec &dummy_codec>;
+				sound-dai = <&pdm_codec &dummy_codec>;
 			};
 		};
 
@@ -617,7 +617,7 @@
 				system-clock-frequency = <12288000>;
 			};
 			tdmbcodec: codec {
-				sound-dai = <&dummy_codec &dummy_codec
+				sound-dai = <&pdm_codec &dummy_codec
 				&amlogic_codec &ad82584f_62>;
 			};
 		};
@@ -643,7 +643,7 @@
 				system-clock-frequency = <12288000>;
 			};
 			codec {
-				sound-dai = <&dummy_codec &dummy_codec>;
+				sound-dai = <&pdm_codec &dummy_codec>;
 			};
 		};
 
@@ -939,7 +939,7 @@
 
 &audiobus {
 	aml_tdma: tdma {
-		status = "disabled";
+		status = "okay";
 		compatible = "amlogic, g12a-snd-tdma";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1>;
@@ -953,7 +953,7 @@
 	};
 
 	aml_tdmb: tdmb {
-		status = "disabled";
+		status = "okay";
 		compatible = "amlogic, g12a-snd-tdmb";
 		#sound-dai-cells = <0>;
 		dai-tdm-lane-slot-mask-in = <0 1 0 0>;
@@ -1064,7 +1064,7 @@
 		pinctrl-names = "pdm_pins";
 		pinctrl-0 = <&pdmin>;
 		filter_mode = <1>; /* mode 0~4, defalut:1 */
-		status = "disabled";
+		status = "okay";
 	};
 
 	loopback:loopback@0 {
@@ -1139,7 +1139,7 @@
 		 *	LOOPBACK, 7
 		 */
 		resample_module = <4>;
-		status = "disabled";
+		status = "okay";
 	};
 	aml_pwrdet: pwrdet {
 		compatible = "amlogic, g12a-power-detect";
@@ -1162,7 +1162,7 @@
 		hi_th = <0x70000>;
 		lo_th = <0x16000>;
 
-		status = "disabled";
+		status = "okay";
 	};
 }; /* end of audiobus */
 
