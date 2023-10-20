@@ -173,7 +173,7 @@ static struct class vm_class = {
 		.class_attrs = vm_class_attrs,
 	};
 
-struct class *init_vm_cls()
+struct class *init_vm_cls(void)
 	{
 		int ret = 0;
 

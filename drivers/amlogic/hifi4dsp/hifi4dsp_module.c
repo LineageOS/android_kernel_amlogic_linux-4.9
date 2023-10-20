@@ -575,7 +575,7 @@ static struct hifi4dsp_dsp_device hifi4dsp_dev = {
 		.ops = &hifi4dsp_driver_dsp_ops,
 };
 
-struct hifi4dsp_priv *hifi4dsp_privdata()
+struct hifi4dsp_priv *hifi4dsp_privdata(void)
 {
 	return hifi4dsp_p[0];
 }
