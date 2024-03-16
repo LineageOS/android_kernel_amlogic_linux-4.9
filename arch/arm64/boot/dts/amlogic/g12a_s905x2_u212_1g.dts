@@ -18,7 +18,7 @@
 /dts-v1/;
 
 #include "mesong12a.dtsi"
-#include "partition_mbox_normal_P_32.dtsi"
+#include "partition_mbox_dynamic_deadpool.dtsi"
 
 / {
 	model = "Amlogic";
