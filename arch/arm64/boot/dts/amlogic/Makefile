@@ -57,6 +57,7 @@ dtb-y += g12b_a311d_w400_buildroot_vccktest.dtb
 dtb-y += g12b_a311d_w400_buildroot_vccktest_a.dtb
 dtb-y += g12b_a311d_w400_drm_buildroot.dtb
 dtb-y += g12b_a311d_w400_drm_buildroot_a.dtb
+dtb-y += g12b_a311d_radxa02pro.dtb
 dtb-y += g12b_a311x_w411_buildroot.dtb
 dtb-y += g12b_a311x_w411_buildroot_a.dtb
 dtb-y += g12b_pxp.dtb
