@@ -195,7 +195,7 @@
 
 	gpioleds {
 		compatible = "gpio-leds";
-		status = "okay";
+		status = "disabled";
 		sys_led {
 			label="sys_led";
 			gpios=<&gpio GPIOA_12 GPIO_ACTIVE_HIGH>;
@@ -375,7 +375,7 @@
 
 	gpio_keypad {
 		compatible = "amlogic, gpio_keypad";
-		status = "okay";
+		status = "disabled";
 		scan_period = <20>;
 		key_num = <1>;
 		key_name = "power";
