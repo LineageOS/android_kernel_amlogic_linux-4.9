@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3de859ed_aa80db3b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2024-10-11T19:47:43Z",
+      "side": 1,
+      "message": "broken:\n`kallsyms failure: relative symbol value 0xffffff8009080000 out of range in relative mode\n`",
+      "revId": "b1ab4c7df66587fd3434756d287b88c8f375437b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
