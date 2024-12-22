@@ -1,4 +1,22 @@
 {
-  "comments": [],
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e3ae9e3b_cb2ff442",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2024-12-22T12:43:55Z",
+      "side": 1,
+      "message": "This was a bad pick, btw. I8bfc0e53b4bd347adaa298594402a2210aed3b49 already handled whatever issue this intended to fix.",
+      "revId": "3a3c7a5b7266e1d9721e40ce2a7150ba724ca8de",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ],
   "submitRequirementResults": []
 }
