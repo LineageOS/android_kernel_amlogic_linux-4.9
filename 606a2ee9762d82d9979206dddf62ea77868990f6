@@ -1,4 +1,22 @@
 {
-  "comments": [],
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9784091f_f8acef16",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 17162
+      },
+      "writtenOn": "2025-02-04T16:15:34Z",
+      "side": 1,
+      "message": "doesnt looks like valid change, kernel 4.9 has drivers with version 1.1.0 and kernel 5.4 has driver with 1.1.1 defined. Code of drivers in 4.9 and 5.4 has a lof of difference. \n\nActual bug means that older remotecfg binary needed. It seems like lineage-18.1 branch of g12 blobs has one.",
+      "revId": "606a2ee9762d82d9979206dddf62ea77868990f6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ],
   "submitRequirementResults": []
 }
