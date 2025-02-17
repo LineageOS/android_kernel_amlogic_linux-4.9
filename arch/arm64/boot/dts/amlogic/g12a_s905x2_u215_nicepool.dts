@@ -162,23 +162,50 @@
 
 	amlogic_battery:dummy-battery {
 		compatible = "amlogic, dummy-battery";
-		status = "disabled";
+		status = "okay";
 	};
 
 	amlogic_charger:dummy-charger {
 		compatible = "amlogic, dummy-charger";
-		status = "disabled";
+		status = "okay";
 	};
 
 	gpioleds {
 		compatible = "gpio-leds";
-		status = "okay";
+		status = "disabled";
 
 		bt_led {
 			label="bt_led";
 			gpios=<&gpio_ao GPIOAO_11 GPIO_ACTIVE_HIGH>;
 			default-state ="off";
 		};
+	};
+
+	sysled {
+		compatible = "amlogic, sysled";
+		dev_name = "sysled";
+		status = "okay";
+		led_gpio_1 = <&gpio GPIOC_7 GPIO_ACTIVE_HIGH>;
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm_ao_a_pins>;
+
+		sys {
+			active-low;
+			label = "pwmled";
+			linux,default-trigger = "breathe";
+			max-brightness = <255>;
+			pwms = <&pwm_AO_ab 0 50000 0>;
+		};
+	};
+
+	ledmode {
+		compatible = "amlogic,mode-led";
+		status = "okay";
 	};
 
 	cvbsout {
@@ -231,7 +258,6 @@
 		dev_name = "bt-dev";
 		status = "okay";
 		gpio_reset = <&gpio       GPIOX_17       GPIO_ACTIVE_HIGH>;
-		gpio_btwakeup = <&gpio       GPIOX_18       GPIO_ACTIVE_HIGH>;
 		gpio_hostwake = <&gpio       GPIOX_19       GPIO_ACTIVE_HIGH>;
 	};
 
@@ -303,7 +329,7 @@
 			<&clkc CLKID_VPU_CLKB_COMP>;
 		clock-names = "vpu_clkb_tmp_composite",
 			"vpu_clkb_composite";
-		clock-range = <334 667>;
+		clock-range = <334 334>;
 		/* buffer-size = <3621952>;(yuv422 8bit) */
 		buffer-size = <4074560>;/*yuv422 fullpack*/
 		/* reserve-iomap = "true"; */
@@ -431,16 +457,18 @@
 		cma_mode = <1>;
 	};
 
-	gpio_keypad{
+	gpio_keypad {
 		compatible = "amlogic, gpio_keypad";
 		status = "okay";
 		scan_period = <20>;
-		key_num = <2>;
-		key_name = "bluetooth", "mic";
-		key_code = <600 248>;
-		key-gpios = <&gpio_ao  GPIOAO_3  GPIO_ACTIVE_HIGH
-			     &gpio_ao  GPIOE_2  GPIO_ACTIVE_HIGH>;
-		detect_mode = <0>;/*0:polling mode, 1:irq mode*/
+		key_num = <1>;
+		key_name = "bt_pair";
+		key_code = <218>;
+		key-gpios = <&gpio_ao  GPIOAO_3  GPIO_ACTIVE_HIGH>;
+		interrupts = <0 70 1
+			0 71 2>;
+		interrupt-names = "irq_keyup", "irq_keydown";
+		detect_mode = <1>;/*0:polling mode, 1:irq mode*/
 	};
 
 	adc_keypad {
@@ -456,16 +484,7 @@
 		key_tolerance = <40 40 40>;
 	};
 
-	provisionkey {
-		compatible = "amlogic, provisionkey";
-		status = "okay";
-		key-permit-default = "write";
-		//new key not need add dts if started with KEY_PROVISION_
-		KEY_PROVISION_XXX { };
-		//test_my_added_keyname { };
-	};//End provisionkey
-
-unifykey{
+	unifykey{
 		compatible = "amlogic, unifykey";
 		status = "ok";
 		unifykey-num = <18>;
@@ -970,12 +989,13 @@ unifykey{
  *please disable internal_eth_pins
  *in case pinmux conflict
  */
-&i2c2 {
-	status = "okay";
-	pinctrl-names="default";
-	pinctrl-0=<&i2c2_master_pins2>;
-	clock-frequency = <300000>;
-};
+/* &i2c2 {
+ *	status = "okay";
+ *	pinctrl-names="default";
+ *	pinctrl-0=<&i2c2_master_pins2>;
+ *	clock-frequency = <300000>;
+ * };
+ */
 
 &i2c3 {
 	status = "okay";
@@ -1011,7 +1031,7 @@ unifykey{
 	tlc59116: tlc59116@60 {
 		compatible = "amlogic,tlc59116_led";
 		reg = <0x60>;
-		status = "okay";
+		status = "disabled";
 
 		led0 {
 			default_colors = <0 0 0>;
@@ -1181,8 +1201,6 @@ unifykey{
 			"dclk_srcpll",
 			"pdm_dclk",
 			"pdm_sysclk";
-		pinctrl-names = "pdm_pins";
-		pinctrl-0 = <&pdmin>;
 		filter_mode = <1>; /* mode 0~4, defalut:1 */
 		status = "okay";
 	};
@@ -1363,24 +1381,24 @@ unifykey{
 	};
 
 	/* GPIOH_4 */
-	//spdifout: spdifout {
-	//	mux {
-	//		groups = "spdif_out_h";
-	//		function = "spdif_out";
-	//	};
-	//};
+	spdifout: spdifout {
+		mux {
+			groups = "spdif_out_h";
+			function = "spdif_out";
+		};
+	};
 
-	//spdifout_a_mute: spdifout_a_mute {
-	//	mux { /* GPIOH_4 */
-	//		groups = "GPIOH_4";
-	//		function = "gpio_periphs";
-	//	};
-	//};
+	spdifout_a_mute: spdifout_a_mute {
+		mux { /* GPIOH_4 */
+			groups = "GPIOH_4";
+			function = "gpio_periphs";
+		};
+	};
 
 	pdmin: pdmin {
 		mux { /* GPIOC_0, GPIOC_4 */
-			groups = "pdm_din0_c",
-				"pdm_dclk_c";
+			groups = "pdm_din0_z",
+				"pdm_dclk_z";
 			function = "pdm";
 		};
 	};
@@ -1388,20 +1406,6 @@ unifykey{
 }; /* end of pinctrl_periphs */
 
 &pinctrl_aobus {
-	spdifout: spdifout {
-		mux { /* GPIOAO_10 */
-			groups = "spdif_out_ao";
-			function = "spdif_out_ao";
-		};
-	};
-
-	spdifout_a_mute: spdifout_a_mute {
-		mux { /* GPIOAO_10 */
-			groups = "GPIOAO_10";
-			function = "gpio_aobus";
-		};
-	};
-
 	dvb_s_ts0_pins: dvb_s_ts0_pins {
 		tsin_a {
 			groups = "tsin_a_sop_ao",
@@ -1448,13 +1452,13 @@ unifykey{
 &usb3_phy_v2 {
 	status = "okay";
 	portnum = <1>;
-	otg = <1>;
+	otg = <0>;
 };
 
 &dwc2_a {
 	status = "okay";
 	/** 0: normal, 1: otg+dwc3 host only, 2: otg+dwc3 device only*/
-	controller-type = <3>;
+	controller-type = <1>;
 };
 
 &ethmac {
@@ -1515,7 +1519,7 @@ unifykey{
 };
 
 &sd_emmc_b2 {
-	status = "disabled";
+	status = "okay";
 	sd {
 		caps = "MMC_CAP_4_BIT_DATA",
 			 "MMC_CAP_MMC_HIGHSPEED",
@@ -1659,6 +1663,10 @@ unifykey{
 };
 
 &defendkey {
+	status = "okay";
+};
+
+&pwm_AO_ab {
 	status = "okay";
 };
 
