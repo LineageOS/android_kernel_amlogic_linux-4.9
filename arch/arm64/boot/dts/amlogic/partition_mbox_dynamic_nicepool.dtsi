@@ -19,11 +19,11 @@
 		part-4 = <&cri_data>;
 		part-5 = <&param>;
 		part-6 = <&boot>;
-		part-7 = <&frp>;
-		part-8 = <&rsv>;
-		part-9 = <&metadata>;
-		part-10 = <&vbmeta>;
-		part-11 = <&tee>;
+		part-7 = <&rsv>;
+		part-8 = <&metadata>;
+		part-9 = <&vbmeta>;
+		part-10 = <&tee>;
+		part-11 = <&factory>;
 		part-12 = <&super>;
 		part-13 = <&cache>;
 		part-14 = <&data>;
@@ -54,14 +54,20 @@
 			size = <0x0 0x800000>;
 			mask = <2>;
 		};
-		frp:frp{
-			pname = "frp";
-			size = <0x0 0x200000>;
+		param:param{
+			pname = "param";
+			size = <0x0 0x1000000>;
+			mask = <2>;
+		};
+		boot:boot
+		{
+			pname = "boot";
+			size = <0x0 0x1000000>;
 			mask = <1>;
 		};
 		rsv:rsv{
 			pname = "rsv";
-			size = <0x0 0x600000>;
+			size = <0x0 0x1000000>;
 			mask = <1>;
 		};
 		metadata:metadata{
@@ -74,32 +80,26 @@
 			size = <0x0 0x200000>;
 			mask = <1>;
 		};
-		param:param{
-			pname = "param";
-			size = <0x0 0x1000000>;
-			mask = <2>;
-		};
-		boot:boot
-		{
-			pname = "boot";
-			size = <0x0 0x1000000>;
-			mask = <1>;
-		};
 		tee:tee{
 			pname = "tee";
 			size = <0x0 0x2000000>;
 			mask = <1>;
 		};
+		factory:factory{
+			pname = "factory";
+			size = <0x0 0x800000>;
+			mask = <0x11>;
+		};
 		super:super
 		{
 			pname = "super";
-			size = <0x0 0x7C400000>;
+			size = <0x0 0xA0800000>;
 			mask = <1>;
 		};
 		cache:cache
 		{
 			pname = "cache";
-			size = <0x0 0x32000000>;
+			size = <0x0 0x26000000>;
 			mask = <2>;
 		};
 		data:data
