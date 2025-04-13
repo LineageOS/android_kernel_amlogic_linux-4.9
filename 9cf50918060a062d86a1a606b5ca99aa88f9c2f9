@@ -16,6 +16,41 @@
       "message": "Where is this \"new u-boot\"?",
       "revId": "9cf50918060a062d86a1a606b5ca99aa88f9c2f9",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "085f597f_88c818fe",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 34376
+      },
+      "writtenOn": "2025-04-13T11:06:58Z",
+      "side": 1,
+      "message": "Please contact @npjohnson for further details.",
+      "revId": "9cf50918060a062d86a1a606b5ca99aa88f9c2f9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e9173453_44ee8ebf",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 34376
+      },
+      "writtenOn": "2025-04-13T11:06:58Z",
+      "side": 1,
+      "message": "Please contact @npjohnson for further details.",
+      "parentUuid": "01f0ba94_c9a34f2c",
+      "revId": "9cf50918060a062d86a1a606b5ca99aa88f9c2f9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
