@@ -51,6 +51,23 @@
       "parentUuid": "01f0ba94_c9a34f2c",
       "revId": "9cf50918060a062d86a1a606b5ca99aa88f9c2f9",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d809faec_bea505a8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2025-04-13T23:08:29Z",
+      "side": 1,
+      "message": "u-boot changes merged, won\u0027t rebuild u-boot till comments on the build repo are fixed - then can merge this.",
+      "revId": "9cf50918060a062d86a1a606b5ca99aa88f9c2f9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
