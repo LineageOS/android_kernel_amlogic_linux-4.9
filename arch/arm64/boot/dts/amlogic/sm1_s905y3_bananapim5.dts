@@ -23,7 +23,7 @@
 
 / {
 	model = "Amlogic";
-	amlogic-dt-id = "sm1_ac213_2g";
+	amlogic-dt-id = "sm1_ac213_4g";
 	compatible = "amlogic, g12a";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
@@ -514,7 +514,7 @@
 	unifykey{
 		compatible = "amlogic, unifykey";
 		status = "ok";
-		unifykey-num = <19>;
+		unifykey-num = <21>;
 		unifykey-index-0 = <&keysn_0>;
 		unifykey-index-1 = <&keysn_1>;
 		unifykey-index-2 = <&keysn_2>;
@@ -534,6 +534,8 @@
 		unifykey-index-16= <&keysn_16>;
 		unifykey-index-17= <&keysn_17>;
 		unifykey-index-18= <&keysn_18>;
+		unifykey-index-19= <&keysn_19>;
+		unifykey-index-20= <&keysn_20>;
 
 		keysn_0: key_0{
 			key-name = "usid";
@@ -630,6 +632,16 @@
 		};
 		keysn_18:key_18{
 			key-name = "oemkey";
+			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_19:key_19{
+			key-name = "eth_exphy_para";
+			key-device = "normal";
+			key-permit = "read","write","del";
+		};
+		keysn_20:key_20{
+			key-name = "dtbo";// dtbo idx
 			key-device = "normal";
 			key-permit = "read","write","del";
 		};
