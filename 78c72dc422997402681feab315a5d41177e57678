@@ -16,6 +16,24 @@
       "message": "accidental - this remains in variant defconfig",
       "revId": "78c72dc422997402681feab315a5d41177e57678",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "1401a23a_51bdcada",
+        "filename": "arch/arm64/configs/g12a_defconfig",
+        "patchSetId": 2
+      },
+      "lineNbr": 509,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2025-05-08T20:06:42Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "40e0d23d_81b3a78b",
+      "revId": "78c72dc422997402681feab315a5d41177e57678",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
