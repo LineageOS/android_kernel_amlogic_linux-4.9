@@ -26,6 +26,7 @@ dtb-y += g12a_s905d2_u200_buildroot_vccktest.dtb
 dtb-y += g12a_s905d2_u200_drm_buildroot.dtb
 dtb-y += g12a_s905d2_u202.dtb
 dtb-y += g12a_s905d2_u202_1g.dtb
+dtb-y += g12a_s905x2_nicepool.dtb
 dtb-y += g12a_s905x2_u211.dtb
 dtb-y += g12a_s905x2_u211_1g.dtb
 dtb-y += g12a_s905x2_u211_512m.dtb
