@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "36ba564e_fd37b774",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 12
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2025-09-07T21:45:40Z",
+      "side": 1,
+      "message": "We can thin out JTAG changes later if we want to but eh",
+      "revId": "ad80ecd46e7e938a2837e6a9205090d7c78625b1",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
