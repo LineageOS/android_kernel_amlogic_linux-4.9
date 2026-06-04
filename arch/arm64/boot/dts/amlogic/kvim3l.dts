@@ -20,6 +20,7 @@
 #include "mesonsm1.dtsi"
 #include "partition_mbox_dynamic_deadpool.dtsi"
 #include "mesonsm1_skt-panel.dtsi"
+#include "remote-khadas-12btns.dtsi"
 
 / {
 	model = "Amlogic";
