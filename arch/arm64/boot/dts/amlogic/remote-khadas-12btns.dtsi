@@ -1,0 +1,35 @@
+/* Khadas K-REM-001 Ir remote 
+for VIM3, VIM3L, VIM2, VIM1S, VIM1, Edge-V  */
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/input/meson_rc.h>
+
+&custom_maps {
+		mapnum = <1>;
+		map0 = <&map_0>;
+		map_0: map_0{
+			mapname = "khadas-ir";
+			customcode = <0xff00>;
+			release_delay = <80>;
+			fn_key_scancode = <0x5b>;
+			cursor_left_scancode = <0x0e>;
+			cursor_right_scancode = <0x1a>;
+			cursor_up_scancode = <0x03>;
+			cursor_down_scancode = <0x02>;
+			cursor_ok_scancode = <0x07>;
+			size  = <13>;   /*keymap size*/
+			keymap = <REMOTE_KEY(0x14, 116)
+				REMOTE_KEY(0x13,139)
+				REMOTE_KEY(0x03,103)
+				REMOTE_KEY(0x02,108)
+				REMOTE_KEY(0x0e,105)
+				REMOTE_KEY(0x1a,106)
+				REMOTE_KEY(0x07,232)
+				REMOTE_KEY(0x58,114)
+				REMOTE_KEY(0x5c,63)
+				REMOTE_KEY(0x5b,63)
+				REMOTE_KEY(0x0b,115)
+				REMOTE_KEY(0x01,158)
+				REMOTE_KEY(0x48,102)>;
+		};
+};
