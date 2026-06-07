@@ -22,6 +22,30 @@
       },
       "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "aaea07e5_4499e048",
+        "filename": "init/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 49,
+      "author": {
+        "id": 17162
+      },
+      "writtenOn": "2026-06-07T14:24:09Z",
+      "side": 1,
+      "message": "It seems overrided to default depending on value of UML. Ive tried to set CONFIG_INIT_ENV_ARG_LIMIT\u003d64 to config, but on savedefconfig it resets to 32",
+      "parentUuid": "155052a6_0184983e",
+      "range": {
+        "startLine": 49,
+        "startChar": 7,
+        "endLine": 49,
+        "endChar": 25
+      },
+      "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
