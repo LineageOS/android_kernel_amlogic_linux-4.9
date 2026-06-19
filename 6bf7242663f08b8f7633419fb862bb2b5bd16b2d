@@ -46,6 +46,30 @@
       },
       "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "bf8171ec_d2d6e2e0",
+        "filename": "init/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 49,
+      "author": {
+        "id": 19979
+      },
+      "writtenOn": "2026-06-19T04:30:00Z",
+      "side": 1,
+      "message": "Could do something like this https://github.com/CoreELEC/linux-amlogic/commit/c52b9be678f3c4348cee5a01512c4ab6bd8a44fc",
+      "parentUuid": "aaea07e5_4499e048",
+      "range": {
+        "startLine": 49,
+        "startChar": 7,
+        "endLine": 49,
+        "endChar": 25
+      },
+      "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
