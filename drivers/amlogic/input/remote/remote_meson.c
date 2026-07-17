@@ -662,6 +662,10 @@ static int ir_get_devtree_pdata(struct platform_device *pdev)
 	if (ret)
 		chip->r_dev->auto_report = 1;
 
+	ret = of_property_read_bool(pdev->dev.of_node, "map_keys_only");
+	if (ret)
+		chip->r_dev->map_keys_only = 1;
+
 	p = devm_pinctrl_get_select_default(&pdev->dev);
 	if (IS_ERR(p)) {
 		dev_err(chip->dev, "pinctrl error, %ld\n", PTR_ERR(p));
@@ -805,6 +809,30 @@ static void ir_input_device_init(struct input_dev *dev,
 	dev->rep[REP_PERIOD] = 0xffffffff; /*close input repeat*/
 }
 
+/*
+ * advertise only the keys present in the keymap tables, so that
+ * recovery does not treat boards whose remote can merely wake the
+ * device as full three-button input devices.
+ */
+static void ir_setup_keybits(struct remote_chip *chip)
+{
+	struct ir_map_tab_list *ptable;
+	unsigned long flags;
+	u16 keycode;
+	int i;
+
+	spin_lock_irqsave(&chip->slock, flags);
+	list_for_each_entry(ptable, &chip->map_tab_head, list) {
+		for (i = 0; i < ptable->tab.map_size; i++) {
+			keycode = ptable->tab.codemap[i].map.keycode;
+			if (keycode <= KEY_MAX)
+				__set_bit(keycode,
+					chip->r_dev->input_device->keybit);
+		}
+	}
+	spin_unlock_irqrestore(&chip->slock, flags);
+}
+
 static int remote_probe(struct platform_device *pdev)
 {
 	struct remote_dev *dev;
@@ -855,6 +883,8 @@ static int remote_probe(struct platform_device *pdev)
 		goto err_cdev_init;
 
 	dev->rc_type = chip->protocol;
+	if (dev->map_keys_only)
+		ir_setup_keybits(chip);
 	ret = remote_register_device(dev);
 	if (ret)
 		goto error_register_remote;

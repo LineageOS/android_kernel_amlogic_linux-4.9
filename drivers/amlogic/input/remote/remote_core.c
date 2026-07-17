@@ -230,10 +230,17 @@ int remote_register_device(struct remote_dev *dev)
 	}
 
 	__set_bit(EV_KEY, dev->input_device->evbit);
-	for (i = KEY_RESERVED; i < BTN_MISC; i++)
-		__set_bit(i, dev->input_device->keybit);
-	for (i = KEY_OK; i < BTN_TRIGGER_HAPPY; i++)
-		__set_bit(i, dev->input_device->keybit);
+	/*
+	 * with map_keys_only the keybits are set from the keymap
+	 * tables instead, so that only keys the board can actually
+	 * decode are advertised.
+	 */
+	if (!dev->map_keys_only) {
+		for (i = KEY_RESERVED; i < BTN_MISC; i++)
+			__set_bit(i, dev->input_device->keybit);
+		for (i = KEY_OK; i < BTN_TRIGGER_HAPPY; i++)
+			__set_bit(i, dev->input_device->keybit);
+	}
 
 	__set_bit(BTN_MOUSE, dev->input_device->keybit);
 	__set_bit(BTN_LEFT, dev->input_device->keybit);

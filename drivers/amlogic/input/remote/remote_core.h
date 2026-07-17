@@ -87,6 +87,7 @@ struct remote_dev {
 	u8 demod_enable;
 	u8 use_fifo;
 	u8 auto_report;
+	u8 map_keys_only;
 	int max_learned_pulse;
 	int protocol;
 	struct timer_list learning_done;
