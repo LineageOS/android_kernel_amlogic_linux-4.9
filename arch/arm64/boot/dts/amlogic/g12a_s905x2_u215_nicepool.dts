@@ -473,7 +473,12 @@
 
 	adc_keypad {
 		compatible = "amlogic, adc_keypad";
-		status = "okay";
+		/*
+		 * u215 reference design leftover, these keys don't exist on
+		 * nicepool. Keep it from advertising vol-/vol+/power, which
+		 * recovery would count as a three-button setup.
+		 */
+		status = "disabled";
 		key_name = "vol-", "vol+", "power";
 		key_num = <3>;
 		io-channels = <&saradc SARADC_CH0>;
