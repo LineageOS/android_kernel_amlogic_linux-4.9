@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "95b9f63b_94ac6b61",
+        "filename": "drivers/amlogic/usb/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-07-19T10:32:04Z",
+      "side": 1,
+      "message": "choose",
+      "range": {
+        "startLine": 31,
+        "startChar": 38,
+        "endLine": 31,
+        "endChar": 41
+      },
+      "revId": "8d5664fdf1ca1a72a9af0c7a4da9e9b246bdd253",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
