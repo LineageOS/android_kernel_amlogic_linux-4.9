@@ -20,6 +20,16 @@ config AMLOGIC_USB_DWC_OTG_HCD
 	   controller
 	   dwc_otg
 	   support
+
+config AMLOGIC_USB3PHY_MODESWITCH_QUIRK
+	bool "Amlogic USB 3.0 host/device switch workaround"
+	depends on AMLOGIC_USB_DWC_OTG_HCD
+	help
+	  Workaround a problem that prevents switching between host and device mode
+	  e.g. observed on FREEBOX POP aka nicepool
+
+	  If you don't know what to do here, choose N.
+
 config AMLOGIC_USB_HOST_ELECT_TEST
 	bool "USB high speed electric test"
 	help
@@ -62,4 +72,5 @@ config AMLOGIC_USB3PHY
 
           To compile this driver as a module, choose M here: the
           module will be called phy-aml-usb.
+
 endmenu
