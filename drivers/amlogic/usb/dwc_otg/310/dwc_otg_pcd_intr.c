@@ -1094,7 +1094,9 @@ int32_t dwc_otg_pcd_handle_enum_done_intr(dwc_otg_pcd_t *pcd)
 			}
 		}
 
+#ifndef CONFIG_AMLOGIC_USB3PHY_MODESWITCH_QUIRK
 		set_usb_phy_device_tuning(1, 0);
+#endif
 }
 #endif
 
