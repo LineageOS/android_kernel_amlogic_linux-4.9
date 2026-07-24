@@ -82,7 +82,7 @@
 		ion_cma_reserved:linux,ion-dev {
 			compatible = "shared-dma-pool";
 			reusable;
-			size = <0x0 0x8000000>;
+			size = <0x0 0x4C00000>;
 			alignment = <0x0 0x400000>;
 		};
 		ion_fb_reserved:linux,ion-fb {
@@ -175,7 +175,7 @@
 
 	cma_shrinker {
 		compatible = "amlogic, cma-shrinker";
-		status = "okay";
+		status = "disabled";
 		adj  = <0 100 200 250 900 950>;
 		free = <8192 12288 16384 24576 28672 32768>;
 	};
