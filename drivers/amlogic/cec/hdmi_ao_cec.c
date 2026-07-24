@@ -794,11 +794,11 @@ static void ao_cecb_init(void)
 			reg |= (1 << 31);
 			write_ao(AO_CECB_CLK_CNTL_REG0, reg);
 
-			/*usleep_range(100);*/
+			udelay(200);
 			reg |= (1 << 30);
 			write_ao(AO_CECB_CLK_CNTL_REG0, reg);
 
-			read_ao(AO_RTI_PWR_CNTL_REG0);
+			reg = read_ao(AO_RTI_PWR_CNTL_REG0);
 			reg |=  (0x01 << 14);	/* xtal gate */
 			write_ao(AO_RTI_PWR_CNTL_REG0, reg);
 		}
