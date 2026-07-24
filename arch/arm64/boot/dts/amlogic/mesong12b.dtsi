@@ -360,6 +360,16 @@
 		/* 4: 333.3M    5: 400.0M    6: 500.0M    7: 666.7M */
 	};
 
+	meson_uvm{
+		compatible = "amlogic, meson_uvm";
+		status = "okay";
+	};
+
+	meson_videotunnel{
+		compatible = "amlogic, meson_videotunnel";
+		status = "okay";
+	};
+
 	ethmac: ethernet@ff3f0000 {
 		compatible = "amlogic, g12a-eth-dwmac","snps,dwmac";
 		reg = <0x0 0xff3f0000 0x0 0x10000
@@ -854,7 +864,8 @@
 
 		ion_dev {
 			compatible = "amlogic, ion_dev";
-			memory-region = <&ion_cma_reserved>;
+			memory-region = <&ion_cma_reserved
+					&ion_fb_reserved>;
 		};/* end of ion_dev*/
 
 		audiobus: audiobus@0xff642000 {
@@ -1438,6 +1449,18 @@
 			"mailbox_0",
 			"mailbox_1",
 			"mailbox_2";
+	};
+
+	vcodec_dec {
+		compatible = "amlogic, vcodec-dec";
+		dev_name = "aml-vcodec-dec";
+		status = "okay";
+	};
+
+	video_composer {
+		compatible = "amlogic, video_composer";
+		dev_name = "video_composer";
+		status = "okay";
 	};
 
 	amvenc_avc{
