@@ -369,7 +369,7 @@ static const struct meson_pwm_data pwm_v2_data = {
 	.default_extern_clk = 24000000,
 };
 
-static const struct of_device_id meson_pwm_v2_matches[] __initconst = {
+static const struct of_device_id meson_pwm_v2_matches[] = {
 	{
 		.compatible = "amlogic,meson-v2-pwm",
 		.data = &pwm_v2_data
@@ -489,13 +489,7 @@ static struct platform_driver meson_pwm_v2_driver = {
 
 static int __init meson_pwm_v2_init(void)
 {
-	const struct of_device_id *match_id;
-	int ret;
-
-	match_id = meson_pwm_v2_matches;
-	meson_pwm_v2_driver.driver.of_match_table = match_id;
-	ret = platform_driver_register(&meson_pwm_v2_driver);
-	return ret;
+	return platform_driver_register(&meson_pwm_v2_driver);
 }
 
 static void __exit meson_pwm_v2_exit(void)
