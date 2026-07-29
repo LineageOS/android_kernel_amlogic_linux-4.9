@@ -1443,6 +1443,30 @@
         internal_phy=<0>;
 };
 
+/*
+ * The VIM3 bootloader's "ext_ethernet_change" env script rewrites the
+ * ethmac node before booting the kernel, with the pin group phandles
+ * hard-coded as literals:
+ *
+ *   fdt set /ethernet@ff3f0000 pinctrl-names external_eth_pins
+ *   fdt set /ethernet@ff3f0000 pinctrl-0 <0x00000029>   (onboard RTL8211F)
+ *   fdt set /ethernet@ff3f0000 pinctrl-0 <0x000000d3>   (M2X 100M phy)
+ *
+ * dtc hands out phandles in reference order, so any unrelated DTS edit
+ * shifts them and u-boot then points pinctrl-0 at whatever node happens
+ * to own 0x29 - which is how ethmac ended up deferring forever on
+ * "could not find pctldev for node /usb3phy@ffe09080". Pin both pin
+ * groups to the values u-boot writes; dtc skips them when auto-assigning
+ * the rest.
+ */
+&external_eth_pins {
+	phandle = <0x29>;
+};
+
+&internal_eth_pins {
+	phandle = <0xd3>;
+};
+
 &uart_A {
 	status = "okay";
 };
