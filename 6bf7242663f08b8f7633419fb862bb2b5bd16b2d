@@ -70,6 +70,30 @@
       },
       "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "be8e44c9_38e32299",
+        "filename": "init/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 49,
+      "author": {
+        "id": 17162
+      },
+      "writtenOn": "2026-08-05T09:39:09Z",
+      "side": 1,
+      "message": "what is the point to not enable it for all aml devices? kvim3 need it too. Openelec keeps separate vanilla kernel from amlogic changes, but we dont have such config - need to introduce new config symbol.",
+      "parentUuid": "bf8171ec_d2d6e2e0",
+      "range": {
+        "startLine": 49,
+        "startChar": 7,
+        "endLine": 49,
+        "endChar": 25
+      },
+      "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
