@@ -118,6 +118,30 @@
       },
       "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "25fc6837_169a70a8",
+        "filename": "init/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 49,
+      "author": {
+        "id": 17162
+      },
+      "writtenOn": "2026-08-09T08:00:49Z",
+      "side": 1,
+      "message": "Guarded with KHADAS_ARG_LIMIT and added to khadas.config fragment",
+      "parentUuid": "be83c4ab_dd98e569",
+      "range": {
+        "startLine": 49,
+        "startChar": 7,
+        "endLine": 49,
+        "endChar": 25
+      },
+      "revId": "6bf7242663f08b8f7633419fb862bb2b5bd16b2d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
