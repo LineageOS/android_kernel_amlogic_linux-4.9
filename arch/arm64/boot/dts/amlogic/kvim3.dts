@@ -20,9 +20,10 @@
 #include "partition_mbox_dynamic_deadpool.dtsi"
 #include "mesong12b.dtsi"
 #include "mesong12b_skt-panel.dtsi"
+#include "remote-khadas-12btns.dtsi"
 / {
 	model = "Amlogic";
-	amlogic-dt-id = "g12b_w400_b";
+	amlogic-dt-id = "kvim3";
 	compatible = "amlogic, g12b";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
@@ -827,7 +828,7 @@
 
 &meson_fb {
 	status = "okay";
-	display_size_default = <1080 1920 1080 3840 32>; /* portrait panel */
+	display_size_default = <1920 1080 1920 2160 32>;
 	mem_size = <0x00800000 0x1980000 0x100000 0x100000 0x800000>;
 	logo_addr = "0x7f800000";
 	mem_alloc = <0>;
@@ -908,6 +909,16 @@
                poll_delay_ms = <30>;
                irq-gpio = <&gpio_ao GPIOAO_9 IRQ_TYPE_EDGE_RISING>;
                status = "okay";
+       };
+
+       sensor-i2c@6c {
+               compatible = "arm, i2c-sensor";
+               reg = <0x6c>;
+               reg-names = "i2c-sensor";
+               slave-addr = <0x6c>;
+               reg-type = <2>;
+               reg-data-type = <1>;
+               link-device = <&phycsi>;
        };
 
 };
