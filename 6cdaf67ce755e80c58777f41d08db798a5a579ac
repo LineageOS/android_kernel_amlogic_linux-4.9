@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "6d7824d4_a5a5cb20",
+        "filename": "arch/arm64/configs/khadas.config",
+        "patchSetId": 4
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2026-08-11T16:24:08Z",
+      "side": 1,
+      "message": "no need for khadas branding, others might use it. just CONFIG_AUGMENT_ARG_LIMIT?",
+      "revId": "6cdaf67ce755e80c58777f41d08db798a5a579ac",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
