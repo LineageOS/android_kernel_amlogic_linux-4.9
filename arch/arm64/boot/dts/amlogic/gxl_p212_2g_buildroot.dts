@@ -38,7 +38,8 @@
 	};
 	ion_dev {
 		compatible = "amlogic, ion_dev";
-		memory-region = <&ion_reserved>;
+		memory-region = <&ion_reserved
+				&ion_fb_reserved>;
 	};
 	memory@00000000 {
 		device_type = "memory";
@@ -73,7 +74,14 @@
 		ion_reserved:linux,ion-dev {
 			compatible = "shared-dma-pool";
 			reusable;
-			size = <0x0 0x8000000>;
+			size = <0x0 0x4C00000>;
+			alignment = <0x0 0x400000>;
+		};
+
+		ion_fb_reserved:linux,ion-fb {
+			compatible = "amlogic, ion-fb-mem";
+			reusable;
+			size = <0x0 0x3400000>;
 			alignment = <0x0 0x400000>;
 		};
 		//don't put other dts in front of fb_reserved
