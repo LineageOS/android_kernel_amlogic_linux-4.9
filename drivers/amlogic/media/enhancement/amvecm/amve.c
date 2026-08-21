@@ -2257,6 +2257,9 @@ void eye_proc(int *rgb, int mtx_on)
 	if (vinfo->mode == VMODE_LCD)
 		return;
 
+	if (!cpu_after_eq(MESON_CPU_MAJOR_ID_G12A))
+		return;
+
 	matrix_coef00_01 = VPP_POST2_MATRIX_COEF00_01;
 	matrix_coef02_10 = VPP_POST2_MATRIX_COEF02_10;
 	matrix_coef11_12 = VPP_POST2_MATRIX_COEF11_12;
