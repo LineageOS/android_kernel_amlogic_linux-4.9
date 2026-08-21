@@ -19,7 +19,8 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include "mesongxl.dtsi"
-#include "partition_mbox_normal.dtsi"
+#include "partition_mbox_normal_P_64.dtsi"
+#include "remote-khadas-12btns.dtsi"
 
 / {
 	model = "Khadas";
