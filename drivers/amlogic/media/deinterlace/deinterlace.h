@@ -99,7 +99,7 @@
 #define DI_RUN_MIRROR_V		2
 
 #define USED_LOCAL_BUF_MAX		3
-#define BYPASS_GET_MAX_BUF_NUM	4
+#define BYPASS_GET_MAX_BUF_NUM	9
 
 /* buffer management related */
 #define MAX_IN_BUF_NUM				20
