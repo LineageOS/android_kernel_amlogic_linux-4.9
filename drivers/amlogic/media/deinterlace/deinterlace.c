@@ -1768,7 +1768,8 @@ unsigned char is_bypass(vframe_t *vf_in)
 	    (di_pre_stru.cur_inp_type & VIDTYPE_RGB_444)))
 		return 1;
 
-	if ((di_pre_stru.cur_width < 128) || (di_pre_stru.cur_height < 16))
+	if (di_pre_stru.cur_prog_flag ||
+	    (di_pre_stru.cur_width < 128) || (di_pre_stru.cur_height < 16))
 		return 1;
 
 	if (di_pre_stru.cur_inp_type & VIDTYPE_MVC)
@@ -7421,6 +7422,9 @@ static bool need_bypass(struct vframe_s *vf)
 		return true;
 
 	if (vf->type & VIDTYPE_PIC)
+		return true;
+
+	if (!(vf->type & (VIDTYPE_INTERLACE_TOP | VIDTYPE_INTERLACE_BOTTOM)))
 		return true;
 #if 0
 	if (vf->type & VIDTYPE_COMPRESS)
