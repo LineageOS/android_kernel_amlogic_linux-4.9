@@ -2835,8 +2835,8 @@ static int di_init_buf(int width, int height, unsigned char prog_flag)
 				(di_buf_size + (nr_width*canvas_height<<1));
 		}
 
-		if (de_devp->buf_num_avail > MAX_LOCAL_BUF_NUM)
-			de_devp->buf_num_avail = MAX_LOCAL_BUF_NUM;
+		if (de_devp->buf_num_avail > (2 * MAX_LOCAL_BUF_NUM))
+			de_devp->buf_num_avail = 2 * MAX_LOCAL_BUF_NUM;
 	}
 	/**/
 	if (limit_is_s805x()) {
