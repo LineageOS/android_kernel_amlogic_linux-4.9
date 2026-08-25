@@ -187,6 +187,14 @@ long compat_ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case ION_IOC_MAP:
 	case ION_IOC_IMPORT:
 	case ION_IOC_SYNC:
+	/*
+	 * struct ion_heap_query and struct ion_heap_data have the same layout
+	 * for 32 and 64 bit userspace (the u64 in the former is 8 aligned under
+	 * both ABIs), so the query needs no translation and can be passed
+	 * straight through. Without this a 32 bit gralloc cannot enumerate the
+	 * heaps at all, as the default case below rejects the call.
+	 */
+	case ION_IOC_HEAP_QUERY:
 		return filp->f_op->unlocked_ioctl(filp, cmd,
 						(unsigned long)compat_ptr(arg));
 #ifdef CONFIG_AMLOGIC_MODIFY
