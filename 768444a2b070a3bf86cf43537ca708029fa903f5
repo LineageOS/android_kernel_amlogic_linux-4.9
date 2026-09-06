@@ -16,6 +16,24 @@
       "message": "fine on 02.\n\nExplains Tuan\u0027s problem on 02pro",
       "revId": "768444a2b070a3bf86cf43537ca708029fa903f5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e2187bbb_e5138065",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-09-06T16:33:46Z",
+      "side": 1,
+      "message": "Did he notice that only 2GB were available?",
+      "parentUuid": "dd7c46d8_5f3942e9",
+      "revId": "768444a2b070a3bf86cf43537ca708029fa903f5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
