@@ -34,6 +34,24 @@
       "parentUuid": "dd7c46d8_5f3942e9",
       "revId": "768444a2b070a3bf86cf43537ca708029fa903f5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f637e0cf_bf83111e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 32674
+      },
+      "writtenOn": "2026-09-06T17:21:14Z",
+      "side": 1,
+      "message": "Yes. Already reported. The device is reported as 2GB of RAM and S905D3.",
+      "parentUuid": "e2187bbb_e5138065",
+      "revId": "768444a2b070a3bf86cf43537ca708029fa903f5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
