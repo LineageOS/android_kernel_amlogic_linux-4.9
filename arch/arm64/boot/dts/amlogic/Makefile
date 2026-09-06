@@ -41,7 +41,6 @@ dtb-y += g12a_s905x2_u215_nicepool_overlay.dtb
 dtb-y += g12a_s905y2_deadpool.dtb
 dtb-y += g12a_s905y2_deadpool_1g.dtb
 dtb-y += g12a_s905y2_radxa0.dtb
-dtb-y += g12a_s905y2_radxa0_4g.dtb
 dtb-y += g12a_s905y2_u220.dtb
 dtb-y += g12a_s905y2_u221.dtb
 dtb-y += g12a_s905y2_u223_lp.dtb
