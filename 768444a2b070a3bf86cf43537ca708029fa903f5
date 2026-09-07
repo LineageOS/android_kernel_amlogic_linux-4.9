@@ -69,6 +69,23 @@
       "message": "Okay, I verified this also on radxa02. Since my radxa02pro is half-dead someone else must verify this.",
       "revId": "768444a2b070a3bf86cf43537ca708029fa903f5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "558b1c3a_662832aa",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-09-07T21:38:28Z",
+      "side": 1,
+      "message": "Hold, this unveiled bad DDR timings on radxa02.",
+      "revId": "768444a2b070a3bf86cf43537ca708029fa903f5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
