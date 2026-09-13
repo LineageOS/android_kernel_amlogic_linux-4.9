@@ -1653,9 +1653,15 @@
 	status = "okay";
 	pinctrl-names = "external_eth_pins";
 	pinctrl-0 = <&external_eth_pins>;
+
+	phy-mode = "rgmii-id";
+	auto_cali_idx = <44>;
+
+	tx_delay = <0>;
+	rx_delay = <0>;
 	mc_val = <0x1621>;
 
-	internal_phy=<0>;
+	internal_phy = <0>;
 
 	/* reset */
 	rst_pin-gpios = <&gpio GPIOZ_15 GPIO_ACTIVE_LOW>;
