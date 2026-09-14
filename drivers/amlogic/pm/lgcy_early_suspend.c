@@ -35,6 +35,7 @@
 #include <uapi/linux/psci.h>
 #include <linux/arm-smccc.h>
 #include <linux/amlogic/pm.h>
+#include <linux/amlogic/cpu_version.h>
 #include <linux/kobject.h>
 #include <../kernel/power/power.h>
 
@@ -66,6 +67,10 @@ static int pm_set_led(int mode)
 	unsigned int data = 0;
 	//unsigned reg = 0xc8834434;
 	unsigned int reg = 0;
+
+	if (get_cpu_type() < MESON_CPU_MAJOR_ID_G12A)
+		return 0;
+
 	// set value for GPIOAO_2 and GPIOAO_4
 	reg = 0xff800034;
 	reg = round_down(reg, 0x3);
