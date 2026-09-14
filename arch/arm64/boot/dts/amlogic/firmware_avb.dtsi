@@ -39,13 +39,6 @@
 				mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 				fsmgr_flags = "wait";
 				};
-			product {
-				compatible = "android,product";
-				dev = "/dev/block/product";
-				type = "ext4";
-				mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-				fsmgr_flags = "wait";
-				};
 			};
 		};
 	};
